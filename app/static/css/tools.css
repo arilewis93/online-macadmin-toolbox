@@ -57,6 +57,13 @@ header {
   align-items: center;
   gap: 10px;
 }
+header a.logo-badge {
+  text-decoration: none;
+  color: inherit;
+}
+header a.logo-badge:hover {
+  text-decoration: none;
+}
 
 .logo-icon {
   width: 28px;
