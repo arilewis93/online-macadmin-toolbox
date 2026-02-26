@@ -25,14 +25,10 @@
       </div>
 
       <div class="card">
-        <div class="card-title">How to get identifiers</div>
-        <p class="section-desc" style="margin-bottom:12px;">On a Mac, use <code>codesign</code> against the app or binary to get the values needed for rules. Replace <code>/path/to/App.app</code> with your app path (e.g. <code>/Applications/Microsoft Word.app</code>).</p>
+        <div class="card-title">How to get Identifier and Team ID</div>
+        <p class="section-desc" style="margin-bottom:12px;">On a Mac, run <code>codesign</code> on the app (or its main executable) to get the values for SIGNINGID or TEAMID rules.</p>
         <div style="font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">
-          <div style="margin-bottom:8px;"><strong>Team ID</strong> (for TEAMID rules — allow/block all apps by a developer):</div>
-          <code style="display:block;margin-bottom:12px;word-break:break-all;">codesign -dv /path/to/App.app 2>&1 | grep TeamIdentifier | cut -d= -f2</code>
-          <div style="margin-bottom:8px;"><strong>Bundle identifier</strong> (for SIGNINGID — app-specific rules). Use with Team ID as <code>TEAMID:BUNDLE_ID</code>:</div>
-          <code style="display:block;margin-bottom:8px;word-break:break-all;">codesign -dv /path/to/App.app 2>&1 | grep Identifier | head -1 | cut -d= -f2</code>
-          <div style="margin-top:12px;font-size:11px;color:var(--text-muted);">Example: Team ID <code>UBF8T346G9</code> and Identifier <code>com.microsoft.word</code> → use <code>TEAMID:com.microsoft.word</code> for a SIGNINGID rule, or just <code>UBF8T346G9</code> for a TEAMID rule (all Microsoft apps).</div>
+          <code style="display:block;word-break:break-all;">codesign -dv /path/to/App.app 2>&1 | grep -E 'Identifier=|TeamIdentifier='</code>
         </div>
       </div>
 
