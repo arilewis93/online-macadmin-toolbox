@@ -1,8 +1,44 @@
+# Python
 .venv/
 venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+*.egg-link
+dist/
+build/
+eggs/
+.eggs/
+.installed.cfg
+*.manifest
+*.spec
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+*.log
+
+# Local env and secrets
 .env
+.env.local
+.env.*.local
 *.db
 instance/
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
