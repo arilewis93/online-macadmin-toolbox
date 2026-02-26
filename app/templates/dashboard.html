@@ -2,13 +2,6 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <div class="dashboard">
-  <div class="dashboard-welcome">
-    <div class="card">
-      <div class="card-title">Signed in</div>
-      <p class="user-info">You are signed in as <strong>{{ user.email }}</strong>{% if user.name %} ({{ user.name }}){% endif %}.</p>
-    </div>
-  </div>
-
   <div class="dashboard-tools">
     <h2 class="tool-group-title">Third-party software tools</h2>
     <p class="tool-group-desc">Tools for Equitrac, Santa, and other vendor integrations.</p>
