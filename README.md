@@ -1,101 +1,106 @@
-# Entra ID (Azure AD) Auth Template
+# Online MacAdmin Toolbox
 
-Minimal Flask app with **Microsoft Entra ID** (Azure AD) OpenID Connect authentication. Use this as a starting point whenever you need Entra-based auth in a new project.
+A Flask web app for Mac admins: **Microsoft Entra ID** (Azure AD) sign-in plus a set of tools to generate configuration profiles and scripts. Built on a shared dark UI and a single dashboard.
 
 ## Features
 
-- **OIDC authorization code flow** with Entra ID
-- **Discovery** from `https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration`
-- **State parameter** for CSRF protection; 10-minute expiry
-- **Silent auth** attempt first (`prompt=none`), fallback to interactive login
-- **Session-based** login via Flask-Login; single `User` model with `oidc_id`, `email`, `name`
-- Config from **environment variables** (no tenant/DB config in template)
+- **Microsoft Entra ID (OIDC)** sign-in with session-based auth (Flask-Login)
+- **Dashboard** — signed-in home with quick links to each tool
+- **iStore Business Toolbox** — SwiftSetup, SmartBranding, Favourite Bookie, Santa Config, Profile Fusion, Patchy Installer, Compliance Fixer
+- **Equitrac** — config profile generator for Equitrac Mac Client (security, servers, printers, drivers, feature flags)
+- **Shared layout** — one header, one stylesheet (`tools.css`), tool pages inject their own left-side branding
 
 ## Quick start
 
 ```bash
-cd entra-auth-template
+git clone https://github.com/arilewis93/online-macadmin-toolbox.git
+cd online-macadmin-toolbox
 python -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env with your Entra app credentials
-export FLASK_APP=run.py   # or set in .env: FLASK_APP=run.py
-python run.py
-# or: flask run
+# Edit .env with your Entra app credentials (see below)
+export FLASK_APP=run.py
+flask run
+# or: python run.py  (default port 5001)
 ```
 
-Visit `http://localhost:5000` → Sign in → redirects to Entra → callback → dashboard.
+Visit `http://localhost:5001` → Sign in with Microsoft → Dashboard → open Toolbox or Equitrac.
 
 ## Entra ID app registration
 
 1. **Azure Portal** → **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. **Name**: e.g. "My App".
-3. **Supported account types**: "Accounts in this organizational directory only" (single tenant) or as needed.
-4. **Redirect URI**: Web, e.g. `http://localhost:5000/auth/oidc/callback` (dev) or your production URL. Must match `OIDC_REDIRECT_URI` exactly.
-5. **Certificates & secrets** → New client secret → copy value into `OIDC_CLIENT_SECRET`.
-6. **Overview** → copy **Application (client) ID** → `OIDC_CLIENT_ID`, **Directory (tenant) ID** → use for `ENTRA_TENANT_ID` or in authority URL.
-7. **API permissions** → Add → Microsoft Graph → Delegated → `openid`, `User.Read` (or add `email`, `profile` if needed). Grant admin consent if required.
+2. **Name**: e.g. "MacAdmin Toolbox". Set **Supported account types** as needed.
+3. **Redirect URI**: Web → `http://localhost:5001/auth/oidc/callback` (dev) or your production URL. Must match `OIDC_REDIRECT_URI` exactly.
+4. **Certificates & secrets** → New client secret → copy into `OIDC_CLIENT_SECRET`.
+5. **Overview** → **Application (client) ID** → `OIDC_CLIENT_ID`; **Directory (tenant) ID** → use in `OIDC_AUTHORITY` or set `ENTRA_TENANT_ID`.
+6. **API permissions** → Add → Microsoft Graph → Delegated → `openid`, `User.Read` (and `email`, `profile` if needed). Grant admin consent if required.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SECRET_KEY` | Yes | Flask secret key (sessions, CSRF). |
-| `OIDC_AUTHORITY` | Yes* | Full authority URL, e.g. `https://login.microsoftonline.com/{tenant-id}`. |
+| `SECRET_KEY` | Yes | Flask secret key (sessions). |
+| `OIDC_AUTHORITY` | Yes* | Authority URL, e.g. `https://login.microsoftonline.com/{tenant-id}`. |
 | `ENTRA_TENANT_ID` | Yes* | Tenant ID; used to build authority if `OIDC_AUTHORITY` is not set. |
 | `OIDC_CLIENT_ID` | Yes | Application (client) ID from app registration. |
 | `OIDC_CLIENT_SECRET` | Yes | Client secret value. |
-| `OIDC_REDIRECT_URI` | Yes | Redirect URI, e.g. `http://localhost:5000/auth/oidc/callback`. Must match Entra registration. |
+| `OIDC_REDIRECT_URI` | Yes | Redirect URI, e.g. `http://localhost:5001/auth/oidc/callback`. Must match Entra. |
 | `OIDC_SCOPE` | No | Scopes (default: `openid profile email`). |
 | `DATABASE_URL` | No | DB URL (default: SQLite `sqlite:///app.db`). |
 
-\* Set either `OIDC_AUTHORITY` or `ENTRA_TENANT_ID`. If both are set, `OIDC_AUTHORITY` is used.
+\* Set either `OIDC_AUTHORITY` or `ENTRA_TENANT_ID`.
 
 ## Project layout
 
 ```
-entra-auth-template/
+online-macadmin-toolbox/
 ├── README.md
 ├── requirements.txt
 ├── .env.example
 ├── run.py
 ├── config.py
 └── app/
-    ├── __init__.py      # create_app, db, login_manager
+    ├── __init__.py
     ├── models/
-    │   └── user.py      # User (oidc_id, email, name)
+    │   └── user.py
     ├── utils/
-    │   └── oidc.py      # discovery, token exchange, userinfo
+    │   └── oidc.py
     ├── views/
-    │   ├── auth.py      # /auth/login, /auth/oidc/*, /auth/logout
-    │   └── main.py      # /, /dashboard
+    │   ├── auth.py
+    │   └── main.py
+    ├── static/
+    │   └── css/
+    │       └── tools.css
     └── templates/
         ├── base.html
+        ├── index.html
+        ├── dashboard.html
         ├── auth/
         │   └── login.html
-        ├── index.html
-        └── dashboard.html
+        └── tools/
+            ├── toolbox.html
+            └── equitrac.html
 ```
 
 ## Routes
 
 | Route | Description |
 |-------|-------------|
-| `GET /` | Home; link to login or dashboard. |
+| `GET /` | Home; link to sign in or dashboard. |
 | `GET /auth/login` | Login page; "Sign in with Microsoft" → OIDC. |
 | `GET /auth/oidc/login` | Start OIDC flow (redirect to Entra). |
 | `GET /auth/oidc/callback` | OIDC callback; exchange code, create/update user, log in. |
-| `GET /auth/logout` | Log out (app session only). |
-| `GET /dashboard` | Protected dashboard (requires login). |
+| `GET /auth/logout` | Log out. |
+| `GET /dashboard` | Protected dashboard; links to Toolbox and Equitrac. |
+| `GET /toolbox` | iStore Business Toolbox (SwiftSetup, SmartBranding, etc.). |
+| `GET /equitrac` | Equitrac config profile generator. |
 
-## Extending
+## Tools
 
-- **Multi-tenant**: Add a `Tenant` (and optionally `TenantDomain`) model and store OIDC config per tenant; in auth, resolve tenant from domain or path and use the matching config.
-- **Encrypt client secret**: Store secret in DB and use an encryption layer (e.g. `cryptography`) with a key from env or a key manager.
-- **Roles**: Add a `Role` / `UserRole` model and protect routes by permission.
-- **HTTPS / production**: Set `ENFORCE_HTTPS=true`, use a proper WSGI server (e.g. Gunicorn), and set `OIDC_REDIRECT_URI` to your production callback URL.
+- **Toolbox** (`/toolbox`) — SwiftSetup (.mobileconfig), SmartBranding (wallpaper/screensaver), Favourite Bookie (Chrome/Edge bookmarks), Santa Config, Profile Fusion (merge .mobileconfig), Patchy Installer (Installomator labels), Compliance Fixer (script patching). Apps to install support drag-and-drop reorder and, for Installomator, a label picklist from [Installomator Labels.txt](https://github.com/Installomator/Installomator/blob/main/Labels.txt).
+- **Equitrac** (`/equitrac`) — Multi-step form to build an Apple Configuration Profile for Equitrac Mac Client (security, CAS/DRE servers, printers, drivers, feature flags), then generate and download the `.mobileconfig`.
 
-## Reference
+## License
 
-Based on the Entra/OIDC implementation in the SwiftSetup.cloud codebase (Flask, discovery, code exchange, userinfo, session login).
+Use and adapt as needed; Entra/OIDC flow is based on patterns from the SwiftSetup.cloud codebase.
