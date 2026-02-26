@@ -1,0 +1,749 @@
+{% extends "base.html" %}
+{% block title %}Equitrac Config Profile Generator{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">EQUITRAC</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Config Profile Generator</span>
+  </div>
+  <span class="status-pill" id="statusPill">NOT SAVED</span>
+{% endblock %}
+{% block content %}
+<div class="progress-bar">
+  <div class="progress-fill" id="progressFill" style="width:20%"></div>
+</div>
+
+<div class="shell">
+
+  <nav id="sideNav">
+    <div class="nav-section-label">Server</div>
+    <a href="#" class="active" data-section="s-security" onclick="navigate('s-security',this)">
+      <span class="nav-dot"></span> Security &amp; Auth
+    </a>
+    <a href="#" data-section="s-servers" onclick="navigate('s-servers',this)">
+      <span class="nav-dot"></span> Servers
+    </a>
+
+    <div class="nav-section-label">Printers</div>
+    <a href="#" data-section="s-printers" onclick="navigate('s-printers',this)">
+      <span class="nav-dot"></span> Printer Queues
+    </a>
+    <a href="#" data-section="s-drivers" onclick="navigate('s-drivers',this)">
+      <span class="nav-dot"></span> Print Drivers
+    </a>
+
+    <div class="nav-section-label">Preferences</div>
+    <a href="#" data-section="s-features" onclick="navigate('s-features',this)">
+      <span class="nav-dot"></span> Feature Selection
+    </a>
+
+    <div class="nav-section-label">Output</div>
+    <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
+      <span class="nav-dot"></span> Generate &amp; Export
+    </a>
+  </nav>
+
+  <main>
+
+    <!-- ══════════════════════════ SECURITY ══════════════════════════ -->
+    <div class="section active" id="s-security">
+      <div class="section-header">
+        <div class="section-tag">01 / Security &amp; Auth</div>
+        <div class="section-title">Security Framework</div>
+        <div class="section-desc">Credentials used by NDI.SecurityConfig.sh to enroll this Mac with the Equitrac Security Framework.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Domain Credentials</div>
+        <div class="field-grid thirds">
+          <div class="field">
+            <label>SECURITY DOMAIN <span class="required">*</span></label>
+            <input type="text" id="secDomain" placeholder="YOUR-DOMAIN" oninput="markDirty()">
+            <span class="field-error" id="err-secDomain">Required</span>
+          </div>
+          <div class="field">
+            <label>USERNAME <span class="required">*</span></label>
+            <input type="text" id="secUsername" placeholder="svc_account" oninput="markDirty()">
+            <span class="field-error" id="err-secUsername">Required</span>
+          </div>
+          <div class="field">
+            <label>PASSWORD <span class="required">*</span></label>
+            <input type="password" id="secPassword" placeholder="••••••••" oninput="markDirty()">
+            <span class="field-error" id="err-secPassword">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Node &amp; Datacenter</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>SECURITY NODE <span class="required">*</span></label>
+            <input type="text" id="secNode" placeholder="EQ-NODE-01" oninput="markDirty()">
+            <span class="field-error" id="err-secNode">Required</span>
+          </div>
+          <div class="field">
+            <label>DATACENTER NAME <span class="required">*</span></label>
+            <input type="text" id="datacenterName" placeholder="DC-PRIMARY" oninput="markDirty()">
+            <span class="field-error" id="err-datacenterName">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <span></span>
+        <button class="btn btn-primary" onclick="navigate('s-servers', navLink('s-servers'))">Next →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ SERVERS ══════════════════════════ -->
+    <div class="section" id="s-servers">
+      <div class="section-header">
+        <div class="section-tag">02 / Servers</div>
+        <div class="section-title">Server Endpoints</div>
+        <div class="section-desc">CAS and DRE server addresses. The install script pings these to verify network reachability before enrollment.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Endpoints</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>CAS SERVER <span class="required">*</span> <span class="hint">IP or hostname</span></label>
+            <input type="text" id="casServer" placeholder="192.168.1.100" oninput="markDirty()">
+            <span class="field-error" id="err-casServer">Required</span>
+          </div>
+          <div class="field">
+            <label>DRE SERVER <span class="required">*</span> <span class="hint">FQDN or IP</span></label>
+            <input type="text" id="dreServer" placeholder="equitrac-server.yourdomain.com" oninput="markDirty()">
+            <span class="field-error" id="err-dreServer">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Document Routing Client</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>INSTALL DRC <span class="hint">Installs the Document Routing Client alongside the Print Client</span></label>
+            <select id="installDrc" onchange="markDirty()">
+              <option value="false">Disabled — Print Client only</option>
+              <option value="true">Enabled — Print Client + DRC</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-security', navLink('s-security'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-printers', navLink('s-printers'))">Next →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ PRINTERS ══════════════════════════ -->
+    <div class="section" id="s-printers">
+      <div class="section-header">
+        <div class="section-tag">03 / Printer Queues</div>
+        <div class="section-title">CUPS Print Queues</div>
+        <div class="section-desc">Each entry creates a CUPS queue via <code style="color:var(--accent);font-family:var(--mono)">lpadmin</code>. Set PPD to <em>generic</em> or supply an absolute path to a source .ppd file.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Printer Definitions</div>
+        <div class="printer-list" id="printerList"></div>
+        <button class="btn-add" onclick="addPrinter()">＋ Add Printer</button>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-servers', navLink('s-servers'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-drivers', navLink('s-drivers'))">Next →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ DRIVERS ══════════════════════════ -->
+    <div class="section" id="s-drivers">
+      <div class="section-header">
+        <div class="section-tag">04 / Print Drivers</div>
+        <div class="section-title">Driver Packages</div>
+        <div class="section-desc">Installed in order before any printer queues are created. A missing pkg is a fatal install error.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">PKG Paths</div>
+        <div class="driver-list" id="driverList"></div>
+        <button class="btn-add" onclick="addDriver()">＋ Add Driver Package</button>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-printers', navLink('s-printers'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-features', navLink('s-features'))">Next →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ FEATURES ══════════════════════════ -->
+    <div class="section" id="s-features">
+      <div class="section-header">
+        <div class="section-tag">05 / Feature Selection</div>
+        <div class="section-title">EQPrinterUtilityX Preferences</div>
+        <div class="section-desc">Enable or disable Equitrac print features for all users on this Mac.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Feature Flags</div>
+        <div class="toggle-group">
+          <label class="toggle-row" id="tr-clientBilling" onclick="toggleFeature('clientBilling')">
+            <input type="checkbox" id="clientBilling">
+            <div class="toggle-info">
+              <div class="toggle-label">Client Billing</div>
+              <div class="toggle-desc">Enable client/matter billing codes at print time</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-promptForLogin" onclick="toggleFeature('promptForLogin')">
+            <input type="checkbox" id="promptForLogin">
+            <div class="toggle-info">
+              <div class="toggle-label">Prompt for Login</div>
+              <div class="toggle-desc">Prompt user to authenticate before releasing jobs</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-costPreview" onclick="toggleFeature('costPreview')">
+            <input type="checkbox" id="costPreview">
+            <div class="toggle-info">
+              <div class="toggle-label">Cost Preview</div>
+              <div class="toggle-desc">Show estimated cost to user before job is released</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-allowRenameDocument" onclick="toggleFeature('allowRenameDocument')">
+            <input type="checkbox" id="allowRenameDocument">
+            <div class="toggle-info">
+              <div class="toggle-label">Allow Rename Document</div>
+              <div class="toggle-desc">Allow users to rename print jobs in the release queue</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-releaseKey" onclick="toggleFeature('releaseKey')">
+            <input type="checkbox" id="releaseKey">
+            <div class="toggle-info">
+              <div class="toggle-label">Release Key</div>
+              <div class="toggle-desc">Require a physical release key (PIN/card) to release jobs</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div><!-- end .card -->
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-drivers', navLink('s-drivers'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-generate', navLink('s-generate')); generateProfile()">
+          Generate Profile →
+        </button>
+      </div>
+    </div><!-- end #s-features -->
+
+    <!-- ══════════════════════════ GENERATE ══════════════════════════ -->
+    <div class="section" id="s-generate">
+      <div class="section-header">
+        <div class="section-tag">06 / Export</div>
+        <div class="section-title">Generated Config Profile</div>
+        <div class="section-desc">Apple Configuration Profile (.mobileconfig) ready to sign and deploy via Intune or Jamf.</div>
+      </div>
+
+      <div class="validation-banner" id="validationBanner">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="validationMsg">Please fix the errors above before exporting.</span>
+      </div>
+
+      <div class="generate-card">
+        <div class="generate-header">
+          <div class="generate-title">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+            <span id="outputFilename">com.istorebusiness.equitrac.mobileconfig</span>
+          </div>
+          <div class="generate-actions">
+            <button class="btn btn-ghost" onclick="copyToClipboard()">Copy XML</button>
+            <button class="btn btn-success" onclick="downloadProfile()">↓ Download</button>
+          </div>
+        </div>
+        <div class="xml-preview" id="xmlPreview"><!-- generated --></div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
+        <span></span>
+      </div>
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FEATURE_BITS = {
+  clientBilling: 2,
+  promptForLogin: 4,
+  costPreview: 8,
+  allowRenameDocument: 16,
+  releaseKey: 32
+};
+
+let printers = [
+  { name: 'Printer-Queue-1',  ppd: 'generic' },
+  { name: 'Printer-Queue-2',  ppd: 'generic' },
+  { name: 'Printer-Queue-3',  ppd: 'generic' },
+  { name: 'Printer-Queue-4',  ppd: '/private/var/tmp/Equitrac/your-ppd-file' }
+];
+
+let drivers = [
+  '/private/var/tmp/Equitrac/your-driver-package.pkg'
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-generate'];
+
+function navLink(id) {
+  return document.querySelector(`[data-section="${id}"]`);
+}
+
+function navigate(id, linkEl) {
+  event && event.preventDefault();
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('#sideNav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (linkEl) linkEl.classList.add('active');
+
+  const idx = SECTIONS.indexOf(id);
+  const pct = Math.round(((idx + 1) / SECTIONS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIRTY / STATUS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function markDirty() {
+  const pill = document.getElementById('statusPill');
+  pill.textContent = 'UNSAVED';
+  pill.className = 'status-pill';
+}
+
+function markSaved() {
+  const pill = document.getElementById('statusPill');
+  pill.textContent = 'READY';
+  pill.className = 'status-pill ready';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FEATURE TOGGLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toggleFeature(id) {
+  const cb = document.getElementById(id);
+  const row = document.getElementById('tr-' + id);
+  cb.checked = !cb.checked;
+  row.classList.toggle('enabled', cb.checked);
+  updateBitmask();
+  markDirty();
+}
+
+function updateBitmask() {
+  for (const [id] of Object.entries(FEATURE_BITS)) {
+    void document.getElementById(id).checked;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRINTER ROWS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderPrinters() {
+  const list = document.getElementById('printerList');
+  list.innerHTML = '';
+  printers.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'printer-item';
+    row.innerHTML = `
+      <input type="text" value="${esc(p.name)}" placeholder="Queue name (e.g. HP-Colour-Mac)"
+             oninput="printers[${i}].name=this.value;markDirty()">
+      <input type="text" value="${esc(p.ppd)}" placeholder="generic or /path/to/file.ppd"
+             oninput="printers[${i}].ppd=this.value;markDirty()">
+      <button class="item-remove" onclick="removePrinter(${i})" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addPrinter() {
+  printers.push({ name: '', ppd: 'generic' });
+  renderPrinters();
+  markDirty();
+  const rows = document.querySelectorAll('.printer-item');
+  rows[rows.length - 1].querySelector('input').focus();
+}
+
+function removePrinter(i) {
+  printers.splice(i, 1);
+  renderPrinters();
+  markDirty();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRIVER ROWS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderDrivers() {
+  const list = document.getElementById('driverList');
+  list.innerHTML = '';
+  drivers.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'driver-item';
+    row.innerHTML = `
+      <input type="text" value="${esc(d)}" placeholder="/private/var/tmp/Equitrac/driver.pkg"
+             oninput="drivers[${i}]=this.value;markDirty()">
+      <button class="item-remove" onclick="removeDriver(${i})" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addDriver() {
+  drivers.push('');
+  renderDrivers();
+  markDirty();
+  const rows = document.querySelectorAll('.driver-item');
+  rows[rows.length - 1].querySelector('input').focus();
+}
+
+function removeDriver(i) {
+  drivers.splice(i, 1);
+  renderDrivers();
+  markDirty();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REQUIRED_FIELDS = [
+  'secDomain','secUsername','secPassword',
+  'secNode','datacenterName','casServer','dreServer'
+];
+
+function validate() {
+  let ok = true;
+  REQUIRED_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    const errEl = document.getElementById('err-' + id);
+    if (!el.value.trim()) {
+      el.classList.add('invalid');
+      if (errEl) errEl.classList.add('visible');
+      ok = false;
+    } else {
+      el.classList.remove('invalid');
+      if (errEl) errEl.classList.remove('visible');
+    }
+  });
+  return ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// XML GENERATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function xmlEsc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/'/g,'&apos;')
+    .replace(/"/g,'&quot;');
+}
+
+function boolTag(val) {
+  return val ? '<true/>' : '<false/>';
+}
+
+function buildXML() {
+  const bundleId     = 'com.istorebusiness.equitrac';
+  const profileName  = 'Equitrac Mac Client';
+  const installerPkg = '/private/var/tmp/Equitrac/Equitrac_MacOSX_6_4_3_59.pkg';
+
+  const installDrc    = document.getElementById('installDrc').value === 'true';
+  const secDomain     = document.getElementById('secDomain').value.trim();
+  const secUsername   = document.getElementById('secUsername').value.trim();
+  const secPassword   = document.getElementById('secPassword').value.trim();
+  const secNode       = document.getElementById('secNode').value.trim();
+  const datacenterName= document.getElementById('datacenterName').value.trim();
+  const casServer     = document.getElementById('casServer').value.trim();
+  const dreServer     = document.getElementById('dreServer').value.trim();
+
+  const feats = {};
+  for (const id of Object.keys(FEATURE_BITS)) {
+    feats[id] = document.getElementById(id).checked;
+  }
+
+  const livePrinters = [...document.querySelectorAll('.printer-item')].map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value.trim(), ppd: inputs[1].value.trim() || 'generic' };
+  });
+  const liveDrivers = [...document.querySelectorAll('.driver-item')].map(row =>
+    row.querySelector('input').value.trim()
+  ).filter(Boolean);
+
+  const uuid = generateUUID();
+  const now  = new Date().toISOString();
+
+  const printerXml = livePrinters.filter(p => p.name).map(p => `\t\t\t<dict>
+\t\t\t\t<key>name</key>
+\t\t\t\t<string>${xmlEsc(p.name)}</string>
+\t\t\t\t<key>ppd</key>
+\t\t\t\t<string>${xmlEsc(p.ppd)}</string>
+\t\t\t</dict>`).join('\n');
+
+  const driverXml = liveDrivers.map(d =>
+    `\t\t\t<string>${xmlEsc(d)}</string>`
+  ).join('\n');
+
+  const xml =
+`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+\t<!-- ═══ Profile Metadata ═══ -->
+\t<key>PayloadDisplayName</key>
+\t<string>${xmlEsc(profileName)}</string>
+
+\t<key>PayloadIdentifier</key>
+\t<string>${xmlEsc(bundleId)}</string>
+
+\t<key>PayloadType</key>
+\t<string>Configuration</string>
+
+\t<key>PayloadUUID</key>
+\t<string>${uuid}</string>
+
+\t<key>PayloadVersion</key>
+\t<integer>1</integer>
+
+\t<key>PayloadDate</key>
+\t<string>${now}</string>
+
+\t<key>PayloadContent</key>
+\t<array>
+\t\t<dict>
+
+\t\t\t<!-- ─ Profile Identity ─ -->
+\t\t\t<key>PayloadType</key>
+\t\t\t<string>com.apple.ManagedClient.preferences</string>
+
+\t\t\t<key>PayloadIdentifier</key>
+\t\t\t<string>${xmlEsc(bundleId)}.payload</string>
+
+\t\t\t<key>PayloadUUID</key>
+\t\t\t<string>${generateUUID()}</string>
+
+\t\t\t<key>PayloadVersion</key>
+\t\t\t<integer>1</integer>
+
+\t\t\t<key>PayloadApplicationIdentifier</key>
+\t\t\t<string>${xmlEsc(bundleId)}</string>
+
+\t\t\t<key>PayloadEnabled</key>
+\t\t\t<true/>
+
+\t\t\t<key>PayloadContent</key>
+\t\t\t<dict>
+\t\t\t\t<key>Forced</key>
+\t\t\t\t<array>
+\t\t\t\t\t<dict>
+\t\t\t\t\t\t<key>mcx_preference_settings</key>
+\t\t\t\t\t\t<dict>
+
+\t\t\t\t\t\t\t<!-- ─ Installation ─ -->
+\t\t\t\t\t\t\t<key>INSTALLER_PKG</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(installerPkg)}</string>
+
+\t\t\t\t\t\t\t<key>INSTALL_DRC</key>
+\t\t\t\t\t\t\t${boolTag(installDrc)}
+
+\t\t\t\t\t\t\t<!-- ─ Security Framework ─ -->
+\t\t\t\t\t\t\t<key>SECURITY_DOMAIN</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(secDomain)}</string>
+
+\t\t\t\t\t\t\t<key>SECURITY_USERNAME</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(secUsername)}</string>
+
+\t\t\t\t\t\t\t<key>SECURITY_PASSWORD</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(secPassword)}</string>
+
+\t\t\t\t\t\t\t<key>SECURITY_NODE</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(secNode)}</string>
+
+\t\t\t\t\t\t\t<key>DATACENTER_NAME</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(datacenterName)}</string>
+
+\t\t\t\t\t\t\t<!-- ─ Servers ─ -->
+\t\t\t\t\t\t\t<key>CAS_SERVER</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(casServer)}</string>
+
+\t\t\t\t\t\t\t<key>DRE_SERVER</key>
+\t\t\t\t\t\t\t<string>${xmlEsc(dreServer)}</string>
+
+\t\t\t\t\t\t\t<!-- ─ Printers ─ -->
+\t\t\t\t\t\t\t<key>PRINTERS</key>
+\t\t\t\t\t\t\t<array>
+${printerXml}
+\t\t\t\t\t\t\t</array>
+
+\t\t\t\t\t\t\t<!-- ─ Print Drivers ─ -->
+\t\t\t\t\t\t\t<key>PRINT_DRIVERS</key>
+\t\t\t\t\t\t\t<array>
+${driverXml}
+\t\t\t\t\t\t\t</array>
+
+\t\t\t\t\t\t\t<!-- ─ Feature Selection (bitmask) ─ -->
+\t\t\t\t\t\t\t<key>PREF_CLIENT_BILLING</key>
+\t\t\t\t\t\t\t${boolTag(feats.clientBilling)}
+
+\t\t\t\t\t\t\t<key>PREF_PROMPT_FOR_LOGIN</key>
+\t\t\t\t\t\t\t${boolTag(feats.promptForLogin)}
+
+\t\t\t\t\t\t\t<key>PREF_COST_PREVIEW</key>
+\t\t\t\t\t\t\t${boolTag(feats.costPreview)}
+
+\t\t\t\t\t\t\t<key>PREF_ALLOW_RENAME_DOCUMENT</key>
+\t\t\t\t\t\t\t${boolTag(feats.allowRenameDocument)}
+
+\t\t\t\t\t\t\t<key>PREF_RELEASE_KEY</key>
+\t\t\t\t\t\t\t${boolTag(feats.releaseKey)}
+
+\t\t\t\t\t\t</dict>
+\t\t\t\t\t</dict>
+\t\t\t\t</array>
+\t\t\t</dict>
+\t</dict>
+\t</array>
+
+</dict>
+</plist>`;
+
+  return { xml, bundleId };
+}
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16).toUpperCase();
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYNTAX HIGHLIGHTING
+// ─────────────────────────────────────────────────────────────────────────────
+
+function highlight(xml) {
+  return xml
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/&lt;(!--[\s\S]*?--&gt;)/g, '<span class="xml-comment">&lt;$1</span>')
+    .replace(/&lt;(key)&gt;(.*?)&lt;\/key&gt;/g,
+      '&lt;<span class="xml-tag">$1</span>&gt;<span class="xml-key">$2</span>&lt;/<span class="xml-tag">$1</span>&gt;')
+    .replace(/&lt;(string)&gt;(.*?)&lt;\/(string)&gt;/g,
+      '&lt;<span class="xml-tag">$1</span>&gt;<span class="xml-string">$2</span>&lt;/<span class="xml-tag">$1</span>&gt;')
+    .replace(/&lt;(true|false)\s*\/&gt;/g,
+      '&lt;<span class="xml-bool">$1</span>/&gt;')
+    .replace(/&lt;(\/?(?:plist|dict|array|integer)[^&]*?)&gt;/g,
+      '&lt;<span class="xml-tag">$1</span>&gt;')
+    .replace(/&lt;(\?xml[^&]*?)&gt;/g,
+      '&lt;<span class="xml-comment">$1</span>&gt;')
+    .replace(/&lt;(!DOCTYPE[^&]*?)&gt;/g,
+      '&lt;<span class="xml-comment">$1</span>&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERATE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function generateProfile() {
+  const banner = document.getElementById('validationBanner');
+
+  if (!validate()) {
+    banner.classList.add('visible');
+    document.getElementById('validationMsg').textContent =
+      'Some required fields are empty. Check highlighted sections.';
+    document.getElementById('xmlPreview').innerHTML =
+      '<span style="color:var(--danger)">Fix validation errors before generating.</span>';
+    return;
+  }
+
+  banner.classList.remove('visible');
+
+  const { xml, bundleId } = buildXML();
+  const filename = bundleId + '.mobileconfig';
+  document.getElementById('outputFilename').textContent = filename;
+  document.getElementById('xmlPreview').innerHTML = highlight(xml);
+  markSaved();
+
+  window._lastXml = xml;
+  window._lastFilename = filename;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPORT
+// ─────────────────────────────────────────────────────────────────────────────
+
+function downloadProfile() {
+  if (!window._lastXml) { generateProfile(); if (!window._lastXml) return; }
+  const blob = new Blob([window._lastXml], { type: 'application/xml' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = window._lastFilename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyToClipboard() {
+  if (!window._lastXml) { generateProfile(); if (!window._lastXml) return; }
+  navigator.clipboard.writeText(window._lastXml).then(() => {
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
+renderPrinters();
+renderDrivers();
+</script>
+{% endblock %}

@@ -1,0 +1,1853 @@
+{% extends "base.html" %}
+{% block title %}iStore Business Toolbox{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Toolbox</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="progress-bar">
+  <div class="progress-fill" id="progressFill" style="width:0%"></div>
+</div>
+
+<div class="shell">
+
+  <nav id="sideNav">
+    <div class="nav-section-label">Config Profiles</div>
+    <a href="#" class="active" data-section="s-swiftsetup" onclick="navigate('s-swiftsetup',this); return false;">
+      <span class="nav-dot"></span> SwiftSetup
+    </a>
+    <a href="#" data-section="s-smartbranding" onclick="navigate('s-smartbranding',this); return false;">
+      <span class="nav-dot"></span> SmartBranding
+    </a>
+    <a href="#" data-section="s-bookmarks" onclick="navigate('s-bookmarks',this); return false;">
+      <span class="nav-dot"></span> Favourite Bookie
+    </a>
+    <a href="#" data-section="s-santa" onclick="navigate('s-santa',this); return false;">
+      <span class="nav-dot"></span> Santa Config
+    </a>
+
+    <div class="nav-section-label">Profile Tools</div>
+    <a href="#" data-section="s-fusion" onclick="navigate('s-fusion',this); return false;">
+      <span class="nav-dot"></span> Profile Fusion
+    </a>
+
+    <div class="nav-section-label">Scripts</div>
+    <a href="#" data-section="s-patchy" onclick="navigate('s-patchy',this); return false;">
+      <span class="nav-dot"></span> Patchy Installer
+    </a>
+    <a href="#" data-section="s-fileeditor" onclick="navigate('s-fileeditor',this); return false;">
+      <span class="nav-dot"></span> Compliance Fixer
+    </a>
+  </nav>
+
+  <main>
+
+    <!-- ══════════════════════ SWIFTSETUP ══════════════════════ -->
+    <div class="section active" id="s-swiftsetup">
+      <div class="section-header">
+        <div class="section-tag">01 / Config Profile</div>
+        <div class="section-title">SwiftSetup</div>
+        <div class="section-desc">Generate a SwiftSetup <code>.mobileconfig</code> profile with app installation list, dock configuration, and behaviour settings.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Profile Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>TITLE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="ss-title" placeholder="Setup your Mac">
+          </div>
+          <div class="field">
+            <label>MESSAGE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="ss-message" placeholder="Your Mac is being configured...">
+          </div>
+          <div class="field">
+            <label>ICON URL / PATH <span class="hint">optional</span></label>
+            <input type="text" id="ss-icon" placeholder="https://example.com/icon.png">
+          </div>
+          <div class="field">
+            <label>MINIMUM OS <span class="hint">optional</span></label>
+            <input type="text" id="ss-minos" placeholder="14.0">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Options</div>
+        <div class="toggle-group" id="ss-toggles">
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-clear-dock">
+            <div class="toggle-info">
+              <div class="toggle-label">Clear Dock before adding new items</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-await-psso">
+            <div class="toggle-info">
+              <div class="toggle-label">Wait for Platform SSO setup</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-auto-close">
+            <div class="toggle-info">
+              <div class="toggle-label">Automatically close on completion</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-open-cp">
+            <div class="toggle-info">
+              <div class="toggle-label">Open Company Portal on completion</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-rosetta">
+            <div class="toggle-info">
+              <div class="toggle-label">Install Rosetta</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-bounce-edge">
+            <div class="toggle-info">
+              <div class="toggle-label">Bounce Edge</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-install-updater">
+            <div class="toggle-info">
+              <div class="toggle-label">Install Updater</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-disable-autoinstall">
+            <div class="toggle-info">
+              <div class="toggle-label">Disable Installomator autoinstall</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Apps to Install</div>
+        <!-- Add form -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+          <div class="three-col" style="margin-bottom:12px;">
+            <div class="field">
+              <label>APP DISPLAY NAME</label>
+              <input type="text" id="app-name" placeholder="Microsoft Word">
+            </div>
+            <div class="field">
+              <label>APP PATH</label>
+              <input type="text" id="app-path" placeholder="/Applications/Microsoft Word.app">
+            </div>
+            <div class="field">
+              <label>INSTALL METHOD <span style="color:var(--danger);font-size:10px">*</span></label>
+              <select id="app-method" onchange="updateAppDetail()">
+                <option value="">Select method...</option>
+                <option value="installomator">installomator</option>
+                <option value="policy">policy</option>
+                <option value="jac">jac</option>
+                <option value="asa">asa</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+          <div class="two-col" id="app-detail-row" style="margin-bottom:12px;display:none;">
+            <div class="field" id="app-detail-field">
+              <label id="app-detail-label">INSTALL DETAIL <span style="color:var(--danger);font-size:10px">*</span></label>
+              <input type="text" id="app-detail-text" placeholder="Enter value...">
+              <select id="app-detail-select" style="display:none;"></select>
+            </div>
+            <div class="field" style="align-self:flex-end;">
+              <label>ADD TO DOCK</label>
+              <label class="toggle-row" onclick="toggleOption(this)" style="margin-top:0;">
+                <input type="checkbox" id="app-dock">
+                <div class="toggle-info"><div class="toggle-label">Add to Dock</div></div>
+                <div class="toggle-switch"></div>
+              </label>
+            </div>
+          </div>
+          <div id="app-dock-standalone" style="margin-bottom:12px;">
+            <label class="toggle-row" onclick="toggleOption(this)">
+              <input type="checkbox" id="app-dock-2">
+              <div class="toggle-info"><div class="toggle-label">Add to Dock</div></div>
+              <div class="toggle-switch"></div>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="app-submit-btn" onclick="addApp()" style="flex:1;min-width:120px;">＋ Add App</button>
+            <button class="btn btn-ghost" id="app-cancel-btn" onclick="cancelEditApp()" style="display:none;">Cancel</button>
+          </div>
+        </div>
+        <div class="col-header app-row" id="app-headers" style="display:none;">
+          <span></span><span>Name</span><span>Path</span><span>Method</span><span>Detail</span><span>Dock</span><span></span>
+        </div>
+        <div class="item-list item-list-draggable" id="ss-apps-list"></div>
+      </div>
+
+      <input type="file" id="ss-import-input" accept=".mobileconfig" style="display:none;" onchange="importSwiftSetup(event)">
+      <div class="section-footer">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="loadSwiftSetupDefaults()">↺ Load Defaults</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('ss-import-input').click()">↑ Import .mobileconfig</button>
+        </div>
+        <button class="btn btn-success" onclick="generateSwiftSetup()">↓ Generate &amp; Download</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ SMARTBRANDING ══════════════════════ -->
+    <div class="section" id="s-smartbranding">
+      <div class="section-header">
+        <div class="section-tag">02 / Config Profile</div>
+        <div class="section-title">SmartBranding</div>
+        <div class="section-desc">Generate SmartWallpaper and SmartScreensaver <code>.mobileconfig</code> profiles. Wallpaper URL produces two files: <code>SmartWallpaper.mobileconfig</code> and <code>WallpaperLock.mobileconfig</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Wallpaper Configuration</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>WALLPAPER URL <span class="hint">leave blank to skip</span></label>
+            <input type="text" id="sb-wallpaper-url" placeholder="https://example.com/wallpaper.png">
+          </div>
+          <div class="field" style="justify-content:flex-end;">
+            <label class="toggle-row" onclick="toggleOption(this)">
+              <input type="checkbox" id="sb-skip-kill">
+              <div class="toggle-info">
+                <div class="toggle-label">Skip Kill Wallpaper Agent</div>
+                <div class="toggle-desc">Don't kill wallpaperAgent after setting</div>
+              </div>
+              <div class="toggle-switch"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Screensaver URLs</div>
+        <div class="info-box">Add one or more URLs for the SmartScreensaver rotation. Leave empty to skip screensaver profile generation.</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <input type="text" id="sb-url-input" placeholder="https://example.com/slide.png" style="flex:1;">
+          <button class="btn btn-ghost" onclick="addScreensaverUrl()">＋ Add</button>
+        </div>
+        <div class="item-list" id="sb-url-list"></div>
+      </div>
+
+      <input type="file" id="sb-import-input" accept=".mobileconfig" style="display:none;" onchange="importSmartBranding(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('sb-import-input').click()">↑ Import .mobileconfig</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="generateSmartBranding('wallpaper')" id="sb-btn-wallpaper">↓ Download Wallpaper Profile</button>
+          <button class="btn btn-primary" onclick="generateSmartBranding('screensaver')" id="sb-btn-screensaver">↓ Download Screensaver Profile</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ FAVOURITE BOOKIE ══════════════════════ -->
+    <div class="section" id="s-bookmarks">
+      <div class="section-header">
+        <div class="section-tag">03 / Config Profile</div>
+        <div class="section-title">Favourite Bookie</div>
+        <div class="section-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined <code>.mobileconfig</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Organisation Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>TOP LEVEL FOLDER NAME <span class="hint">optional</span></label>
+            <input type="text" id="bm-toplevel" placeholder="iStore Business">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Bookmark or Folder</div>
+        <div class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>TYPE</label>
+            <select id="bm-type" onchange="updateBookmarkForm()">
+              <option value="bookmark">Bookmark</option>
+              <option value="folder">Folder</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>NAME <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="bm-name" placeholder="Company Intranet">
+          </div>
+        </div>
+        <div id="bm-url-row" class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>URL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="bm-url" placeholder="https://intranet.company.com">
+          </div>
+          <div class="field">
+            <label>PARENT FOLDER <span class="hint">optional</span></label>
+            <select id="bm-parent">
+              <option value="">Root (no folder)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addBookmark()" style="width:100%;">＋ Add</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Bookmarks</div>
+        <div class="col-header bookmark-row" id="bm-headers" style="display:none;">
+          <span>Type</span><span>Name</span><span>URL / Children</span><span></span>
+        </div>
+        <div class="item-list" id="bm-list"></div>
+        <div class="empty-state" id="bm-empty">No bookmarks added yet</div>
+      </div>
+
+      <input type="file" id="bm-import-input" accept=".mobileconfig" style="display:none;" onchange="importBookmarks(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('bm-import-input').click()">↑ Import .mobileconfig</button>
+        <button class="btn btn-success" onclick="generateBookmarks()">↓ Download Combined Profile</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ SANTA CONFIG ══════════════════════ -->
+    <div class="section" id="s-santa">
+      <div class="section-header">
+        <div class="section-tag">04 / Config Profile</div>
+        <div class="section-title">Santa Config</div>
+        <div class="section-desc">Build a Santa security policy <code>.mobileconfig</code> with ALLOWLIST and BLOCKLIST rules by SigningID or TeamID.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Client Mode</div>
+        <label class="toggle-row" onclick="toggleOption(this)">
+          <input type="checkbox" id="santa-lockdown">
+          <div class="toggle-info">
+            <div class="toggle-label">Lockdown Mode</div>
+            <div class="toggle-desc">Block all unsigned/unlisted binaries. Default: Monitor Mode (log only)</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Rule</div>
+        <div class="three-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>POLICY</label>
+            <select id="santa-policy">
+              <option value="ALLOWLIST">ALLOWLIST</option>
+              <option value="BLOCKLIST">BLOCKLIST</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>RULE TYPE</label>
+            <select id="santa-rule-type">
+              <option value="SIGNINGID">SIGNINGID</option>
+              <option value="TEAMID">TEAMID</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>IDENTIFIER <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="santa-identifier" placeholder="TEAMID:com.example.app">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addSantaRule()" style="width:100%;">＋ Add Rule</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Rules</div>
+        <div class="col-header santa-row" id="santa-headers" style="display:none;">
+          <span>Policy</span><span>Type</span><span>Identifier</span><span></span><span></span>
+        </div>
+        <div class="item-list" id="santa-rules-list"></div>
+        <div class="empty-state" id="santa-empty">No rules added yet</div>
+      </div>
+
+      <input type="file" id="santa-import-input" accept=".mobileconfig" style="display:none;" onchange="importSanta(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('santa-import-input').click()">↑ Import .mobileconfig</button>
+        <button class="btn btn-success" onclick="generateSanta()">↓ Download Santa Profile</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ PROFILE FUSION ══════════════════════ -->
+    <div class="section" id="s-fusion">
+      <div class="section-header">
+        <div class="section-tag">05 / Profile Tool</div>
+        <div class="section-title">Profile Fusion</div>
+        <div class="section-desc">Upload multiple <code>.mobileconfig</code> files, review their payloads, remove any you don't need, then merge them into one profile.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Output Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>MERGED PROFILE DISPLAY NAME</label>
+            <input type="text" id="fusion-name" placeholder="Merged Configuration Profile">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Import Profiles</div>
+        <div class="info-box">Upload one or more <code>.mobileconfig</code> files. Their payloads will be listed below for review before merging.</div>
+        <div class="drop-zone" id="fusion-drop-zone" onclick="document.getElementById('fusion-file-input').click()" style="margin-bottom:12px;">
+          <input type="file" id="fusion-file-input" multiple accept=".mobileconfig,.plist" onclick="event.stopPropagation()" onchange="handleFusionFiles(event)">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label">Drop .mobileconfig files here or click to browse</div>
+          <div class="drop-zone-sub">Supports multiple files</div>
+        </div>
+        <div class="item-list" id="fusion-profiles-list"></div>
+        <div class="empty-state" id="fusion-profiles-empty">No profiles loaded</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Payloads</div>
+        <div class="col-header fusion-row" id="fusion-payload-headers" style="display:none;">
+          <span>Source Profile</span><span>Payload Type</span><span>Display Name</span><span></span>
+        </div>
+        <div class="item-list" id="fusion-payloads-list"></div>
+        <div class="empty-state" id="fusion-payloads-empty">Import profiles to see their payloads</div>
+      </div>
+
+      <div class="section-footer">
+        <span></span>
+        <button class="btn btn-success" onclick="generateFusion()">↓ Merge &amp; Download</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ PATCHY INSTALLER ══════════════════════ -->
+    <div class="section" id="s-patchy">
+      <div class="section-header">
+        <div class="section-tag">06 / Script Generator</div>
+        <div class="section-title">Patchy Installer</div>
+        <div class="section-desc">Define custom Installomator labels and generate a <code>.sh</code> patch script that injects them into <code>Installomator.sh</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Custom Label</div>
+        <div class="three-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>CASE LABEL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-label" placeholder="myapp">
+          </div>
+          <div class="field">
+            <label>APP NAME <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-name" placeholder="My App">
+          </div>
+          <div class="field">
+            <label>TYPE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <select id="pi-type">
+              <option value="dmg">dmg</option>
+              <option value="pkg">pkg</option>
+              <option value="zip">zip</option>
+              <option value="tbz">tbz</option>
+              <option value="pkgInDmg">pkgInDmg</option>
+              <option value="pkgInZip">pkgInZip</option>
+              <option value="appInDmgInZip">appInDmgInZip</option>
+              <option value="updateronly">updateronly</option>
+            </select>
+          </div>
+        </div>
+        <div class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>DOWNLOAD URL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-url" placeholder="https://example.com/app.dmg">
+          </div>
+          <div class="field">
+            <label>EXPECTED TEAM ID <span id="pi-teamid-hint" class="hint">required</span></label>
+            <input type="text" id="pi-teamid" placeholder="ABCDE12345">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="toggle-row" onclick="toggleOption(this); updatePatchyTeamId()">
+            <input type="checkbox" id="pi-skip-notarization">
+            <div class="toggle-info">
+              <div class="toggle-label">Skip Notarization Check</div>
+              <div class="toggle-desc">Use when app is not notarized. Team ID not required.</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+        <button class="btn btn-primary" onclick="addPatchyLabel()" style="width:100%;">＋ Add Label</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Custom Labels</div>
+        <div class="col-header custom-label-row" id="pi-headers" style="display:none;">
+          <span>Label</span><span>Name</span><span>Type</span><span>Download URL</span><span>Team ID</span><span></span>
+        </div>
+        <div class="item-list" id="pi-labels-list"></div>
+        <div class="empty-state" id="pi-empty">No custom labels added yet</div>
+      </div>
+
+      <input type="file" id="pi-import-input" accept=".sh" style="display:none;" onchange="importPatchy(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('pi-import-input').click()">↑ Import .sh script</button>
+        <button class="btn btn-success" onclick="generatePatchy()">↓ Generate Patch Script</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════ COMPLIANCE SCRIPT FIXER ══════════════════════ -->
+    <div class="section" id="s-fileeditor">
+      <div class="section-header">
+        <div class="section-tag">07 / Script Tool</div>
+        <div class="section-title">Compliance Script Fixer</div>
+        <div class="section-desc">Upload a script from <code>Jamf Compliance Editor</code> to fix it so it can run headless from any MDM.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upload Script</div>
+        <input type="file" id="fle-file-input" accept=".sh,.zsh,.txt,*" style="display:none;" onchange="handleFileLineEditor(event)">
+        <div class="drop-zone" id="fle-drop-zone" onclick="document.getElementById('fle-file-input').click()" style="margin-bottom:16px;">
+          <input type="file" id="fle-file-input-zone" accept=".sh,.zsh,.txt,*" onclick="event.stopPropagation()" onchange="handleFileLineEditor(event)">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label" id="fle-drop-label">Drop script file here or click to browse</div>
+          <div class="drop-zone-sub">.sh · .zsh · or any text file</div>
+        </div>
+        <div id="fle-status" style="display:none;" class="info-box"></div>
+      </div>
+
+      <div class="card" id="fle-preview-card" style="display:none;">
+        <div class="card-title">Preview</div>
+        <div style="margin-bottom:12px;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">Lines around insertion point</div>
+          <div id="fle-preview" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;line-height:1.8;overflow-x:auto;white-space:pre;"></div>
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <span></span>
+        <button class="btn btn-success" id="fle-download-btn" style="display:none;" onclick="downloadFixedFile()">↓ Download Fixed Script</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+// ─── UTILITIES ─────────────────────────────────────────────────────────────
+
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16).toUpperCase();
+  });
+}
+
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function navigate(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('#sideNav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (el) el.classList.add('active');
+  const sections = ['s-swiftsetup','s-smartbranding','s-bookmarks','s-santa','s-fusion','s-patchy','s-fileeditor'];
+  const idx = sections.indexOf(id);
+  document.getElementById('progressFill').style.width = ((idx+1)/sections.length*100) + '%';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function toggleOption(row) {
+  const cb = row.querySelector('input[type="checkbox"]');
+  cb.checked = !cb.checked;
+  row.classList.toggle('enabled', cb.checked);
+}
+
+function getToggle(id) {
+  return document.getElementById(id).checked;
+}
+
+function download(filename, content, type='application/xml') {
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Build Apple plist XML from a JS object (simplified but handles the structures used here)
+function toPlist(obj, indent=0) {
+  const pad = '\t'.repeat(indent);
+  if (obj === null || obj === undefined) return `${pad}<string></string>`;
+  if (typeof obj === 'boolean') return `${pad}<${obj ? 'true' : 'false'}/>`;
+  if (typeof obj === 'number') {
+    if (Number.isInteger(obj)) return `${pad}<integer>${obj}</integer>`;
+    return `${pad}<real>${obj}</real>`;
+  }
+  if (typeof obj === 'string') return `${pad}<string>${escXml(obj)}</string>`;
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return `${pad}<array/>`;
+    const inner = obj.map(v => toPlist(v, indent+1)).join('\n');
+    return `${pad}<array>\n${inner}\n${pad}</array>`;
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return `${pad}<dict/>`;
+    const inner = keys.map(k =>
+      `${pad}\t<key>${escXml(k)}</key>\n${toPlist(obj[k], indent+1)}`
+    ).join('\n');
+    return `${pad}<dict>\n${inner}\n${pad}</dict>`;
+  }
+  return `${pad}<string>${escXml(String(obj))}</string>`;
+}
+
+function escXml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/'/g,'&apos;').replace(/"/g,'&quot;');
+}
+
+function buildPlistDoc(obj) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+${toPlist(obj)}
+</plist>`;
+}
+
+// ─── SWIFTSETUP ─────────────────────────────────────────────────────────────
+
+const INSTALLOMATOR_LABELS_URL = 'https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main/Labels.txt';
+let installomatorLabelsCache = null;
+
+function loadInstallomatorLabels() {
+  if (installomatorLabelsCache) return Promise.resolve(installomatorLabelsCache);
+  return fetch(INSTALLOMATOR_LABELS_URL)
+    .then(r => { if (!r.ok) throw new Error('Failed to load labels'); return r.text(); })
+    .then(text => {
+      const labels = text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#') && line !== '____');
+      installomatorLabelsCache = labels.sort((a, b) => a.localeCompare(b));
+      return installomatorLabelsCache;
+    });
+}
+
+let ssApps = [];
+let ssAppsEditingIndex = -1;
+
+function cancelEditApp() {
+  ssAppsEditingIndex = -1;
+  document.getElementById('app-name').value = '';
+  document.getElementById('app-path').value = '';
+  document.getElementById('app-method').value = '';
+  document.getElementById('app-detail-text').value = '';
+  const sel = document.getElementById('app-detail-select');
+  if (sel.options.length) sel.selectedIndex = 0;
+  document.getElementById('app-dock').checked = false;
+  document.getElementById('app-dock-2').checked = false;
+  document.getElementById('app-detail-row').style.display = 'none';
+  document.getElementById('app-dock-standalone').style.display = 'block';
+  ['app-dock','app-dock-2'].forEach(id => {
+    const row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.remove('enabled');
+  });
+  document.getElementById('app-submit-btn').textContent = '＋ Add App';
+  document.getElementById('app-cancel-btn').style.display = 'none';
+}
+
+function editApp(i) {
+  const a = ssApps[i];
+  ssAppsEditingIndex = i;
+  document.getElementById('app-name').value = a.name || '';
+  document.getElementById('app-path').value = a.path || '';
+  document.getElementById('app-method').value = a.method || '';
+  document.getElementById('app-detail-row').style.display = a.method && a.method !== 'none' ? 'grid' : 'none';
+  document.getElementById('app-dock-standalone').style.display = a.method && a.method !== 'none' ? 'none' : 'block';
+  updateAppDetail();
+  if (a.method === 'installomator') {
+    const selectInput = document.getElementById('app-detail-select');
+    if (installomatorLabelsCache && selectInput.options.length > 1) {
+      selectInput.value = a.detail || '';
+    } else {
+      loadInstallomatorLabels().then(() => {
+        selectInput.innerHTML = '<option value="">Select label...</option>' +
+          installomatorLabelsCache.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+        selectInput.value = a.detail || '';
+      });
+    }
+  } else {
+    document.getElementById('app-detail-text').value = a.detail || '';
+  }
+  document.getElementById('app-dock').checked = !!a.dock;
+  document.getElementById('app-dock-2').checked = !!a.dock;
+  ['app-dock','app-dock-2'].forEach(id => {
+    const row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.toggle('enabled', !!a.dock);
+  });
+  document.getElementById('app-submit-btn').textContent = 'Update App';
+  document.getElementById('app-cancel-btn').style.display = 'inline-flex';
+}
+
+function updateAppDetail() {
+  const method = document.getElementById('app-method').value;
+  const detailRow = document.getElementById('app-detail-row');
+  const dockStandalone = document.getElementById('app-dock-standalone');
+  const detailLabel = document.getElementById('app-detail-label');
+  const textInput = document.getElementById('app-detail-text');
+  const selectInput = document.getElementById('app-detail-select');
+
+  if (!method || method === 'none') {
+    detailRow.style.display = 'none';
+    dockStandalone.style.display = 'block';
+    textInput.style.display = '';
+    selectInput.style.display = 'none';
+    return;
+  }
+  dockStandalone.style.display = 'none';
+  detailRow.style.display = 'grid';
+
+  const labels = { installomator: 'INSTALLOMATOR LABEL', policy: 'POLICY ID', jac: 'JAC ID', asa: 'ASA ID' };
+  detailLabel.innerHTML = (labels[method] || 'INSTALL DETAIL') + ' <span style="color:var(--danger);font-size:10px">*</span>';
+
+  if (method === 'installomator') {
+    textInput.style.display = 'none';
+    selectInput.style.display = '';
+    selectInput.innerHTML = '<option value="">Loading labels...</option>';
+    loadInstallomatorLabels()
+      .then(labelList => {
+        selectInput.innerHTML = '<option value="">Select label...</option>' +
+          labelList.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+      })
+      .catch(() => {
+        selectInput.innerHTML = '<option value="">Failed to load – type below</option>';
+        selectInput.style.display = 'none';
+        textInput.style.display = '';
+        textInput.placeholder = 'e.g. microsoftword';
+      });
+  } else {
+    selectInput.style.display = 'none';
+    textInput.style.display = '';
+    const placeholders = { policy: 'Policy name or ID', jac: '12345', asa: '67890' };
+    textInput.placeholder = placeholders[method] || '';
+  }
+}
+
+function addApp() {
+  const name   = document.getElementById('app-name').value.trim();
+  const path   = document.getElementById('app-path').value.trim();
+  const method = document.getElementById('app-method').value;
+  const detailVisible = document.getElementById('app-detail-row').style.display !== 'none';
+  const detailEl = method === 'installomator' ? document.getElementById('app-detail-select') : document.getElementById('app-detail-text');
+  const detail = detailVisible ? (detailEl.value || '').trim() : '';
+  const dock   = detailVisible
+    ? document.getElementById('app-dock').checked
+    : document.getElementById('app-dock-2').checked;
+
+  if (!method) { alert('Please select an install method.'); return; }
+  if (method !== 'none' && !detail) { alert('Please enter or select an install detail.'); return; }
+
+  if (ssAppsEditingIndex >= 0) {
+    ssApps[ssAppsEditingIndex] = { name, path, method, detail, dock };
+    cancelEditApp();
+    renderApps();
+    return;
+  }
+
+  ssApps.push({ name, path, method, detail, dock });
+  renderApps();
+  document.getElementById('app-name').value = '';
+  document.getElementById('app-path').value = '';
+  document.getElementById('app-method').value = '';
+  document.getElementById('app-detail-text').value = '';
+  const sel = document.getElementById('app-detail-select');
+  if (sel.options.length) sel.selectedIndex = 0;
+  document.getElementById('app-dock').checked = false;
+  document.getElementById('app-dock-2').checked = false;
+  document.getElementById('app-detail-row').style.display = 'none';
+  document.getElementById('app-dock-standalone').style.display = 'block';
+  ['app-dock','app-dock-2'].forEach(id => {
+    const row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.remove('enabled');
+  });
+}
+
+function removeApp(i) {
+  ssApps.splice(i, 1);
+  renderApps();
+}
+
+function renderApps() {
+  const list = document.getElementById('ss-apps-list');
+  const headers = document.getElementById('app-headers');
+  if (!ssApps.length) {
+    list.innerHTML = '<div class="empty-state">No apps added yet</div>';
+    headers.style.display = 'none';
+    list.ondragstart = list.ondragover = list.ondrop = list.ondragend = null;
+    return;
+  }
+  headers.style.display = 'grid';
+  list.innerHTML = ssApps.map((a, i) => `
+    <div class="item-row app-row" draggable="true" data-index="${i}">
+      <span class="item-drag-handle" title="Drag to reorder">⋮⋮</span>
+      <span class="item-cell name">${esc(a.name)||'—'}</span>
+      <span class="item-cell">${esc(a.path)||'—'}</span>
+      <span class="item-cell">${esc(a.method)}</span>
+      <span class="item-cell">${esc(a.detail)||'—'}</span>
+      <span class="item-cell">${a.dock ? '✓' : '—'}</span>
+      <span class="item-actions">
+        <button type="button" class="item-edit" onclick="event.stopPropagation(); editApp(${i})" title="Edit">Edit</button>
+        <button class="item-remove" onclick="removeApp(${i})">×</button>
+      </span>
+    </div>
+  `).join('');
+
+  list.ondragstart = function(e) {
+    const row = e.target.closest('.item-row');
+    if (!row) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.getAttribute('data-index'));
+    row.classList.add('dragging');
+  };
+  list.ondragend = function(e) {
+    const row = e.target.closest('.item-row');
+    if (row) row.classList.remove('dragging');
+  };
+  list.ondragover = function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+  list.ondrop = function(e) {
+    e.preventDefault();
+    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    const targetRow = e.target.closest('.item-row');
+    if (!targetRow || isNaN(fromIndex)) return;
+    const toIndex = parseInt(targetRow.getAttribute('data-index'), 10);
+    if (fromIndex === toIndex) return;
+    if (ssAppsEditingIndex >= 0) cancelEditApp();
+    const [item] = ssApps.splice(fromIndex, 1);
+    const insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    ssApps.splice(insertAt, 0, item);
+    renderApps();
+  };
+}
+
+function generateSwiftSetup() {
+  const title = document.getElementById('ss-title').value.trim();
+  const message = document.getElementById('ss-message').value.trim();
+  if (!title || !message) { alert('Title and Message are required.'); return; }
+
+  const mainUuid = uuid();
+  const contentUuid = uuid();
+  const listItems = ssApps.map(a =>
+    `${a.name};${a.path};${a.method};${a.detail};${a.dock ? 'yes' : 'no'}`
+  );
+
+  const profile = {
+    PayloadUUID: mainUuid,
+    PayloadType: 'Configuration',
+    PayloadOrganization: 'iStore Business',
+    PayloadIdentifier: mainUuid,
+    PayloadDisplayName: 'SwiftSetup',
+    PayloadDescription: '',
+    PayloadVersion: 1,
+    PayloadEnabled: true,
+    PayloadRemovalDisallowed: true,
+    PayloadScope: 'System',
+    PayloadContent: [{
+      PayloadDisplayName: 'Custom Settings',
+      PayloadIdentifier: contentUuid,
+      PayloadOrganization: 'iStoreBusiness',
+      PayloadType: 'com.apple.ManagedClient.preferences',
+      PayloadUUID: contentUuid,
+      PayloadVersion: 1,
+      PayloadContent: {
+        'com.istorebusiness.swiftsetup': {
+          Forced: [{
+            mcx_preference_settings: {
+              auto_close: getToggle('ss-auto-close'),
+              await_PSSO: getToggle('ss-await-psso'),
+              clear_dock: getToggle('ss-clear-dock'),
+              icon: document.getElementById('ss-icon').value.trim(),
+              message,
+              minOS: document.getElementById('ss-minos').value.trim(),
+              open_CP: getToggle('ss-open-cp'),
+              install_rosetta: getToggle('ss-rosetta'),
+              bounce_edge: getToggle('ss-bounce-edge'),
+              install_updater: getToggle('ss-install-updater'),
+              title,
+              list_items: listItems,
+              disable_installomator_autoinstall: getToggle('ss-disable-autoinstall'),
+            }
+          }]
+        }
+      }
+    }]
+  };
+
+  download('SwiftSetup.mobileconfig', buildPlistDoc(profile));
+}
+
+// ─── SMARTBRANDING ──────────────────────────────────────────────────────────
+
+let sbUrls = [];
+
+function addScreensaverUrl() {
+  const input = document.getElementById('sb-url-input');
+  const val = input.value.trim();
+  if (!val) return;
+  sbUrls.push(val);
+  renderSbUrls();
+  input.value = '';
+}
+
+function removeSbUrl(i) { sbUrls.splice(i,1); renderSbUrls(); }
+
+function renderSbUrls() {
+  const list = document.getElementById('sb-url-list');
+  if (!sbUrls.length) { list.innerHTML = ''; return; }
+  list.innerHTML = sbUrls.map((u,i) => `
+    <div class="item-row url-row">
+      <span class="item-cell">${esc(u)}</span>
+      <button class="item-remove" onclick="removeSbUrl(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function generateSmartBranding(type) {
+  if (type === 'wallpaper') {
+    const url = document.getElementById('sb-wallpaper-url').value.trim();
+    if (!url) { alert('Please enter a Wallpaper URL.'); return; }
+    const skipKill = getToggle('sb-skip-kill');
+
+    // Main wallpaper profile
+    const wallpaperProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'SmartWallpaper', PayloadDescription: 'Wallpaper configuration settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'SmartWallpaper', PayloadIdentifier: uuid(),
+        PayloadOrganization: 'iStoreBusiness', PayloadType: 'com.apple.ManagedClient.preferences',
+        PayloadUUID: uuid(), PayloadVersion: 1,
+        PayloadContent: {
+          'com.istorebusiness.smartwallpaper': {
+            Forced: [{ mcx_preference_settings: {
+              wallpaper_URL: url,
+              wallpaper_path: '/private/var/wallpaper.png',
+              skip_kill_wallpaper_agent: skipKill
+            }}]
+          }
+        }
+      }]
+    };
+
+    // Wallpaper lock profile
+    const lockProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'WallpaperLock', PayloadDescription: 'Locks the wallpaper to prevent changes',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'Desktop Settings', PayloadIdentifier: uuid(),
+        PayloadOrganization: 'iStoreBusiness', PayloadType: 'com.apple.ManagedClient.preferences',
+        PayloadUUID: uuid(), PayloadVersion: 1,
+        PayloadContent: {
+          'com.apple.desktop': {
+            Forced: [{ mcx_preference_settings: {
+              locked: true,
+              'override-picture-path': '/private/var/wallpaper.png'
+            }}]
+          }
+        }
+      }]
+    };
+
+    download('SmartWallpaper.mobileconfig', buildPlistDoc(wallpaperProfile));
+    setTimeout(() => download('WallpaperLock.mobileconfig', buildPlistDoc(lockProfile)), 300);
+  }
+
+  if (type === 'screensaver') {
+    if (!sbUrls.length) { alert('Please add at least one screensaver URL.'); return; }
+
+    const ssPayload = sbUrls.map((u, i) => ({
+      PayloadDisplayName: `SmartScreensaver URL ${i+1}`,
+      PayloadIdentifier: `com.istorebusiness.smartscreensaver.url${i}`,
+      PayloadOrganization: 'iStoreBusiness',
+      PayloadType: 'com.apple.ManagedClient.preferences',
+      PayloadUUID: uuid(), PayloadVersion: 1,
+      PayloadContent: {
+        'com.istorebusiness.smartscreensaver': {
+          Forced: [{ mcx_preference_settings: { screensaver_url: u } }]
+        }
+      }
+    }));
+
+    const ssProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'SmartScreensaver', PayloadDescription: 'Screensaver configuration settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: ssPayload
+    };
+
+    const lockProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'ScreensaverLock', PayloadDescription: 'Locks the screensaver settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'Screensaver', PayloadIdentifier: `com.apple.screensaver.${uuid()}`,
+        PayloadType: 'com.apple.screensaver', PayloadUUID: uuid(), PayloadVersion: 1,
+        moduleName: 'Classic'
+      }]
+    };
+
+    download('SmartScreensaver.mobileconfig', buildPlistDoc(ssProfile));
+    setTimeout(() => download('ScreensaverLock.mobileconfig', buildPlistDoc(lockProfile)), 300);
+  }
+}
+
+// ─── FAVOURITE BOOKIE ───────────────────────────────────────────────────────
+
+let bookmarks = []; // {id, type, name, url, parentId}
+
+function updateBookmarkForm() {
+  const type = document.getElementById('bm-type').value;
+  document.getElementById('bm-url-row').style.display = type === 'bookmark' ? 'grid' : 'none';
+}
+
+function updateParentDropdown() {
+  const sel = document.getElementById('bm-parent');
+  const folders = bookmarks.filter(b => b.type === 'folder');
+  sel.innerHTML = '<option value="">Root (no folder)</option>' +
+    folders.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+}
+
+function addBookmark() {
+  const type   = document.getElementById('bm-type').value;
+  const name   = document.getElementById('bm-name').value.trim();
+  const url    = document.getElementById('bm-url').value.trim();
+  const parent = document.getElementById('bm-parent').value;
+
+  if (!name) { alert('Name is required.'); return; }
+  if (type === 'bookmark' && !url) { alert('URL is required for bookmarks.'); return; }
+
+  bookmarks.push({ id: uuid(), type, name, url: type === 'bookmark' ? url : '', parentId: parent||null });
+  renderBookmarks();
+  updateParentDropdown();
+  document.getElementById('bm-name').value = '';
+  document.getElementById('bm-url').value = '';
+}
+
+function removeBookmark(id) {
+  bookmarks = bookmarks.filter(b => b.id !== id && b.parentId !== id);
+  renderBookmarks();
+  updateParentDropdown();
+}
+
+function renderBookmarks() {
+  const list = document.getElementById('bm-list');
+  const empty = document.getElementById('bm-empty');
+  const headers = document.getElementById('bm-headers');
+
+  if (!bookmarks.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+
+  list.innerHTML = bookmarks.map(b => {
+    const typeBadge = b.type === 'folder'
+      ? `<span class="badge badge-team">Folder</span>`
+      : `<span class="badge badge-sign">Bookmark</span>`;
+    const parent = b.parentId ? bookmarks.find(x => x.id === b.parentId) : null;
+    const sub = b.type === 'folder'
+      ? `${bookmarks.filter(x => x.parentId === b.id).length} child(ren)`
+      : (parent ? `↳ ${esc(parent.name)}` : esc(b.url));
+    return `
+      <div class="item-row bookmark-row">
+        <span class="item-cell">${typeBadge}</span>
+        <span class="item-cell name">${esc(b.name)}</span>
+        <span class="item-cell">${sub}</span>
+        <button class="item-remove" onclick="removeBookmark('${b.id}')">×</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function buildBookmarkStructure() {
+  const toplevel = document.getElementById('bm-toplevel').value.trim();
+  const structure = [];
+  if (toplevel) structure.push({ toplevel_name: toplevel });
+
+  bookmarks.forEach(b => {
+    if (b.parentId) return; // handled by folder
+    if (b.type === 'bookmark') {
+      structure.push({ name: b.name, url: b.url });
+    } else if (b.type === 'folder') {
+      const children = bookmarks
+        .filter(c => c.parentId === b.id)
+        .map(c => ({ name: c.name, url: c.url }));
+      structure.push({ name: b.name, children });
+    }
+  });
+  return structure;
+}
+
+function generateBookmarks() {
+  if (!bookmarks.length) { alert('Please add at least one bookmark.'); return; }
+  const structure = buildBookmarkStructure();
+  const profileUuid = uuid();
+  const profile = {
+    PayloadContent: [
+      {
+        PayloadType: 'com.google.Chrome', PayloadVersion: 1,
+        PayloadIdentifier: 'com.istorebusiness.chrome.bookmarks',
+        PayloadUUID: uuid(), PayloadDisplayName: 'Chrome Managed Bookmarks',
+        PayloadEnabled: true, PayloadOrganization: 'iStore Business',
+        ManagedBookmarks: structure
+      },
+      {
+        PayloadType: 'com.microsoft.Edge', PayloadVersion: 1,
+        PayloadIdentifier: 'com.istorebusiness.edge.favorites',
+        PayloadUUID: uuid(), PayloadDisplayName: 'Edge Managed Favorites',
+        PayloadEnabled: true, PayloadOrganization: 'iStore Business',
+        ManagedFavorites: structure
+      }
+    ],
+    PayloadDisplayName: 'Chrome & Edge Bookmarks',
+    PayloadIdentifier: 'com.istorebusiness.bookmarksprofile',
+    PayloadOrganization: 'iStore Business',
+    PayloadRemovalDisallowed: false,
+    PayloadType: 'Configuration',
+    PayloadUUID: profileUuid,
+    PayloadVersion: 1
+  };
+  download('ManagedBookmarks.mobileconfig', buildPlistDoc(profile));
+}
+
+// ─── SANTA ──────────────────────────────────────────────────────────────────
+
+let santaRules = [];
+
+function addSantaRule() {
+  const policy = document.getElementById('santa-policy').value;
+  const ruleType = document.getElementById('santa-rule-type').value;
+  const identifier = document.getElementById('santa-identifier').value.trim();
+  if (!identifier) { alert('Identifier is required.'); return; }
+  santaRules.push({ policy, ruleType, identifier });
+  renderSantaRules();
+  document.getElementById('santa-identifier').value = '';
+}
+
+function removeSantaRule(i) { santaRules.splice(i,1); renderSantaRules(); }
+
+function renderSantaRules() {
+  const list = document.getElementById('santa-rules-list');
+  const empty = document.getElementById('santa-empty');
+  const headers = document.getElementById('santa-headers');
+
+  if (!santaRules.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+
+  list.innerHTML = santaRules.map((r, i) => {
+    const policyBadge = r.policy === 'ALLOWLIST'
+      ? `<span class="badge badge-allow">ALLOW</span>`
+      : `<span class="badge badge-block">BLOCK</span>`;
+    const typeBadge = r.ruleType === 'TEAMID'
+      ? `<span class="badge badge-team">TEAMID</span>`
+      : `<span class="badge badge-sign">SIGNINGID</span>`;
+    return `
+      <div class="item-row santa-row">
+        <span class="item-cell">${policyBadge}</span>
+        <span class="item-cell">${typeBadge}</span>
+        <span class="item-cell name">${esc(r.identifier)}</span>
+        <span></span>
+        <button class="item-remove" onclick="removeSantaRule(${i})">×</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function generateSanta() {
+  if (!santaRules.length) { alert('Please add at least one rule.'); return; }
+  const payloadUuid = uuid();
+  const profileUuid = uuid();
+  const lockdown = getToggle('santa-lockdown');
+
+  const profile = {
+    PayloadContent: [{
+      StaticRules: santaRules.map(r => ({
+        identifier: r.identifier,
+        policy: r.policy,
+        rule_type: r.ruleType
+      })),
+      PayloadDisplayName: 'Santa Configuration',
+      PayloadIdentifier: `com.istorebusiness.santa.${payloadUuid}`,
+      PayloadType: 'com.northpolesec.santa',
+      PayloadUUID: payloadUuid,
+      PayloadVersion: 1,
+      ClientMode: lockdown ? 2 : 1
+    }],
+    PayloadDescription: 'Santa rules for allowed/blocked applications',
+    PayloadDisplayName: 'Santa: Configuration',
+    PayloadIdentifier: 'com.istorebusiness.santa',
+    PayloadOrganization: 'Generated by iStore Business Toolbox',
+    PayloadRemovalDisallowed: false,
+    PayloadScope: 'System',
+    PayloadType: 'Configuration',
+    PayloadUUID: profileUuid,
+    PayloadVersion: 1
+  };
+  download('santa_configuration.mobileconfig', buildPlistDoc(profile));
+}
+
+// ─── PROFILE FUSION ─────────────────────────────────────────────────────────
+
+let fusionPayloads = []; // [{sourceName, sourceFile, payload (raw plist object)}]
+let fusionProfileNames = [];
+
+async function handleFusionFiles(event) {
+  const files = Array.from(event.target ? event.target.files : event.files || event);
+  for (const file of files) {
+    if (fusionProfileNames.includes(file.name)) continue;
+    try {
+      const text = await file.text();
+      const payloads = parseMobileconfigPayloads(text, file.name);
+      fusionProfileNames.push(file.name);
+      payloads.forEach(p => fusionPayloads.push(p));
+    } catch(e) {
+      alert(`Failed to parse ${file.name}: ${e.message}`);
+    }
+  }
+  renderFusionProfiles();
+  renderFusionPayloads();
+
+  // Update drop zone label
+  const zone = document.getElementById('fusion-drop-zone');
+  const uniqueCount = new Set(fusionPayloads.map(p => p.sourceName)).size;
+  if (zone && uniqueCount > 0) {
+    zone.classList.add('has-file');
+    zone.querySelector('.drop-zone-label').textContent = `✓ ${uniqueCount} profile${uniqueCount > 1 ? 's' : ''} loaded — drop more to add`;
+  }
+}
+
+function parseMobileconfigPayloads(xmlText, sourceName) {
+  // Parse plist XML to extract PayloadContent array
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'text/xml');
+  const root = doc.querySelector('plist > dict');
+  if (!root) throw new Error('Not a valid plist');
+  const obj = parsePlistNode(root);
+  const content = obj.PayloadContent || [];
+  return content.map(p => ({
+    sourceName,
+    payloadType: p.PayloadType || 'Unknown',
+    displayName: p.PayloadDisplayName || 'No Name',
+    rawXml: buildPayloadXml(p)
+  }));
+}
+
+function parsePlistNode(node) {
+  const tag = node.tagName;
+  if (tag === 'dict') {
+    const obj = {};
+    const children = Array.from(node.childNodes).filter(n => n.nodeType === 1);
+    for (let i = 0; i < children.length; i += 2) {
+      const key = children[i].textContent;
+      const val = parsePlistNode(children[i+1]);
+      obj[key] = val;
+    }
+    return obj;
+  }
+  if (tag === 'array') {
+    return Array.from(node.childNodes).filter(n => n.nodeType === 1).map(parsePlistNode);
+  }
+  if (tag === 'string') return node.textContent;
+  if (tag === 'integer') return parseInt(node.textContent, 10);
+  if (tag === 'real') return parseFloat(node.textContent);
+  if (tag === 'true') return true;
+  if (tag === 'false') return false;
+  if (tag === 'data') return node.textContent.trim();
+  return node.textContent;
+}
+
+function buildPayloadXml(obj) {
+  // Keep raw object for re-serialization
+  return obj;
+}
+
+function removeFusionPayload(i) {
+  fusionPayloads.splice(i, 1);
+  renderFusionPayloads();
+}
+
+function renderFusionProfiles() {
+  const list = document.getElementById('fusion-profiles-list');
+  const empty = document.getElementById('fusion-profiles-empty');
+  const uniqueNames = [...new Set(fusionPayloads.map(p => p.sourceName))];
+
+  if (!uniqueNames.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = uniqueNames.map(name => `
+    <div class="item-row url-row">
+      <span class="item-cell name">${esc(name)}</span>
+      <button class="item-remove" onclick="removeFusionProfile('${esc(name)}')">×</button>
+    </div>
+  `).join('');
+}
+
+function removeFusionProfile(name) {
+  fusionPayloads = fusionPayloads.filter(p => p.sourceName !== name);
+  fusionProfileNames = fusionProfileNames.filter(n => n !== name);
+  renderFusionProfiles();
+  renderFusionPayloads();
+}
+
+function renderFusionPayloads() {
+  const list = document.getElementById('fusion-payloads-list');
+  const empty = document.getElementById('fusion-payloads-empty');
+  const headers = document.getElementById('fusion-payload-headers');
+
+  if (!fusionPayloads.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+
+  list.innerHTML = fusionPayloads.map((p, i) => `
+    <div class="item-row fusion-row">
+      <span class="item-cell">${esc(p.sourceName)}</span>
+      <span class="item-cell">${esc(p.payloadType)}</span>
+      <span class="item-cell name">${esc(p.displayName)}</span>
+      <button class="item-remove" onclick="removeFusionPayload(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function generateFusion() {
+  if (!fusionPayloads.length) { alert('Please import at least one profile with payloads.'); return; }
+  const displayName = document.getElementById('fusion-name').value.trim() || 'Merged Configuration Profile';
+  const profile = {
+    PayloadType: 'Configuration',
+    PayloadVersion: 1,
+    PayloadIdentifier: uuid(),
+    PayloadUUID: uuid(),
+    PayloadDisplayName: displayName,
+    PayloadDescription: 'A profile created by merging multiple configuration profiles.',
+    PayloadContent: fusionPayloads.map(p => p.rawXml)
+  };
+  download('MergedProfile.mobileconfig', buildPlistDoc(profile));
+}
+
+// ─── PATCHY INSTALLER ───────────────────────────────────────────────────────
+
+let patchyLabels = [];
+
+function updatePatchyTeamId() {
+  const skip = document.getElementById('pi-skip-notarization').checked;
+  const hint = document.getElementById('pi-teamid-hint');
+  hint.textContent = skip ? 'optional' : 'required';
+  document.getElementById('pi-teamid').placeholder = skip ? 'N/A (skipped)' : 'ABCDE12345';
+}
+
+function addPatchyLabel() {
+  const label  = document.getElementById('pi-label').value.trim();
+  const name   = document.getElementById('pi-name').value.trim();
+  const type   = document.getElementById('pi-type').value;
+  const url    = document.getElementById('pi-url').value.trim();
+  const teamId = document.getElementById('pi-teamid').value.trim();
+  const skip   = getToggle('pi-skip-notarization');
+
+  if (!label || !name || !type || !url) { alert('Label, Name, Type, and Download URL are required.'); return; }
+  if (!skip && !teamId) { alert('Team ID is required when not skipping notarization.'); return; }
+  if (patchyLabels.find(l => l.label === label)) { alert('A label with this name already exists.'); return; }
+
+  patchyLabels.push({ label, name, type, downloadURL: url, expectedTeamID: teamId, skipNotarization: skip });
+  renderPatchyLabels();
+  document.getElementById('pi-label').value = '';
+  document.getElementById('pi-name').value = '';
+  document.getElementById('pi-url').value = '';
+  document.getElementById('pi-teamid').value = '';
+  document.getElementById('pi-skip-notarization').checked = false;
+  document.getElementById('pi-skip-notarization').closest('.toggle-row').classList.remove('enabled');
+  updatePatchyTeamId();
+}
+
+function removePatchyLabel(i) { patchyLabels.splice(i,1); renderPatchyLabels(); }
+
+function renderPatchyLabels() {
+  const list = document.getElementById('pi-labels-list');
+  const empty = document.getElementById('pi-empty');
+  const headers = document.getElementById('pi-headers');
+
+  if (!patchyLabels.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+
+  list.innerHTML = patchyLabels.map((l, i) => `
+    <div class="item-row custom-label-row">
+      <span class="item-cell name">${esc(l.label)}</span>
+      <span class="item-cell">${esc(l.name)}</span>
+      <span class="item-cell">${esc(l.type)}</span>
+      <span class="item-cell">${esc(l.downloadURL)}</span>
+      <span class="item-cell">${l.skipNotarization ? 'N/A' : esc(l.expectedTeamID)}</span>
+      <button class="item-remove" onclick="removePatchyLabel(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function generatePatchy() {
+  if (!patchyLabels.length) { alert('Please add at least one custom label.'); return; }
+
+  let script = '#!/bin/bash\n\n';
+  script += '# === CONFIGURATION ===\n';
+  script += 'original_file="/usr/local/Installomator/Installomator.sh"\n';
+  script += 'search_string="zulujdkfx17)"\n\n';
+  script += '# Define insert_string as a heredoc\n';
+  script += "read -r -d '' insert_string <<'EOF'\n";
+
+  for (const l of patchyLabels) {
+    script += `${l.label})\n`;
+    script += `    name="${l.name}"\n`;
+    script += `    type="${l.type}"\n`;
+    script += `    downloadURL="${l.downloadURL}"\n`;
+    script += `    expectedTeamID="${l.skipNotarization ? 'NONE' : l.expectedTeamID}"\n`;
+    if (l.skipNotarization) script += `    skip_notarization=1\n`;
+    script += `    ;;\n\n`;
+  }
+
+  script += 'EOF\n\n';
+  script += '# === SCRIPT ===\n\n';
+  script += 'temp_file=$(mktemp)\n\n';
+  script += 'line_number=$(grep -n -m 1 "$search_string" "$original_file" | cut -d: -f1)\n\n';
+  script += 'if [[ -z "$line_number" ]]; then\n';
+  script += '  echo "❌ Error: \'$search_string\' not found in $original_file"\n';
+  script += '  rm -f "$temp_file"\n';
+  script += '  exit 1\n';
+  script += 'fi\n\n';
+  script += 'head -n $((line_number - 1)) "$original_file" > "$temp_file"\n';
+  script += 'echo "$insert_string" >> "$temp_file"\n';
+  script += 'tail -n +$((line_number)) "$original_file" >> "$temp_file"\n';
+  script += 'cat "$temp_file" > "$original_file"\n';
+  script += 'rm -f "$temp_file"\n\n';
+  script += '# Ensure script is still executable\n';
+  script += 'chmod +x "$original_file"\n\n';
+  script += 'echo "✅ Patch applied successfully!"\n';
+
+  download('installomator_patch.sh', script, 'text/x-sh');
+}
+
+// ─── DEFAULTS & IMPORTS ─────────────────────────────────────────────────────
+
+function setToggle(id, val) {
+  const cb = document.getElementById(id);
+  if (!cb) return;
+  cb.checked = val;
+  const row = cb.closest('.toggle-row');
+  if (row) row.classList.toggle('enabled', val);
+}
+
+function loadSwiftSetupDefaults() {
+  document.getElementById('ss-title').value   = 'Welcome to iStore Business Automated Onboarding';
+  document.getElementById('ss-message').value = 'Sit back and relax while we set up your new Mac. This should not take too long.';
+  document.getElementById('ss-icon').value    = 'https://narcp.s3.af-south-1.amazonaws.com/istore_business_logo.jpeg';
+  document.getElementById('ss-minos').value   = '';
+
+  setToggle('ss-clear-dock',         true);
+  setToggle('ss-await-psso',         false);
+  setToggle('ss-auto-close',         false);
+  setToggle('ss-open-cp',            false);
+  setToggle('ss-rosetta',            false);
+  setToggle('ss-bounce-edge',        true);
+  setToggle('ss-install-updater',    true);
+  setToggle('ss-disable-autoinstall',false);
+
+  ssApps = [
+    { name:'Company Portal',    path:'/Applications/Company Portal.app',      method:'installomator', detail:'microsoftcompanyportal', dock:false },
+    { name:'Microsoft Word',    path:'/Applications/Microsoft Word.app',       method:'installomator', detail:'microsoftword',          dock:true  },
+    { name:'Microsoft Excel',   path:'/Applications/Microsoft Excel.app',      method:'installomator', detail:'microsoftexcel',         dock:true  },
+    { name:'Microsoft Edge',    path:'/Applications/Microsoft Edge.app',       method:'installomator', detail:'microsoftedge',          dock:true  },
+    { name:'Microsoft Teams',   path:'/Applications/Microsoft Teams.app',      method:'installomator', detail:'microsoftteams',         dock:true  },
+    { name:'Microsoft Outlook', path:'/Applications/Microsoft Outlook.app',    method:'installomator', detail:'microsoftoutlook',       dock:true  },
+    { name:'OneDrive',          path:'/Applications/OneDrive.app',             method:'installomator', detail:'microsoftonedrive',      dock:false },
+  ];
+  renderApps();
+}
+
+// ── Parse plist XML helper ───────────────────────────────────────────────────
+function parsePlistText(text) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/xml');
+  const root = doc.querySelector('plist > dict');
+  if (!root) throw new Error('Not a valid plist/mobileconfig');
+  return parsePlistNode(root);
+}
+
+// ── SwiftSetup import ────────────────────────────────────────────────────────
+function importSwiftSetup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      let loaded = false;
+      for (const payload of payloads) {
+        const content = payload.PayloadContent || {};
+        const settings = (content['com.istorebusiness.swiftsetup'] || content['com.isb.setup'])
+          ?.Forced?.[0]?.mcx_preference_settings;
+        if (!settings) continue;
+        loaded = true;
+
+        document.getElementById('ss-title').value   = settings.title   || '';
+        document.getElementById('ss-message').value = settings.message  || '';
+        document.getElementById('ss-icon').value    = settings.icon     || '';
+        document.getElementById('ss-minos').value   = settings.minOS    || '';
+
+        setToggle('ss-clear-dock',          !!settings.clear_dock);
+        setToggle('ss-await-psso',          !!settings.await_PSSO);
+        setToggle('ss-auto-close',          !!settings.auto_close);
+        setToggle('ss-open-cp',             !!settings.open_CP);
+        setToggle('ss-rosetta',             !!settings.install_rosetta);
+        setToggle('ss-bounce-edge',         !!settings.bounce_edge);
+        setToggle('ss-install-updater',     !!settings.install_updater);
+        setToggle('ss-disable-autoinstall', !!settings.disable_installomator_autoinstall);
+
+        ssApps = (settings.list_items || []).map(item => {
+          const parts = item.split(';');
+          if (parts.length < 5) return null;
+          return { name: parts[0], path: parts[1], method: parts[2], detail: parts[3], dock: parts[4] === 'yes' };
+        }).filter(Boolean);
+        renderApps();
+        break;
+      }
+      if (!loaded) alert('No SwiftSetup payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+
+// ── SmartBranding import ─────────────────────────────────────────────────────
+function importSmartBranding(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      let found = false;
+      for (const payload of payloads) {
+        const content = payload.PayloadContent || {};
+        const wallpaperSettings = content['com.istorebusiness.smartwallpaper']?.Forced?.[0]?.mcx_preference_settings;
+        if (wallpaperSettings) {
+          found = true;
+          document.getElementById('sb-wallpaper-url').value = wallpaperSettings.wallpaper_URL || '';
+          setToggle('sb-skip-kill', !!wallpaperSettings.skip_kill_wallpaper_agent);
+        }
+        const ssSettings = content['com.istorebusiness.smartscreensaver']?.Forced?.[0]?.mcx_preference_settings;
+        if (ssSettings?.screensaver_url) {
+          found = true;
+          if (!sbUrls.includes(ssSettings.screensaver_url)) {
+            sbUrls.push(ssSettings.screensaver_url);
+          }
+        }
+        // Legacy: URLs array directly on payload
+        if (payload.PayloadType === 'com.istorebusiness.smartscreensaver' && Array.isArray(payload.URLs)) {
+          found = true;
+          payload.URLs.forEach(u => { if (!sbUrls.includes(u)) sbUrls.push(u); });
+        }
+      }
+      renderSbUrls();
+      if (!found) alert('No SmartBranding payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+
+// ── Bookmarks import ─────────────────────────────────────────────────────────
+function importBookmarks(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      let found = false;
+      for (const payload of payloads) {
+        const type = payload.PayloadType;
+        const items = payload.ManagedBookmarks || payload.ManagedFavorites;
+        if (!items) continue;
+        found = true;
+        bookmarks = [];
+        for (const item of items) {
+          if (item.toplevel_name) {
+            document.getElementById('bm-toplevel').value = item.toplevel_name;
+          } else if (item.url !== undefined) {
+            bookmarks.push({ id: uuid(), type: 'bookmark', name: item.name, url: item.url, parentId: null });
+          } else if (Array.isArray(item.children)) {
+            const folder = { id: uuid(), type: 'folder', name: item.name, url: '', parentId: null };
+            bookmarks.push(folder);
+            for (const child of item.children) {
+              if (child.url !== undefined) {
+                bookmarks.push({ id: uuid(), type: 'bookmark', name: child.name, url: child.url, parentId: folder.id });
+              }
+            }
+          }
+        }
+        renderBookmarks();
+        updateParentDropdown();
+        break;
+      }
+      if (!found) alert('No managed bookmarks payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+
+// ── Santa import ─────────────────────────────────────────────────────────────
+function importSanta(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      let santaPayload = null;
+      for (const p of payloads) {
+        if (p.PayloadType === 'com.northpolesec.santa') { santaPayload = p; break; }
+      }
+      if (!santaPayload) { alert('No Santa payload found in this profile.'); return; }
+      setToggle('santa-lockdown', santaPayload.ClientMode === 2);
+      santaRules = (santaPayload.StaticRules || []).map(r => ({
+        policy: r.policy,
+        ruleType: r.rule_type,
+        identifier: r.identifier
+      }));
+      renderSantaRules();
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+
+// ── Patchy import ─────────────────────────────────────────────────────────────
+function importPatchy(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const lines = text.split('\n');
+      const customLabels = [];
+      let current = null;
+      let inHeredoc = false;
+
+      for (const line of lines) {
+        const stripped = line.trim();
+        if (!inHeredoc && line.includes("read -r -d '' insert_string <<'EOF'")) {
+          inHeredoc = true; continue;
+        }
+        if (inHeredoc && stripped === 'EOF') {
+          if (current?.label && current?.name && current?.type && current?.downloadURL) customLabels.push(current);
+          break;
+        }
+        if (!inHeredoc) continue;
+
+        // New case label: ends with ) but not starting with a space/keyword
+        if (/^\w[\w.-]*\)$/.test(stripped)) {
+          if (current?.label && current?.name && current?.type && current?.downloadURL) customLabels.push(current);
+          current = { label: stripped.slice(0, -1), name:'', type:'dmg', downloadURL:'', expectedTeamID:'', skipNotarization:false };
+          continue;
+        }
+        if (!current) continue;
+        if (stripped === ';;') continue;
+
+        const eqIdx = stripped.indexOf('=');
+        if (eqIdx === -1) continue;
+        const key = stripped.slice(0, eqIdx).trim();
+        let val = stripped.slice(eqIdx + 1).trim().replace(/;$/, '');
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+
+        if (key === 'name')             current.name = val;
+        else if (key === 'type')        current.type = val;
+        else if (key === 'downloadURL') current.downloadURL = val;
+        else if (key === 'expectedTeamID') current.expectedTeamID = val === 'NONE' ? '' : val;
+        else if (key === 'skip_notarization') current.skipNotarization = val === '1';
+      }
+
+      if (!customLabels.length) { alert('No custom labels found in this script.'); return; }
+      patchyLabels = customLabels;
+      renderPatchyLabels();
+    } catch(e) { alert('Failed to parse script: ' + e.message); }
+  });
+}
+
+// ─── DRAG AND DROP ──────────────────────────────────────────────────────────
+
+function initDropZone(zoneId, handler) {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+
+  zone.addEventListener('dragenter', e => {
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragover', e => {
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', e => {
+    e.preventDefault(); e.stopPropagation();
+    // Only remove if leaving the zone entirely (not a child)
+    if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handler(e.dataTransfer.files);
+  });
+}
+
+// ─── COMPLIANCE SCRIPT FIXER ────────────────────────────────────────────────
+
+let fleOriginalName = '';
+let fleFixedContent = '';
+
+const FLE_TARGET = 'zparseopts -D -E -help=flag_help -check=check -fix=fix -stats=stats -compliant=compliant_opt -non_compliant=non_compliant_opt -reset=reset -reset-all=reset_all -cfc=cfc -quiet:=quiet || { print -l $usage && return }';
+const FLE_INSERT = 'cfc=1';
+
+function handleFileLineEditor(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  processComplianceFile(file);
+  event.target.value = '';
+}
+
+function processComplianceFile(file) {
+  fleOriginalName = file.name;
+  fleFixedContent = '';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    // Strip BOM if present
+    let text = e.target.result;
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+    const lines = text.split('\n');
+    let foundAt = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(FLE_TARGET)) {
+        foundAt = i;
+        break;
+      }
+    }
+
+    const statusEl = document.getElementById('fle-status');
+    const previewCard = document.getElementById('fle-preview-card');
+    const previewEl = document.getElementById('fle-preview');
+    const downloadBtn = document.getElementById('fle-download-btn');
+
+    statusEl.style.display = 'block';
+
+    if (foundAt === -1) {
+      statusEl.className = 'warning-box';
+      statusEl.textContent = `⚠ Target line not found in "${file.name}". The file may already be patched, or it's a different script version.`;
+      previewCard.style.display = 'none';
+      downloadBtn.style.display = 'none';
+      return;
+    }
+
+    // Insert the new line after the found line
+    const patched = [...lines];
+    patched.splice(foundAt + 1, 0, FLE_INSERT);
+    fleFixedContent = patched.join('\n');
+
+    statusEl.className = 'info-box';
+    statusEl.innerHTML = `✓ Found target line at line <strong>${foundAt + 1}</strong>. <code>${esc(FLE_INSERT)}</code> will be inserted after it.`;
+
+    // Build a preview: show 2 lines before and 3 lines after the insertion
+    const previewStart = Math.max(0, foundAt - 1);
+    const previewLines = patched.slice(previewStart, foundAt + 4);
+    const insertedIndex = foundAt - previewStart + 1; // index of inserted line in preview
+    previewEl.innerHTML = previewLines.map((line, idx) => {
+      const lineNum = previewStart + idx + 1;
+      const isInserted = idx === insertedIndex;
+      const style = isInserted
+        ? `color:var(--green);background:var(--green-dim);padding:0 6px;border-radius:3px;`
+        : `color:var(--text-dim);`;
+      const marker = isInserted ? '+ ' : '  ';
+      return `<span style="${style}">${String(lineNum).padStart(4,' ')} ${marker}${esc(line)}</span>`;
+    }).join('\n');
+
+    previewCard.style.display = 'block';
+    downloadBtn.style.display = 'inline-flex';
+
+    // Update drop zone to show success state
+    const zone = document.getElementById('fle-drop-zone');
+    if (zone) {
+      zone.classList.add('has-file');
+      document.getElementById('fle-drop-label').textContent = `✓ ${file.name}`;
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function downloadFixedFile() {
+  if (!fleFixedContent) return;
+  download(fleOriginalName || 'fixed_script.sh', fleFixedContent, 'text/plain');
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+loadSwiftSetupDefaults();
+renderBookmarks();
+renderSantaRules();
+renderFusionPayloads();
+renderFusionProfiles();
+renderPatchyLabels();
+updateBookmarkForm();
+
+// Wire up drag-and-drop zones
+initDropZone('fusion-drop-zone', files => {
+  handleFusionFiles(files);
+});
+
+initDropZone('fle-drop-zone', files => {
+  if (files[0]) processComplianceFile(files[0]);
+});
+</script>
+{% endblock %}

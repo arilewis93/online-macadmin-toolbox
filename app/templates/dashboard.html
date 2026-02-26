@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="dashboard">
+  <div class="dashboard-welcome">
+    <div class="card">
+      <div class="card-title">Signed in</div>
+      <p class="user-info">You are signed in as <strong>{{ user.email }}</strong>{% if user.name %} ({{ user.name }}){% endif %}.</p>
+    </div>
+  </div>
+
+  <div class="dashboard-tools">
+    <a href="{{ url_for('main.toolbox', tool_name='toolbox') }}" class="tool-card">
+      <div class="tool-card-left">
+        <div class="tool-card-title">iStore Business Toolbox</div>
+        <div class="tool-card-desc">SwiftSetup, SmartBranding, Favourite Bookie, Santa Config, Profile Fusion, Patchy Installer, Compliance Fixer.</div>
+      </div>
+      <span class="btn btn-primary">Open →</span>
+    </a>
+    <a href="{{ url_for('main.toolbox', tool_name='equitrac') }}" class="tool-card">
+      <div class="tool-card-left">
+        <div class="tool-card-title">Equitrac Config Profile Generator</div>
+        <div class="tool-card-desc">Generate a .mobileconfig for Equitrac Mac Client with security, servers, printers, drivers, and feature flags.</div>
+      </div>
+      <span class="btn btn-primary">Open →</span>
+    </a>
+  </div>
+
+  <div class="dashboard-signout">
+    <a class="btn btn-ghost" href="{{ url_for('auth.logout') }}">Sign out</a>
+  </div>
+</div>
+{% endblock %}

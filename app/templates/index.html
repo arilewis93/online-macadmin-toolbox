@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="page-hero">
+    <h1 class="page-title">MacAdmin Toolbox</h1>
+    <p class="page-lead">A collection of tools for Mac admins.</p>
+    {% if current_user.is_authenticated %}
+        <a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Go to Dashboard</a>
+    {% else %}
+        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Sign in with Microsoft</a>
+    {% endif %}
+</div>
+{% endblock %}
