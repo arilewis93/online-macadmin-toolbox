@@ -202,11 +202,14 @@ nav a.complete .nav-dot { background: var(--green); }
 /* ── MAIN CONTENT ── */
 main {
   padding: 32px 40px;
-  max-width: 960px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
 }
 main.tool-layout {
-  padding: 0;
+  padding: 24px 32px 32px;
   max-width: none;
+  width: 100%;
 }
 /* Tool pages use a single header (tool-bar), so one 56px bar */
 main.tool-layout .shell { min-height: calc(100vh - 56px); }
@@ -284,7 +287,7 @@ header.tool-bar { top: 0; }
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 6px;
-  max-width: 600px;
+  max-width: 72ch;
 }
 
 /* ── CARDS ── */
@@ -456,6 +459,12 @@ select option { background: var(--surface); }
 
 .toggle-row input[type="checkbox"] { display: none; }
 
+/* ── Santa action options ── */
+.santa-action-options { display: flex; flex-direction: column; gap: 6px; }
+.santa-action-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.santa-action-row input[type="radio"] { margin: 0; }
+.santa-action-row:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
+
 /* ── BITMASK DISPLAY (Equitrac) ── */
 .bitmask-display {
   display: flex;
@@ -544,7 +553,7 @@ select option { background: var(--surface); }
 .item-row.bookmark-row { grid-template-columns: 80px 1fr 1fr auto; }
 .item-row.driver-row { grid-template-columns: 1fr auto; }
 .item-row.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
-.item-row.santa-row { grid-template-columns: 100px 100px 1fr 1fr auto; }
+.item-row.santa-row { grid-template-columns: 1fr 1fr auto; }
 .item-row.fusion-row { grid-template-columns: 1fr 1fr 1fr auto; }
 
 .item-cell { font-family: var(--mono); font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -576,7 +585,7 @@ select option { background: var(--surface); }
 .col-header.app-row { grid-template-columns: 28px 1fr 1.2fr 120px 1fr 80px auto; }
 .col-header.bookmark-row { grid-template-columns: 80px 1fr 1fr auto; }
 .col-header.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
-.col-header.santa-row { grid-template-columns: 100px 100px 1fr 1fr auto; }
+.col-header.santa-row { grid-template-columns: 1fr 1fr auto; }
 .col-header.fusion-row { grid-template-columns: 1fr 1fr 1fr auto; }
 
 .item-remove {
@@ -737,7 +746,8 @@ select option { background: var(--surface); }
 
 /* ── DASHBOARD ── */
 .dashboard {
-  max-width: 720px;
+  max-width: 960px;
+  width: 100%;
   margin: 0 auto;
 }
 .dashboard-welcome {
@@ -775,6 +785,7 @@ select option { background: var(--surface); }
 .tool-group-desc a:hover { text-decoration: underline; }
 .tool-card-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
 .tool-card {
@@ -963,8 +974,41 @@ input.invalid { border-color: var(--danger) !important; }
   margin-bottom: 16px;
 }
 
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.two-col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.item-list { min-width: 0; }
+.item-row .item-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1024px) {
+  main { padding: 24px 24px; }
+  main.tool-layout { padding: 20px 24px 28px; }
+  .three-col { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  header, .tool-bar { padding: 0 16px; }
+  main { padding: 20px 16px; max-width: none; }
+  main.tool-layout { padding: 16px 16px 24px; }
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .section-title { font-size: 20px; }
+  .card { padding: 18px 16px; }
+  .tool-card-grid { grid-template-columns: 1fr; }
+  .field-grid.thirds { grid-template-columns: 1fr; }
+  .section-footer { flex-wrap: wrap; gap: 8px; }
+}
+@media (max-width: 480px) {
+  html { font-size: 13px; }
+  header, .tool-bar { padding: 0 12px; gap: 12px; }
+  main { padding: 16px 12px; }
+  main.tool-layout { padding: 12px 12px 20px; }
+  .card { padding: 14px 12px; }
+  .item-row.app-row,
+  .col-header.app-row { grid-template-columns: 1fr 1fr auto; }
+  .item-row.bookmark-row,
+  .col-header.bookmark-row { grid-template-columns: 1fr auto; }
+  .item-row.custom-label-row,
+  .col-header.custom-label-row { grid-template-columns: 1fr 1fr auto; }
+}
 
 code { font-family: var(--mono); color: var(--accent); font-size: 11px; }
 

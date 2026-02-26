@@ -25,8 +25,20 @@
       </div>
 
       <div class="card">
-        <div class="card-title">How to get Identifier and Team ID</div>
-        <p class="section-desc" style="margin-bottom:12px;">On a Mac, run <code>codesign</code> on the app (or its main executable) to get the values for SIGNINGID or TEAMID rules.</p>
+        <div class="card-title">Get identifiers from an app or binary</div>
+        <p class="section-desc" style="margin-bottom:12px;">Drop or select a <strong>signed Mach-O binary</strong> (e.g. the main executable inside an app: <code>App.app/Contents/MacOS/AppName</code>). Identifier and Team ID are read in the browser — no server or Mac required.</p>
+        <p class="section-desc" style="margin-bottom:12px;font-size:12px;color:var(--muted, #666);"><strong>Disclaimer:</strong> Reading signing info with JavaScript is a best-effort approach and may not be perfect for all binaries or signature formats. Always test and verify results (e.g. with <code>codesign -dv</code> on a Mac) before relying on them for policy.</p>
+        <input type="file" id="santa-analyze-input" accept="*" style="display:none;" onchange="santaAnalyzeFile(event)">
+        <div class="drop-zone" id="santa-analyze-zone" onclick="document.getElementById('santa-analyze-input').click()" style="margin-bottom:12px;">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label" id="santa-analyze-label">Drop .app bundle or binary here</div>
+          <div class="drop-zone-sub">Drag a .app directly, or click to select the binary inside (e.g. MyApp.app/Contents/MacOS/MyApp)</div>
+        </div>
+        <div id="santa-analyze-status" style="display:none;" class="info-box"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Or on a Mac</div>
+        <p class="section-desc" style="margin-bottom:12px;">Run <code>codesign</code> on the app (or its main executable) to get the same values.</p>
         <div style="font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto;">
           <code style="display:block;word-break:break-all;">codesign -dv /path/to/App.app 2>&1 | grep -E 'Identifier=|TeamIdentifier='</code>
         </div>
@@ -46,24 +58,18 @@
 
       <div class="card">
         <div class="card-title">Add Rule</div>
-        <div class="three-col" style="margin-bottom:12px;">
-          <div class="field">
-            <label>POLICY</label>
-            <select id="santa-policy">
-              <option value="ALLOWLIST">ALLOWLIST</option>
-              <option value="BLOCKLIST">BLOCKLIST</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>RULE TYPE</label>
-            <select id="santa-rule-type">
-              <option value="SIGNINGID">SIGNINGID</option>
-              <option value="TEAMID">TEAMID</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>IDENTIFIER <span style="color:var(--danger);font-size:10px">*</span></label>
-            <input type="text" id="santa-identifier" placeholder="TEAMID:com.example.app">
+        <p class="section-desc" style="margin-bottom:10px;">Choose what to allow or block. Options depend on Lockdown mode and whether the app is Apple-signed.</p>
+        <div class="field" style="margin-bottom:10px;">
+          <label>IDENTIFIER <span style="color:var(--danger);font-size:10px">*</span></label>
+          <input type="text" id="santa-identifier" placeholder="Drop a binary above or enter e.g. TEAMID:com.example.app">
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label>ACTION</label>
+          <div class="santa-action-options" id="santa-action-options">
+            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="allow_app" id="santa-action-allow-app"><span class="toggle-label">Allow this app</span></label>
+            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="allow_developer" id="santa-action-allow-dev"><span class="toggle-label">Allow all apps by this developer</span></label>
+            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="block_app" id="santa-action-block-app" checked><span class="toggle-label">Block this app</span></label>
+            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="block_developer" id="santa-action-block-dev"><span class="toggle-label">Block all apps by this developer</span></label>
           </div>
         </div>
         <button class="btn btn-primary" onclick="addSantaRule()" style="width:100%;">＋ Add Rule</button>
@@ -72,7 +78,7 @@
       <div class="card">
         <div class="card-title">Rules</div>
         <div class="col-header santa-row" id="santa-headers" style="display:none;">
-          <span>Policy</span><span>Type</span><span>Identifier</span><span></span><span></span>
+          <span>Action</span><span>Identifier</span><span></span>
         </div>
         <div class="item-list" id="santa-rules-list"></div>
         <div class="empty-state" id="santa-empty">No rules added yet</div>
@@ -91,17 +97,179 @@
 {{ super() }}
 {% include 'tools/_shared_utils.html' %}
 <script>
+(function() {
+  // --- Mach-O code signature parsing (browser, no server) ---
+  const MH_MAGIC = 0xFEEDFACE, MH_MAGIC_64 = 0xFEEDFACF, MH_CIGAM = 0xCEFAEDFE, MH_CIGAM_64 = 0xCFFAEDFE;
+  const FAT_MAGIC = 0xCAFEBABE, FAT_CIGAM = 0xBEBAFECA;
+  const LC_CODE_SIGNATURE = 0x1d;
+  const CSMAGIC_EMBEDDED_SIGNATURE = 0xFADE0CC0, CSMAGIC_CODEDIRECTORY = 0xFADE0C02;
+  const CPU_TYPES = { 0x00000007: 'x86', 0x01000007: 'x86_64', 0x0000000C: 'ARM', 0x0100000C: 'ARM64', 0x00000012: 'PowerPC', 0x01000012: 'PowerPC64' };
+
+  function parseMachO(buffer, baseOffset) {
+    const view = new DataView(buffer);
+    if (baseOffset + 28 > buffer.byteLength) return null;
+    const magic = view.getUint32(baseOffset, false);
+    let le, is64;
+    if (magic === MH_MAGIC) { le = false; is64 = false; }
+    else if (magic === MH_MAGIC_64) { le = false; is64 = true; }
+    else if (magic === MH_CIGAM) { le = true; is64 = false; }
+    else if (magic === MH_CIGAM_64) { le = true; is64 = true; }
+    else return null;
+    const r32 = function(off) { return view.getUint32(baseOffset + off, le); };
+    const ncmds = r32(16);
+    const headerSize = is64 ? 32 : 28;
+    let cmdOffset = headerSize;
+    for (let i = 0; i < ncmds; i++) {
+      if (baseOffset + cmdOffset + 8 > buffer.byteLength) break;
+      const cmd = r32(cmdOffset), cmdsize = r32(cmdOffset + 4);
+      if (cmd === LC_CODE_SIGNATURE) {
+        const dataoff = r32(cmdOffset + 8), datasize = r32(cmdOffset + 12);
+        return { dataoff: baseOffset + dataoff, datasize };
+      }
+      if (cmdsize < 8) break;
+      cmdOffset += cmdsize;
+    }
+    return null;
+  }
+
+  function findCodeSignature(buffer) {
+    const view = new DataView(buffer);
+    if (buffer.byteLength < 8) return null;
+    const magic = view.getUint32(0, false);
+    if (magic === FAT_MAGIC || magic === FAT_CIGAM) {
+      const nfat = view.getUint32(4, magic === FAT_CIGAM);
+      if (nfat > 20) return null;
+      for (let i = 0; i < nfat; i++) {
+        const base = 8 + i * 20;
+        const archOffset = view.getUint32(base + 8, false);
+        if (archOffset >= buffer.byteLength) continue;
+        const result = parseMachO(buffer, archOffset);
+        if (result) return result;
+      }
+      return null;
+    }
+    return parseMachO(buffer, 0);
+  }
+
+  function parseCodeDirectory(buffer, offset) {
+    const view = new DataView(buffer);
+    if (view.getUint32(offset, false) !== CSMAGIC_CODEDIRECTORY) return null;
+    const version = view.getUint32(offset + 8, false);
+    const flags = view.getUint32(offset + 12, false);
+    const identOff = view.getUint32(offset + 20, false);
+    const teamOff = version >= 0x20200 ? view.getUint32(offset + 48, false) : 0;
+    const platform = offset + 38 < buffer.byteLength ? view.getUint8(offset + 38) : 0;
+    const bytes = new Uint8Array(buffer);
+    const readCStr = function(base) {
+      var s = '', i = base;
+      while (i < bytes.length && bytes[i] !== 0) s += String.fromCharCode(bytes[i++]);
+      return s;
+    };
+    const bundleId = identOff ? readCStr(offset + identOff) : '';
+    const teamId = teamOff ? readCStr(offset + teamOff) : '';
+    return {
+      bundleId: bundleId,
+      teamId: platform !== 0 ? 'platform' : teamId,
+      adhoc: Boolean(flags & 0x2),
+      isPlatform: platform !== 0
+    };
+  }
+
+  function parseSuperBlob(buffer, dataoff, datasize) {
+    const view = new DataView(buffer);
+    if (view.getUint32(dataoff, false) !== CSMAGIC_EMBEDDED_SIGNATURE) return { error: 'No embedded signature' };
+    const count = view.getUint32(dataoff + 8, false);
+    for (let i = 0; i < count; i++) {
+      const base = dataoff + 12 + i * 8;
+      const boff = view.getUint32(base + 4, false);
+      const babs = dataoff + boff;
+      if (view.getUint32(babs, false) === CSMAGIC_CODEDIRECTORY) {
+        const codeDir = parseCodeDirectory(buffer, babs);
+        if (codeDir) return { codeDir };
+      }
+    }
+    return { error: 'No CodeDirectory blob' };
+  }
+
+  window.santaParseMachOSigning = function(buffer) {
+    const sig = findCodeSignature(buffer);
+    if (!sig) return { error: 'Not a Mach-O or no code signature' };
+    const result = parseSuperBlob(buffer, sig.dataoff, sig.datasize);
+    if (result.error) return result;
+    const cd = result.codeDir;
+    return {
+      identifier: cd.bundleId,
+      teamId: cd.teamId || null,
+      adhoc: cd.adhoc,
+      isPlatform: cd.isPlatform
+    };
+  };
+})();
+
 let santaRules = [];
+var santaCurrentIdentifier = null;
+var santaCurrentTeamId = null;
+var santaCurrentIsPlatform = false;
+
+function getSantaAction() {
+  var r = document.querySelector('input[name="santa-action"]:checked');
+  return r ? r.value : 'block_app';
+}
 function addSantaRule() {
-  const policy = document.getElementById('santa-policy').value;
-  const ruleType = document.getElementById('santa-rule-type').value;
-  const identifier = document.getElementById('santa-identifier').value.trim();
-  if (!identifier) { alert('Identifier is required.'); return; }
-  santaRules.push({ policy, ruleType, identifier });
+  var action = getSantaAction();
+  var identifierField = document.getElementById('santa-identifier').value.trim();
+  if (!identifierField) { alert('Identifier is required.'); return; }
+  var policy, ruleType, identifier;
+  if (action === 'allow_app') {
+    policy = 'ALLOWLIST'; ruleType = 'SIGNINGID'; identifier = identifierField;
+  } else if (action === 'allow_developer') {
+    policy = 'ALLOWLIST'; ruleType = 'TEAMID';
+    identifier = santaCurrentTeamId != null ? santaCurrentTeamId : (identifierField.indexOf(':') !== -1 ? identifierField.split(':')[0] : identifierField);
+    if (santaCurrentIsPlatform) { alert('No Team ID for Apple-signed apps.'); return; }
+  } else if (action === 'block_app') {
+    policy = 'BLOCKLIST'; ruleType = 'SIGNINGID'; identifier = identifierField;
+  } else if (action === 'block_developer') {
+    policy = 'BLOCKLIST'; ruleType = 'TEAMID';
+    identifier = santaCurrentTeamId != null ? santaCurrentTeamId : (identifierField.indexOf(':') !== -1 ? identifierField.split(':')[0] : identifierField);
+    if (santaCurrentIsPlatform) { alert('Cannot block all Apple-signed apps.'); return; }
+  } else {
+    alert('Please choose an action.'); return;
+  }
+  santaRules.push({ policy: policy, ruleType: ruleType, identifier: identifier });
   renderSantaRules();
   document.getElementById('santa-identifier').value = '';
 }
 function removeSantaRule(i) { santaRules.splice(i,1); renderSantaRules(); }
+
+function updateSantaActionOptions() {
+  var lockdown = getToggle('santa-lockdown');
+  var isPlatform = santaCurrentIsPlatform;
+  var allowApp = document.getElementById('santa-action-allow-app');
+  var allowDev = document.getElementById('santa-action-allow-dev');
+  var blockApp = document.getElementById('santa-action-block-app');
+  var blockDev = document.getElementById('santa-action-block-dev');
+  function enable(el, on) { if (el) el.style.opacity = on ? '' : '0.5'; el.disabled = !on; }
+  if (isPlatform) {
+    enable(allowApp, true); enable(allowDev, false); enable(blockApp, true); enable(blockDev, false);
+    if (getSantaAction() === 'allow_developer' || getSantaAction() === 'block_developer') {
+      var allowRadio = document.getElementById('santa-action-allow-app');
+      if (allowRadio) allowRadio.checked = true;
+    }
+  } else if (lockdown) {
+    enable(allowApp, true); enable(allowDev, true); enable(blockApp, true); enable(blockDev, false);
+    if (getSantaAction() === 'block_developer') {
+      var ar = document.getElementById('santa-action-allow-app');
+      if (ar) ar.checked = true;
+    }
+  } else {
+    enable(allowApp, true); enable(allowDev, false); enable(blockApp, true); enable(blockDev, true);
+    if (getSantaAction() === 'allow_developer') {
+      var br = document.getElementById('santa-action-block-app');
+      if (br) br.checked = true;
+    }
+  }
+}
+
 function renderSantaRules() {
   const list = document.getElementById('santa-rules-list');
   const empty = document.getElementById('santa-empty');
@@ -114,10 +282,18 @@ function renderSantaRules() {
   }
   empty.style.display = 'none';
   headers.style.display = 'grid';
-  list.innerHTML = santaRules.map((r, i) => {
-    const policyBadge = r.policy === 'ALLOWLIST' ? '<span class="badge badge-allow">ALLOW</span>' : '<span class="badge badge-block">BLOCK</span>';
-    const typeBadge = r.ruleType === 'TEAMID' ? '<span class="badge badge-team">TEAMID</span>' : '<span class="badge badge-sign">SIGNINGID</span>';
-    return '<div class="item-row santa-row"><span class="item-cell">' + policyBadge + '</span><span class="item-cell">' + typeBadge + '</span><span class="item-cell name">' + esc(r.identifier) + '</span><span></span><button class="item-remove" onclick="removeSantaRule(' + i + ')">×</button></div>';
+  var actionLabels = { allow_app: 'Allow this app', allow_developer: 'Allow all by developer', block_app: 'Block this app', block_developer: 'Block all by developer' };
+  var actionFromRule = function(r) {
+    if (r.policy === 'ALLOWLIST' && r.ruleType === 'SIGNINGID') return 'allow_app';
+    if (r.policy === 'ALLOWLIST' && r.ruleType === 'TEAMID') return 'allow_developer';
+    if (r.policy === 'BLOCKLIST' && r.ruleType === 'SIGNINGID') return 'block_app';
+    if (r.policy === 'BLOCKLIST' && r.ruleType === 'TEAMID') return 'block_developer';
+    return 'block_app';
+  };
+  list.innerHTML = santaRules.map(function(r, i) {
+    var actionKey = actionFromRule(r);
+    var label = actionLabels[actionKey] || (r.policy + ' / ' + r.ruleType);
+    return '<div class="item-row santa-row"><span class="item-cell">' + esc(label) + '</span><span class="item-cell name">' + esc(r.identifier) + '</span><button class="item-remove" onclick="removeSantaRule(' + i + ')">×</button></div>';
   }).join('');
 }
 function generateSanta() {
@@ -147,6 +323,58 @@ function generateSanta() {
   };
   download('santa_configuration.mobileconfig', buildPlistDoc(profile));
 }
+function santaAnalyzeFile(event) {
+  var file = event.target && event.target.files && event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  santaAnalyzeFromFile(file);
+}
+function santaAnalyzeFromFile(file) {
+  var zone = document.getElementById('santa-analyze-zone');
+  var label = document.getElementById('santa-analyze-label');
+  var status = document.getElementById('santa-analyze-status');
+  status.style.display = 'block';
+  status.className = 'info-box';
+  status.textContent = 'Reading \u2026';
+  zone.classList.remove('has-file');
+  file.arrayBuffer().then(function(buffer) {
+    var result = window.santaParseMachOSigning(buffer);
+    if (result.error) {
+      status.className = 'warning-box';
+      status.textContent = result.error;
+      return;
+    }
+    var ident = result.identifier || '';
+    var teamId = result.teamId || null;
+    var isPlatform = result.isPlatform;
+    santaCurrentIdentifier = ident ? (isPlatform ? 'platform:' + ident : (teamId ? teamId + ':' + ident : ident)) : null;
+    santaCurrentTeamId = teamId || null;
+    santaCurrentIsPlatform = isPlatform;
+    var identEl = document.getElementById('santa-identifier');
+    if (isPlatform && ident) {
+      identEl.value = 'platform:' + ident;
+      status.className = 'info-box';
+      status.innerHTML = 'Apple-signed app: <strong>Identifier</strong> \u2018' + esc(ident) + '\u2019. Pre-filled. Only &ldquo;Allow this app&rdquo; or &ldquo;Block this app&rdquo; are available.';
+    } else if (teamId && ident) {
+      identEl.value = teamId + ':' + ident;
+      status.className = 'info-box';
+      status.innerHTML = 'Found <strong>Identifier</strong> \u2018' + esc(ident) + '\u2019 and <strong>Team ID</strong> \u2018' + esc(teamId) + '\u2019. Choose an action below.';
+    } else if (ident) {
+      identEl.value = ident;
+      status.className = 'info-box';
+      status.textContent = 'Found Identifier \u2018' + ident + '\u2019 (no Team ID in signature). Use &ldquo;Allow this app&rdquo; or &ldquo;Block this app&rdquo; only.';
+    } else {
+      status.className = 'warning-box';
+      status.textContent = 'No identifier found in signature.';
+    }
+    zone.classList.add('has-file');
+    label.textContent = '\u2713 ' + file.name;
+    updateSantaActionOptions();
+  }).catch(function(e) {
+    status.className = 'warning-box';
+    status.textContent = e.message || 'Failed to read file.';
+  });
+}
 function importSanta(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -163,9 +391,144 @@ function importSanta(event) {
       setToggle('santa-lockdown', santaPayload.ClientMode === 2);
       santaRules = (santaPayload.StaticRules || []).map(r => ({ policy: r.policy, ruleType: r.rule_type, identifier: r.identifier }));
       renderSantaRules();
+      updateSantaActionOptions();
     } catch(e) { alert('Failed to parse profile: ' + e.message); }
   });
 }
 renderSantaRules();
+var lockdownEl = document.getElementById('santa-lockdown');
+if (lockdownEl) lockdownEl.addEventListener('change', updateSantaActionOptions);
+updateSantaActionOptions();
+var santaZone = document.getElementById('santa-analyze-zone');
+if (santaZone) {
+  santaZone.addEventListener('dragover', function(e) { e.preventDefault(); e.stopPropagation(); santaZone.classList.add('drag-over'); });
+  santaZone.addEventListener('dragleave', function(e) { e.preventDefault(); if (!santaZone.contains(e.relatedTarget)) santaZone.classList.remove('drag-over'); });
+  santaZone.addEventListener('drop', async function(e) {
+    e.preventDefault();
+    santaZone.classList.remove('drag-over');
+    var items = e.dataTransfer.items;
+    if (!items || !items.length) return;
+    var item = items[0];
+    // Check for directory (i.e. a .app bundle dropped directly)
+    if (item.webkitGetAsEntry) {
+      var entry = item.webkitGetAsEntry();
+      if (entry && entry.isDirectory) {
+        var status = document.getElementById('santa-analyze-status');
+        status.style.display = 'block';
+        status.className = 'info-box';
+        status.textContent = 'Reading \u2026';
+        try {
+          var buffer = await findMachOInDirectory(entry);
+          if (buffer) {
+            santaAnalyzeFromBuffer(buffer, entry.name);
+          } else {
+            status.className = 'warning-box';
+            status.textContent = 'No Mach-O binary found inside ' + entry.name;
+          }
+        } catch(err) {
+          status.className = 'warning-box';
+          status.textContent = err.message || 'Failed to read directory.';
+        }
+        return;
+      }
+    }
+    // Plain file drop
+    var file = item.getAsFile ? item.getAsFile() : (e.dataTransfer.files[0]);
+    if (file) santaAnalyzeFromFile(file);
+  });
+}
+
+// --- .app directory traversal helpers ---
+function getDirectoryEntry(parentEntry, name) {
+  return new Promise(function(resolve, reject) { parentEntry.getDirectory(name, {}, resolve, reject); });
+}
+async function readDirectoryEntries(dirEntry) {
+  var reader = dirEntry.createReader(), all = [];
+  while (true) {
+    var batch = await new Promise(function(res, rej) { reader.readEntries(res, rej); });
+    if (!batch.length) break;
+    all.push.apply(all, batch);
+  }
+  return all;
+}
+function readFileEntry(fileEntry) {
+  return new Promise(function(resolve, reject) {
+    fileEntry.file(function(f) { f.arrayBuffer().then(resolve).catch(reject); }, reject);
+  });
+}
+function isMachOMagic(buffer) {
+  if (buffer.byteLength < 4) return false;
+  var m = new DataView(buffer).getUint32(0, false);
+  return m===0xFEEDFACE||m===0xFEEDFACF||m===0xCEFAEDFE||m===0xCFFAEDFE||m===0xCAFEBABE;
+}
+async function findMachOInDirectory(dirEntry) {
+  // Try Contents/MacOS/ first
+  try {
+    var contents = await getDirectoryEntry(dirEntry, 'Contents');
+    var macos = await getDirectoryEntry(contents, 'MacOS');
+    var files = await readDirectoryEntries(macos);
+    for (var i=0; i<files.length; i++) {
+      var f = files[i];
+      if (f.isFile && !f.name.endsWith('.dylib') && !f.name.endsWith('.plist')) {
+        try {
+          var buf = await readFileEntry(f);
+          if (isMachOMagic(buf)) return buf;
+        } catch(e) {}
+      }
+    }
+  } catch(e) {}
+  // BFS fallback
+  var queue = [dirEntry];
+  while (queue.length) {
+    var entry = queue.shift();
+    if (entry.isFile) {
+      try { var b = await readFileEntry(entry); if (isMachOMagic(b)) return b; } catch(e) {}
+    } else if (entry.isDirectory) {
+      try { var ch = await readDirectoryEntries(entry); queue.push.apply(queue, ch); } catch(e) {}
+    }
+  }
+  return null;
+}
+
+function santaAnalyzeFromBuffer(buffer, name) {
+  var zone = document.getElementById('santa-analyze-zone');
+  var label = document.getElementById('santa-analyze-label');
+  var status = document.getElementById('santa-analyze-status');
+  status.style.display = 'block';
+  status.className = 'info-box';
+  zone.classList.remove('has-file');
+  var result = window.santaParseMachOSigning(buffer);
+  if (result.error) {
+    status.className = 'warning-box';
+    status.textContent = result.error;
+    return;
+  }
+  var ident = result.identifier || '';
+  var teamId = result.teamId || null;
+  var isPlatform = result.isPlatform;
+  santaCurrentIdentifier = ident ? (isPlatform ? 'platform:' + ident : (teamId ? teamId + ':' + ident : ident)) : null;
+  santaCurrentTeamId = teamId || null;
+  santaCurrentIsPlatform = isPlatform;
+  var identEl = document.getElementById('santa-identifier');
+  if (isPlatform && ident) {
+    identEl.value = 'platform:' + ident;
+    status.className = 'info-box';
+    status.innerHTML = 'Apple-signed app: <strong>Identifier</strong> \u2018' + esc(ident) + '\u2019. Pre-filled. Only &ldquo;Allow this app&rdquo; or &ldquo;Block this app&rdquo; are available.';
+  } else if (teamId && ident) {
+    identEl.value = teamId + ':' + ident;
+    status.className = 'info-box';
+    status.innerHTML = 'Found <strong>Identifier</strong> \u2018' + esc(ident) + '\u2019 and <strong>Team ID</strong> \u2018' + esc(teamId) + '\u2019. Choose an action below.';
+  } else if (ident) {
+    identEl.value = ident;
+    status.className = 'info-box';
+    status.textContent = 'Found Identifier \u2018' + ident + '\u2019 (no Team ID in signature). Use &ldquo;Allow this app&rdquo; or &ldquo;Block this app&rdquo; only.';
+  } else {
+    status.className = 'warning-box';
+    status.textContent = 'No identifier found in signature.';
+  }
+  zone.classList.add('has-file');
+  label.textContent = '\u2713 ' + name;
+  updateSantaActionOptions();
+}
 </script>
 {% endblock %}
