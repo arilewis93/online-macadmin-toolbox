@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 from flask import Blueprint, request, redirect, url_for, session, current_app, flash, render_template
 from flask_login import login_user, logout_user, login_required, current_user
 
-from app import db
 from app.models.user import User
 from app.utils.oidc import get_oidc_endpoints, exchange_code_for_tokens, get_user_info
 
@@ -172,48 +171,27 @@ def oidc_callback():
         flash("Failed to get user info.", "error")
         return redirect(url_for("auth.login"))
 
-    user = _create_or_update_user(user_info)
+    user = _user_from_userinfo(user_info)
     if not user:
-        flash("Failed to create/update user.", "error")
+        flash("Failed to get user info.", "error")
         return redirect(url_for("auth.login"))
 
     session.clear()
+    session["user_email"] = user.email
+    session["user_name"] = user.name
     login_user(user)
     return redirect(url_for("main.dashboard"))
 
 
-def _create_or_update_user(user_info):
-    """Create or update user from OIDC userinfo."""
-    try:
-        email = user_info.get("email") or user_info.get("preferred_username")
-        name = user_info.get("name") or user_info.get("preferred_username", "Unknown")
-        oidc_id = user_info.get("sub")
-        if not email or not oidc_id:
-            current_app.logger.error("OIDC userinfo missing email or sub")
-            return None
-
-        user = User.query.filter_by(oidc_id=oidc_id).first()
-        if user:
-            user.email = email
-            user.name = name
-            db.session.commit()
-            return user
-
-        user = User.query.filter_by(email=email).first()
-        if user:
-            user.oidc_id = oidc_id
-            user.name = name
-            db.session.commit()
-            return user
-
-        user = User(email=email, name=name, oidc_id=oidc_id)
-        db.session.add(user)
-        db.session.commit()
-        return user
-    except Exception as e:
-        current_app.logger.error("create_or_update_user: %s", e)
-        db.session.rollback()
+def _user_from_userinfo(user_info):
+    """Build a User from OIDC userinfo (session-only, no DB)."""
+    email = user_info.get("email") or user_info.get("preferred_username")
+    name = user_info.get("name") or user_info.get("preferred_username", "Unknown")
+    oidc_id = user_info.get("sub")
+    if not email or not oidc_id:
+        current_app.logger.error("OIDC userinfo missing email or sub")
         return None
+    return User(id=oidc_id, email=email, name=name)
 
 
 @auth.route("/logout")

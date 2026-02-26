@@ -16,18 +16,8 @@ def get_oidc_authority():
     return ""
 
 
-def get_database_uri():
-    """Database URL; normalize postgres:// to postgresql:// for SQLAlchemy (e.g. Render)."""
-    url = os.environ.get("DATABASE_URL") or "sqlite:///app.db"
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://") :]
-    return url
-
-
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-change-in-production"
-    SQLALCHEMY_DATABASE_URI = get_database_uri()
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # OIDC / Entra
     OIDC_AUTHORITY = get_oidc_authority()

@@ -19,5 +19,4 @@ services:
         sync: false
       - key: OIDC_REDIRECT_URI
         sync: false
-    # Set OIDC_* and (optional) DATABASE_URL in Render Dashboard → Environment.
-    # For PostgreSQL: create a PostgreSQL instance in Render and add DATABASE_URL from its Internal URL.
+    # Set OIDC_* in Render Dashboard → Environment (no database required).

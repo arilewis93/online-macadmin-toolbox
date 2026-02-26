@@ -1,17 +1,21 @@
-"""User model for Entra/OIDC login."""
-import uuid
+"""Session-only user for Entra/OIDC login (no database)."""
 from flask_login import UserMixin
-from app import db
 
 
-class User(UserMixin, db.Model):
-    __tablename__ = "users"
+class User(UserMixin):
+    """User loaded from session; id is OIDC sub."""
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = db.Column(db.String(255), unique=True, nullable=False)
-    name = db.Column(db.String(255), nullable=False)
-    oidc_id = db.Column(db.String(255), unique=True, nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
+    def __init__(self, id, email, name):
+        self.id = id
+        self.email = email or ""
+        self.name = name or ""
+
+    def get_id(self):
+        return self.id
+
+    @property
+    def is_active(self):
+        return True
 
     def __repr__(self):
         return f"<User {self.email}>"

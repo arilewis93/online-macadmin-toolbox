@@ -40,9 +40,8 @@ Visit `http://localhost:5001` → Sign in with Microsoft → Dashboard → open 
    - `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` — from your Entra app registration.
    - `OIDC_REDIRECT_URI` — **must be your Render URL**, e.g. `https://online-macadmin-toolbox.onrender.com/auth/oidc/callback`.
 4. **Entra**: In Azure, add the Render callback URL above as a **Redirect URI** (Web) for your app registration.
-5. **Database (optional)**: For production, add a **PostgreSQL** instance in Render, then in the Web Service add `DATABASE_URL` with the database’s **Internal Database URL**. Without it, the app uses SQLite (ephemeral on Render; data is lost on deploy).
 
-After the first deploy, open your service URL and sign in with Microsoft.
+After the first deploy, open your service URL and sign in with Microsoft. User identity is kept in the session only (no database).
 
 ## Entra ID app registration
 
@@ -64,9 +63,8 @@ After the first deploy, open your service URL and sign in with Microsoft.
 | `OIDC_CLIENT_SECRET` | Yes | Client secret value. |
 | `OIDC_REDIRECT_URI` | Yes | Redirect URI, e.g. `http://localhost:5001/auth/oidc/callback`. Must match Entra. |
 | `OIDC_SCOPE` | No | Scopes (default: `openid profile email`). |
-| `DATABASE_URL` | No | DB URL (default: SQLite `sqlite:///app.db`). |
 
-\* Set either `OIDC_AUTHORITY` or `ENTRA_TENANT_ID`.
+\* Set either `OIDC_AUTHORITY` or `ENTRA_TENANT_ID`. User data is stored in the session only (no database).
 
 ## Project layout
 
