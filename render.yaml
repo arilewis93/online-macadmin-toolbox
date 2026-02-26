@@ -1,0 +1,23 @@
+# Render Blueprint: https://render.com/docs/infrastructure-as-code
+# Deploy: connect this repo in Render Dashboard → New → Blueprint, or New → Web Service and use build/start below.
+
+services:
+  - type: web
+    name: online-macadmin-toolbox
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app -b 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OIDC_AUTHORITY
+        sync: false
+      - key: OIDC_CLIENT_ID
+        sync: false
+      - key: OIDC_CLIENT_SECRET
+        sync: false
+      - key: OIDC_REDIRECT_URI
+        sync: false
+    # Set OIDC_* and (optional) DATABASE_URL in Render Dashboard → Environment.
+    # For PostgreSQL: create a PostgreSQL instance in Render and add DATABASE_URL from its Internal URL.

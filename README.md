@@ -27,6 +27,23 @@ flask run
 
 Visit `http://localhost:5001` → Sign in with Microsoft → Dashboard → open Toolbox or Equitrac.
 
+## Deploy on Render.com
+
+1. **Push this repo to GitHub** (or connect an existing repo).
+2. In **[Render Dashboard](https://dashboard.render.com)** → **New** → **Blueprint**. Connect the repo; Render will read `render.yaml` and create the Web Service.
+   - Or **New** → **Web Service**, select the repo, then set:
+     - **Build Command**: `pip install -r requirements.txt`
+     - **Start Command**: `gunicorn run:app -b 0.0.0.0:$PORT`
+3. **Environment**: In the service → **Environment**, set:
+   - `SECRET_KEY` — use the auto-generated value from the Blueprint, or generate your own.
+   - `OIDC_AUTHORITY` — e.g. `https://login.microsoftonline.com/{tenant-id}`.
+   - `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` — from your Entra app registration.
+   - `OIDC_REDIRECT_URI` — **must be your Render URL**, e.g. `https://online-macadmin-toolbox.onrender.com/auth/oidc/callback`.
+4. **Entra**: In Azure, add the Render callback URL above as a **Redirect URI** (Web) for your app registration.
+5. **Database (optional)**: For production, add a **PostgreSQL** instance in Render, then in the Web Service add `DATABASE_URL` with the database’s **Internal Database URL**. Without it, the app uses SQLite (ephemeral on Render; data is lost on deploy).
+
+After the first deploy, open your service URL and sign in with Microsoft.
+
 ## Entra ID app registration
 
 1. **Azure Portal** → **Microsoft Entra ID** → **App registrations** → **New registration**.
@@ -57,6 +74,7 @@ Visit `http://localhost:5001` → Sign in with Microsoft → Dashboard → open 
 online-macadmin-toolbox/
 ├── README.md
 ├── requirements.txt
+├── render.yaml          # Render.com Blueprint (build/start + env)
 ├── .env.example
 ├── run.py
 ├── config.py
