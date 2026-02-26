@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Favourite Bookie{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Favourite Bookie</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-bookmarks">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">Favourite Bookie</div>
+        <div class="section-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined <code>.mobileconfig</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Organisation Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>TOP LEVEL FOLDER NAME <span class="hint">optional</span></label>
+            <input type="text" id="bm-toplevel" placeholder="iStore Business">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Bookmark or Folder</div>
+        <div class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>TYPE</label>
+            <select id="bm-type" onchange="updateBookmarkForm()">
+              <option value="bookmark">Bookmark</option>
+              <option value="folder">Folder</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>NAME <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="bm-name" placeholder="Company Intranet">
+          </div>
+        </div>
+        <div id="bm-url-row" class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>URL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="bm-url" placeholder="https://intranet.company.com">
+          </div>
+          <div class="field">
+            <label>PARENT FOLDER <span class="hint">optional</span></label>
+            <select id="bm-parent">
+              <option value="">Root (no folder)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addBookmark()" style="width:100%;">＋ Add</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Bookmarks</div>
+        <div class="col-header bookmark-row" id="bm-headers" style="display:none;">
+          <span>Type</span><span>Name</span><span>URL / Children</span><span></span>
+        </div>
+        <div class="item-list" id="bm-list"></div>
+        <div class="empty-state" id="bm-empty">No bookmarks added yet</div>
+      </div>
+
+      <input type="file" id="bm-import-input" accept=".mobileconfig" style="display:none;" onchange="importBookmarks(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('bm-import-input').click()">↑ Import .mobileconfig</button>
+        <button class="btn btn-success" onclick="generateBookmarks()">↓ Download Combined Profile</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var bookmarks = [];
+function updateBookmarkForm() {
+  document.getElementById('bm-url-row').style.display = document.getElementById('bm-type').value === 'bookmark' ? 'grid' : 'none';
+}
+function updateParentDropdown() {
+  var sel = document.getElementById('bm-parent');
+  var folders = bookmarks.filter(function(b) { return b.type === 'folder'; });
+  sel.innerHTML = '<option value="">Root (no folder)</option>' +
+    folders.map(function(f) { return '<option value="' + f.id + '">' + esc(f.name) + '</option>'; }).join('');
+}
+function addBookmark() {
+  var type = document.getElementById('bm-type').value;
+  var name = document.getElementById('bm-name').value.trim();
+  var url = document.getElementById('bm-url').value.trim();
+  var parent = document.getElementById('bm-parent').value;
+  if (!name) { alert('Name is required.'); return; }
+  if (type === 'bookmark' && !url) { alert('URL is required for bookmarks.'); return; }
+  bookmarks.push({ id: uuid(), type: type, name: name, url: type === 'bookmark' ? url : '', parentId: parent || null });
+  renderBookmarks();
+  updateParentDropdown();
+  document.getElementById('bm-name').value = '';
+  document.getElementById('bm-url').value = '';
+}
+function removeBookmark(id) {
+  bookmarks = bookmarks.filter(function(b) { return b.id !== id && b.parentId !== id; });
+  renderBookmarks();
+  updateParentDropdown();
+}
+function renderBookmarks() {
+  var list = document.getElementById('bm-list');
+  var empty = document.getElementById('bm-empty');
+  var headers = document.getElementById('bm-headers');
+  if (!bookmarks.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+  list.innerHTML = bookmarks.map(function(b) {
+    var typeBadge = b.type === 'folder' ? '<span class="badge badge-team">Folder</span>' : '<span class="badge badge-sign">Bookmark</span>';
+    var parent = b.parentId ? bookmarks.find(function(x) { return x.id === b.parentId; }) : null;
+    var sub = b.type === 'folder' ? (bookmarks.filter(function(x) { return x.parentId === b.id; }).length + ' child(ren)') : (parent ? '↳ ' + esc(parent.name) : esc(b.url));
+    return '<div class="item-row bookmark-row"><span class="item-cell">' + typeBadge + '</span><span class="item-cell name">' + esc(b.name) + '</span><span class="item-cell">' + sub + '</span><button class="item-remove" onclick="removeBookmark(\'' + b.id + '\')">×</button></div>';
+  }).join('');
+}
+function buildBookmarkStructure() {
+  var toplevel = document.getElementById('bm-toplevel').value.trim();
+  var structure = [];
+  if (toplevel) structure.push({ toplevel_name: toplevel });
+  bookmarks.forEach(function(b) {
+    if (b.parentId) return;
+    if (b.type === 'bookmark') {
+      structure.push({ name: b.name, url: b.url });
+    } else if (b.type === 'folder') {
+      var children = bookmarks.filter(function(c) { return c.parentId === b.id; }).map(function(c) { return { name: c.name, url: c.url }; });
+      structure.push({ name: b.name, children: children });
+    }
+  });
+  return structure;
+}
+function generateBookmarks() {
+  if (!bookmarks.length) { alert('Please add at least one bookmark.'); return; }
+  var structure = buildBookmarkStructure();
+  var profileUuid = uuid();
+  var profile = {
+    PayloadContent: [
+      { PayloadType: 'com.google.Chrome', PayloadVersion: 1, PayloadIdentifier: 'com.istorebusiness.chrome.bookmarks', PayloadUUID: uuid(), PayloadDisplayName: 'Chrome Managed Bookmarks', PayloadEnabled: true, PayloadOrganization: 'iStore Business', ManagedBookmarks: structure },
+      { PayloadType: 'com.microsoft.Edge', PayloadVersion: 1, PayloadIdentifier: 'com.istorebusiness.edge.favorites', PayloadUUID: uuid(), PayloadDisplayName: 'Edge Managed Favorites', PayloadEnabled: true, PayloadOrganization: 'iStore Business', ManagedFavorites: structure }
+    ],
+    PayloadDisplayName: 'Chrome & Edge Bookmarks',
+    PayloadIdentifier: 'com.istorebusiness.bookmarksprofile',
+    PayloadOrganization: 'iStore Business',
+    PayloadRemovalDisallowed: false,
+    PayloadType: 'Configuration',
+    PayloadUUID: profileUuid,
+    PayloadVersion: 1
+  };
+  download('ManagedBookmarks.mobileconfig', buildPlistDoc(profile));
+}
+function importBookmarks(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(function(text) {
+    try {
+      var profile = parsePlistText(text);
+      var payloads = profile.PayloadContent || [];
+      var found = false;
+      for (var i = 0; i < payloads.length; i++) {
+        var payload = payloads[i];
+        var items = payload.ManagedBookmarks || payload.ManagedFavorites;
+        if (!items) continue;
+        found = true;
+        bookmarks = [];
+        for (var j = 0; j < items.length; j++) {
+          var item = items[j];
+          if (item.toplevel_name) {
+            document.getElementById('bm-toplevel').value = item.toplevel_name;
+          } else if (item.url !== undefined) {
+            bookmarks.push({ id: uuid(), type: 'bookmark', name: item.name, url: item.url, parentId: null });
+          } else if (Array.isArray(item.children)) {
+            var folder = { id: uuid(), type: 'folder', name: item.name, url: '', parentId: null };
+            bookmarks.push(folder);
+            for (var k = 0; k < item.children.length; k++) {
+              var child = item.children[k];
+              if (child.url !== undefined) {
+                bookmarks.push({ id: uuid(), type: 'bookmark', name: child.name, url: child.url, parentId: folder.id });
+              }
+            }
+          }
+        }
+        renderBookmarks();
+        updateParentDropdown();
+        break;
+      }
+      if (!found) alert('No managed bookmarks payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+renderBookmarks();
+updateBookmarkForm();
+</script>
+{% endblock %}

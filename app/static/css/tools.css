@@ -146,6 +146,9 @@ header a.logo-badge:hover {
   grid-template-columns: 220px 1fr;
   min-height: calc(100vh - 56px);
 }
+.shell.tool-single {
+  grid-template-columns: 1fr;
+}
 
 /* ── SIDEBAR ── */
 nav {
@@ -750,6 +753,27 @@ select option { background: var(--surface); }
 }
 .dashboard-welcome .user-info strong { color: var(--accent); }
 .dashboard-tools {
+  margin-bottom: 32px;
+}
+.dashboard-tools:last-of-type { margin-bottom: 0; }
+.tool-group-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px 0;
+  letter-spacing: 0.02em;
+}
+.tool-group-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 16px 0;
+}
+.tool-group-desc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.tool-group-desc a:hover { text-decoration: underline; }
+.tool-card-grid {
   display: grid;
   gap: 16px;
 }

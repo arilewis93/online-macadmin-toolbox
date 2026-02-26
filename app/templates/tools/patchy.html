@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Patchy Installer{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Patchy Installer</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-patchy">
+      <div class="section-header">
+        <div class="section-tag">Script Generator</div>
+        <div class="section-title">Patchy Installer</div>
+        <div class="section-desc">Define custom Installomator labels and generate a <code>.sh</code> patch script that injects them into <code>Installomator.sh</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Custom Label</div>
+        <div class="three-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>CASE LABEL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-label" placeholder="myapp">
+          </div>
+          <div class="field">
+            <label>APP NAME <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-name" placeholder="My App">
+          </div>
+          <div class="field">
+            <label>TYPE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <select id="pi-type">
+              <option value="dmg">dmg</option>
+              <option value="pkg">pkg</option>
+              <option value="zip">zip</option>
+              <option value="tbz">tbz</option>
+              <option value="pkgInDmg">pkgInDmg</option>
+              <option value="pkgInZip">pkgInZip</option>
+              <option value="appInDmgInZip">appInDmgInZip</option>
+              <option value="updateronly">updateronly</option>
+            </select>
+          </div>
+        </div>
+        <div class="two-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>DOWNLOAD URL <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="pi-url" placeholder="https://example.com/app.dmg">
+          </div>
+          <div class="field">
+            <label>EXPECTED TEAM ID <span id="pi-teamid-hint" class="hint">required</span></label>
+            <input type="text" id="pi-teamid" placeholder="ABCDE12345">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label class="toggle-row" onclick="toggleOption(this); updatePatchyTeamId()">
+            <input type="checkbox" id="pi-skip-notarization">
+            <div class="toggle-info">
+              <div class="toggle-label">Skip Notarization Check</div>
+              <div class="toggle-desc">Use when app is not notarized. Team ID not required.</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+        <button class="btn btn-primary" onclick="addPatchyLabel()" style="width:100%;">＋ Add Label</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Custom Labels</div>
+        <div class="col-header custom-label-row" id="pi-headers" style="display:none;">
+          <span>Label</span><span>Name</span><span>Type</span><span>Download URL</span><span>Team ID</span><span></span>
+        </div>
+        <div class="item-list" id="pi-labels-list"></div>
+        <div class="empty-state" id="pi-empty">No custom labels added yet</div>
+      </div>
+
+      <input type="file" id="pi-import-input" accept=".sh" style="display:none;" onchange="importPatchy(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('pi-import-input').click()">↑ Import .sh script</button>
+        <button class="btn btn-success" onclick="generatePatchy()">↓ Generate Patch Script</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var patchyLabels = [];
+function updatePatchyTeamId() {
+  var skip = document.getElementById('pi-skip-notarization').checked;
+  document.getElementById('pi-teamid-hint').textContent = skip ? 'optional' : 'required';
+  document.getElementById('pi-teamid').placeholder = skip ? 'N/A (skipped)' : 'ABCDE12345';
+}
+function addPatchyLabel() {
+  var label = document.getElementById('pi-label').value.trim();
+  var name = document.getElementById('pi-name').value.trim();
+  var type = document.getElementById('pi-type').value;
+  var url = document.getElementById('pi-url').value.trim();
+  var teamId = document.getElementById('pi-teamid').value.trim();
+  var skip = getToggle('pi-skip-notarization');
+  if (!label || !name || !type || !url) { alert('Label, Name, Type, and Download URL are required.'); return; }
+  if (!skip && !teamId) { alert('Team ID is required when not skipping notarization.'); return; }
+  if (patchyLabels.some(function(l) { return l.label === label; })) { alert('A label with this name already exists.'); return; }
+  patchyLabels.push({ label: label, name: name, type: type, downloadURL: url, expectedTeamID: teamId, skipNotarization: skip });
+  renderPatchyLabels();
+  document.getElementById('pi-label').value = '';
+  document.getElementById('pi-name').value = '';
+  document.getElementById('pi-url').value = '';
+  document.getElementById('pi-teamid').value = '';
+  document.getElementById('pi-skip-notarization').checked = false;
+  if (document.getElementById('pi-skip-notarization').closest('.toggle-row')) document.getElementById('pi-skip-notarization').closest('.toggle-row').classList.remove('enabled');
+  updatePatchyTeamId();
+}
+function removePatchyLabel(i) { patchyLabels.splice(i,1); renderPatchyLabels(); }
+function renderPatchyLabels() {
+  var list = document.getElementById('pi-labels-list');
+  var empty = document.getElementById('pi-empty');
+  var headers = document.getElementById('pi-headers');
+  if (!patchyLabels.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+  list.innerHTML = patchyLabels.map(function(l, i) {
+    return '<div class="item-row custom-label-row"><span class="item-cell name">' + esc(l.label) + '</span><span class="item-cell">' + esc(l.name) + '</span><span class="item-cell">' + esc(l.type) + '</span><span class="item-cell">' + esc(l.downloadURL) + '</span><span class="item-cell">' + (l.skipNotarization ? 'N/A' : esc(l.expectedTeamID)) + '</span><button class="item-remove" onclick="removePatchyLabel(' + i + ')">×</button></div>';
+  }).join('');
+}
+function generatePatchy() {
+  if (!patchyLabels.length) { alert('Please add at least one custom label.'); return; }
+  var script = '#!/bin/bash\n\n# === CONFIGURATION ===\noriginal_file="/usr/local/Installomator/Installomator.sh"\nsearch_string="zulujdkfx17)"\n\n# Define insert_string as a heredoc\nread -r -d \'\' insert_string <<\'EOF\'\n\n';
+  patchyLabels.forEach(function(l) {
+    script += l.label + ')\n    name="' + l.name + '"\n    type="' + l.type + '"\n    downloadURL="' + l.downloadURL + '"\n    expectedTeamID="' + (l.skipNotarization ? 'NONE' : l.expectedTeamID) + '"\n';
+    if (l.skipNotarization) script += '    skip_notarization=1\n';
+    script += '    ;;\n\n';
+  });
+  script += 'EOF\n\n# === SCRIPT ===\n\ntemp_file=$(mktemp)\n\nline_number=$(grep -n -m 1 "$search_string" "$original_file" | cut -d: -f1)\n\nif [[ -z "$line_number" ]]; then\n  echo "❌ Error: \'$search_string\' not found in $original_file"\n  rm -f "$temp_file"\n  exit 1\nfi\n\nhead -n $((line_number - 1)) "$original_file" > "$temp_file"\necho "$insert_string" >> "$temp_file"\ntail -n +$((line_number)) "$original_file" >> "$temp_file"\ncat "$temp_file" > "$original_file"\nrm -f "$temp_file"\n\nchmod +x "$original_file"\n\necho "✅ Patch applied successfully!"\n';
+  download('installomator_patch.sh', script, 'text/x-sh');
+}
+function importPatchy(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(function(text) {
+    try {
+      var lines = text.split('\n');
+      var customLabels = [];
+      var current = null;
+      var inHeredoc = false;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var stripped = line.trim();
+        if (!inHeredoc && line.indexOf("read -r -d '' insert_string <<'EOF'") !== -1) { inHeredoc = true; continue; }
+        if (inHeredoc && stripped === 'EOF') {
+          if (current && current.label && current.name && current.type && current.downloadURL) customLabels.push(current);
+          break;
+        }
+        if (!inHeredoc) continue;
+        if (/^\w[\w.-]*\)$/.test(stripped)) {
+          if (current && current.label && current.name && current.type && current.downloadURL) customLabels.push(current);
+          current = { label: stripped.slice(0, -1), name: '', type: 'dmg', downloadURL: '', expectedTeamID: '', skipNotarization: false };
+          continue;
+        }
+        if (!current) continue;
+        if (stripped === ';;') continue;
+        var eqIdx = stripped.indexOf('=');
+        if (eqIdx === -1) continue;
+        var key = stripped.slice(0, eqIdx).trim();
+        var val = stripped.slice(eqIdx + 1).trim().replace(/;$/, '');
+        if (val.indexOf('"') === 0 && val.lastIndexOf('"') === val.length - 1) val = val.slice(1, -1);
+        if (key === 'name') current.name = val;
+        else if (key === 'type') current.type = val;
+        else if (key === 'downloadURL') current.downloadURL = val;
+        else if (key === 'expectedTeamID') current.expectedTeamID = val === 'NONE' ? '' : val;
+        else if (key === 'skip_notarization') current.skipNotarization = val === '1';
+      }
+      if (!customLabels.length) { alert('No custom labels found in this script.'); return; }
+      patchyLabels = customLabels;
+      renderPatchyLabels();
+    } catch(e) { alert('Failed to parse script: ' + e.message); }
+  });
+}
+updatePatchyTeamId();
+</script>
+{% endblock %}

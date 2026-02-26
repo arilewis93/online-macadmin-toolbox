@@ -1,0 +1,88 @@
+<script>
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16).toUpperCase();
+  });
+}
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toggleOption(row) {
+  const cb = row.querySelector('input[type="checkbox"]');
+  cb.checked = !cb.checked;
+  row.classList.toggle('enabled', cb.checked);
+}
+function getToggle(id) { return document.getElementById(id).checked; }
+function download(filename, content, type) {
+  type = type || 'application/xml';
+  const blob = new Blob([content], {type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function escXml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/'/g,'&apos;').replace(/"/g,'&quot;');
+}
+function toPlist(obj, indent) {
+  indent = indent || 0;
+  const pad = '\t'.repeat(indent);
+  if (obj === null || obj === undefined) return pad + '<string></string>';
+  if (typeof obj === 'boolean') return pad + '<' + (obj ? 'true' : 'false') + '/>';
+  if (typeof obj === 'number') return pad + (Number.isInteger(obj) ? '<integer>' + obj + '</integer>' : '<real>' + obj + '</real>');
+  if (typeof obj === 'string') return pad + '<string>' + escXml(obj) + '</string>';
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return pad + '<array/>';
+    return pad + '<array>\n' + obj.map(v => toPlist(v, indent+1)).join('\n') + '\n' + pad + '</array>';
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return pad + '<dict/>';
+    return pad + '<dict>\n' + keys.map(k => pad + '\t<key>' + escXml(k) + '</key>\n' + toPlist(obj[k], indent+1)).join('\n') + '\n' + pad + '</dict>';
+  }
+  return pad + '<string>' + escXml(String(obj)) + '</string>';
+}
+function buildPlistDoc(obj) {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n' + toPlist(obj) + '\n</plist>';
+}
+function parsePlistNode(node) {
+  const tag = node.tagName;
+  if (tag === 'dict') {
+    const obj = {};
+    const children = Array.from(node.childNodes).filter(n => n.nodeType === 1);
+    for (let i = 0; i < children.length; i += 2) {
+      const key = children[i].textContent;
+      const val = parsePlistNode(children[i+1]);
+      obj[key] = val;
+    }
+    return obj;
+  }
+  if (tag === 'array') return Array.from(node.childNodes).filter(n => n.nodeType === 1).map(parsePlistNode);
+  if (tag === 'string') return node.textContent;
+  if (tag === 'integer') return parseInt(node.textContent, 10);
+  if (tag === 'real') return parseFloat(node.textContent);
+  if (tag === 'true') return true;
+  if (tag === 'false') return false;
+  if (tag === 'data') return node.textContent.trim();
+  return node.textContent;
+}
+function parsePlistText(text) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/xml');
+  const root = doc.querySelector('plist > dict');
+  if (!root) throw new Error('Not a valid plist/mobileconfig');
+  return parsePlistNode(root);
+}
+function setToggle(id, val) {
+  const cb = document.getElementById(id);
+  if (!cb) return;
+  cb.checked = val;
+  const row = cb.closest('.toggle-row');
+  if (row) row.classList.toggle('enabled', val);
+}
+</script>

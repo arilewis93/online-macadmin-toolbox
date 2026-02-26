@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}SwiftSetup{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">SwiftSetup</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-swiftsetup">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">SwiftSetup</div>
+        <div class="section-desc">Generate a SwiftSetup <code>.mobileconfig</code> profile with app installation list, dock configuration, and behaviour settings.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Profile Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>TITLE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="ss-title" placeholder="Setup your Mac">
+          </div>
+          <div class="field">
+            <label>MESSAGE <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="ss-message" placeholder="Your Mac is being configured...">
+          </div>
+          <div class="field">
+            <label>ICON URL / PATH <span class="hint">optional</span></label>
+            <input type="text" id="ss-icon" placeholder="https://example.com/icon.png">
+          </div>
+          <div class="field">
+            <label>MINIMUM OS <span class="hint">optional</span></label>
+            <input type="text" id="ss-minos" placeholder="14.0">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Options</div>
+        <div class="toggle-group" id="ss-toggles">
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-clear-dock">
+            <div class="toggle-info"><div class="toggle-label">Clear Dock before adding new items</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-await-psso">
+            <div class="toggle-info"><div class="toggle-label">Wait for Platform SSO setup</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-auto-close">
+            <div class="toggle-info"><div class="toggle-label">Automatically close on completion</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-open-cp">
+            <div class="toggle-info"><div class="toggle-label">Open Company Portal on completion</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-rosetta">
+            <div class="toggle-info"><div class="toggle-label">Install Rosetta</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-bounce-edge">
+            <div class="toggle-info"><div class="toggle-label">Bounce Edge</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-install-updater">
+            <div class="toggle-info"><div class="toggle-label">Install Updater</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="ss-disable-autoinstall">
+            <div class="toggle-info"><div class="toggle-label">Disable Installomator autoinstall</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Apps to Install</div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+          <div class="three-col" style="margin-bottom:12px;">
+            <div class="field">
+              <label>APP DISPLAY NAME</label>
+              <input type="text" id="app-name" placeholder="Microsoft Word">
+            </div>
+            <div class="field">
+              <label>APP PATH</label>
+              <input type="text" id="app-path" placeholder="/Applications/Microsoft Word.app">
+            </div>
+            <div class="field">
+              <label>INSTALL METHOD <span style="color:var(--danger);font-size:10px">*</span></label>
+              <select id="app-method" onchange="updateAppDetail()">
+                <option value="">Select method...</option>
+                <option value="installomator">installomator</option>
+                <option value="policy">policy</option>
+                <option value="jac">jac</option>
+                <option value="asa">asa</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+          <div class="two-col" id="app-detail-row" style="margin-bottom:12px;display:none;">
+            <div class="field" id="app-detail-field">
+              <label id="app-detail-label">INSTALL DETAIL <span style="color:var(--danger);font-size:10px">*</span></label>
+              <input type="text" id="app-detail-text" placeholder="Enter value...">
+              <select id="app-detail-select" style="display:none;"></select>
+            </div>
+            <div class="field" style="align-self:flex-end;">
+              <label>ADD TO DOCK</label>
+              <label class="toggle-row" onclick="toggleOption(this)" style="margin-top:0;">
+                <input type="checkbox" id="app-dock">
+                <div class="toggle-info"><div class="toggle-label">Add to Dock</div></div>
+                <div class="toggle-switch"></div>
+              </label>
+            </div>
+          </div>
+          <div id="app-dock-standalone" style="margin-bottom:12px;">
+            <label class="toggle-row" onclick="toggleOption(this)">
+              <input type="checkbox" id="app-dock-2">
+              <div class="toggle-info"><div class="toggle-label">Add to Dock</div></div>
+              <div class="toggle-switch"></div>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="app-submit-btn" onclick="addApp()" style="flex:1;min-width:120px;">＋ Add App</button>
+            <button class="btn btn-ghost" id="app-cancel-btn" onclick="cancelEditApp()" style="display:none;">Cancel</button>
+          </div>
+        </div>
+        <div class="col-header app-row" id="app-headers" style="display:none;">
+          <span></span><span>Name</span><span>Path</span><span>Method</span><span>Detail</span><span>Dock</span><span></span>
+        </div>
+        <div class="item-list item-list-draggable" id="ss-apps-list"></div>
+      </div>
+
+      <input type="file" id="ss-import-input" accept=".mobileconfig" style="display:none;" onchange="importSwiftSetup(event)">
+      <div class="section-footer">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="loadSwiftSetupDefaults()">↺ Load Defaults</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('ss-import-input').click()">↑ Import .mobileconfig</button>
+        </div>
+        <button class="btn btn-success" onclick="generateSwiftSetup()">↓ Generate &amp; Download</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var INSTALLOMATOR_LABELS_URL = 'https://raw.githubusercontent.com/Installomator/Installomator/refs/heads/main/Labels.txt';
+var installomatorLabelsCache = null;
+function loadInstallomatorLabels() {
+  if (installomatorLabelsCache) return Promise.resolve(installomatorLabelsCache);
+  return fetch(INSTALLOMATOR_LABELS_URL)
+    .then(function(r) { if (!r.ok) throw new Error('Failed to load labels'); return r.text(); })
+    .then(function(text) {
+      var labels = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && l.indexOf('#') !== 0 && l !== '____'; });
+      installomatorLabelsCache = labels.sort(function(a,b) { return a.localeCompare(b); });
+      return installomatorLabelsCache;
+    });
+}
+var ssApps = [];
+var ssAppsEditingIndex = -1;
+function cancelEditApp() {
+  ssAppsEditingIndex = -1;
+  document.getElementById('app-name').value = '';
+  document.getElementById('app-path').value = '';
+  document.getElementById('app-method').value = '';
+  document.getElementById('app-detail-text').value = '';
+  var sel = document.getElementById('app-detail-select');
+  if (sel.options.length) sel.selectedIndex = 0;
+  document.getElementById('app-dock').checked = false;
+  document.getElementById('app-dock-2').checked = false;
+  document.getElementById('app-detail-row').style.display = 'none';
+  document.getElementById('app-dock-standalone').style.display = 'block';
+  ['app-dock','app-dock-2'].forEach(function(id) {
+    var row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.remove('enabled');
+  });
+  document.getElementById('app-submit-btn').textContent = '＋ Add App';
+  document.getElementById('app-cancel-btn').style.display = 'none';
+}
+function editApp(i) {
+  var a = ssApps[i];
+  ssAppsEditingIndex = i;
+  document.getElementById('app-name').value = a.name || '';
+  document.getElementById('app-path').value = a.path || '';
+  document.getElementById('app-method').value = a.method || '';
+  document.getElementById('app-detail-row').style.display = (a.method && a.method !== 'none') ? 'grid' : 'none';
+  document.getElementById('app-dock-standalone').style.display = (a.method && a.method !== 'none') ? 'none' : 'block';
+  updateAppDetail();
+  if (a.method === 'installomator') {
+    var selectInput = document.getElementById('app-detail-select');
+    if (installomatorLabelsCache && selectInput.options.length > 1) {
+      selectInput.value = a.detail || '';
+    } else {
+      loadInstallomatorLabels().then(function() {
+        selectInput.innerHTML = '<option value="">Select label...</option>' + installomatorLabelsCache.map(function(l) { return '<option value="' + esc(l) + '">' + esc(l) + '</option>'; }).join('');
+        selectInput.value = a.detail || '';
+      });
+    }
+  } else {
+    document.getElementById('app-detail-text').value = a.detail || '';
+  }
+  document.getElementById('app-dock').checked = !!a.dock;
+  document.getElementById('app-dock-2').checked = !!a.dock;
+  ['app-dock','app-dock-2'].forEach(function(id) {
+    var row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.toggle('enabled', !!a.dock);
+  });
+  document.getElementById('app-submit-btn').textContent = 'Update App';
+  document.getElementById('app-cancel-btn').style.display = 'inline-flex';
+}
+function updateAppDetail() {
+  var method = document.getElementById('app-method').value;
+  var detailRow = document.getElementById('app-detail-row');
+  var dockStandalone = document.getElementById('app-dock-standalone');
+  var detailLabel = document.getElementById('app-detail-label');
+  var textInput = document.getElementById('app-detail-text');
+  var selectInput = document.getElementById('app-detail-select');
+  if (!method || method === 'none') {
+    detailRow.style.display = 'none';
+    dockStandalone.style.display = 'block';
+    textInput.style.display = '';
+    selectInput.style.display = 'none';
+    return;
+  }
+  dockStandalone.style.display = 'none';
+  detailRow.style.display = 'grid';
+  var labels = { installomator: 'INSTALLOMATOR LABEL', policy: 'POLICY ID', jac: 'JAC ID', asa: 'ASA ID' };
+  detailLabel.innerHTML = (labels[method] || 'INSTALL DETAIL') + ' <span style="color:var(--danger);font-size:10px">*</span>';
+  if (method === 'installomator') {
+    textInput.style.display = 'none';
+    selectInput.style.display = '';
+    selectInput.innerHTML = '<option value="">Loading labels...</option>';
+    loadInstallomatorLabels()
+      .then(function(labelList) {
+        selectInput.innerHTML = '<option value="">Select label...</option>' + labelList.map(function(l) { return '<option value="' + esc(l) + '">' + esc(l) + '</option>'; }).join('');
+      })
+      .catch(function() {
+        selectInput.innerHTML = '<option value="">Failed to load – type below</option>';
+        selectInput.style.display = 'none';
+        textInput.style.display = '';
+        textInput.placeholder = 'e.g. microsoftword';
+      });
+  } else {
+    selectInput.style.display = 'none';
+    textInput.style.display = '';
+    var placeholders = { policy: 'Policy name or ID', jac: '12345', asa: '67890' };
+    textInput.placeholder = placeholders[method] || '';
+  }
+}
+function addApp() {
+  var name = document.getElementById('app-name').value.trim();
+  var path = document.getElementById('app-path').value.trim();
+  var method = document.getElementById('app-method').value;
+  var detailVisible = document.getElementById('app-detail-row').style.display !== 'none';
+  var detailEl = method === 'installomator' ? document.getElementById('app-detail-select') : document.getElementById('app-detail-text');
+  var detail = detailVisible ? (detailEl.value || '').trim() : '';
+  var dock = detailVisible ? document.getElementById('app-dock').checked : document.getElementById('app-dock-2').checked;
+  if (!method) { alert('Please select an install method.'); return; }
+  if (method !== 'none' && !detail) { alert('Please enter or select an install detail.'); return; }
+  if (ssAppsEditingIndex >= 0) {
+    ssApps[ssAppsEditingIndex] = { name: name, path: path, method: method, detail: detail, dock: dock };
+    cancelEditApp();
+    renderApps();
+    return;
+  }
+  ssApps.push({ name: name, path: path, method: method, detail: detail, dock: dock });
+  renderApps();
+  document.getElementById('app-name').value = '';
+  document.getElementById('app-path').value = '';
+  document.getElementById('app-method').value = '';
+  document.getElementById('app-detail-text').value = '';
+  var sel = document.getElementById('app-detail-select');
+  if (sel.options.length) sel.selectedIndex = 0;
+  document.getElementById('app-dock').checked = false;
+  document.getElementById('app-dock-2').checked = false;
+  document.getElementById('app-detail-row').style.display = 'none';
+  document.getElementById('app-dock-standalone').style.display = 'block';
+  ['app-dock','app-dock-2'].forEach(function(id) {
+    var row = document.getElementById(id).closest('.toggle-row');
+    if (row) row.classList.remove('enabled');
+  });
+}
+function removeApp(i) { ssApps.splice(i, 1); renderApps(); }
+function renderApps() {
+  var list = document.getElementById('ss-apps-list');
+  var headers = document.getElementById('app-headers');
+  if (!ssApps.length) {
+    list.innerHTML = '<div class="empty-state">No apps added yet</div>';
+    headers.style.display = 'none';
+    list.ondragstart = list.ondragover = list.ondrop = list.ondragend = null;
+    return;
+  }
+  headers.style.display = 'grid';
+  list.innerHTML = ssApps.map(function(a, i) {
+    return '<div class="item-row app-row" draggable="true" data-index="' + i + '"><span class="item-drag-handle" title="Drag to reorder">⋮⋮</span><span class="item-cell name">' + (esc(a.name) || '—') + '</span><span class="item-cell">' + (esc(a.path) || '—') + '</span><span class="item-cell">' + esc(a.method) + '</span><span class="item-cell">' + (esc(a.detail) || '—') + '</span><span class="item-cell">' + (a.dock ? '✓' : '—') + '</span><span class="item-actions"><button type="button" class="item-edit" onclick="event.stopPropagation(); editApp(' + i + ')" title="Edit">Edit</button><button class="item-remove" onclick="removeApp(' + i + ')">×</button></span></div>';
+  }).join('');
+  list.ondragstart = function(e) {
+    var row = e.target.closest('.item-row');
+    if (!row) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', row.getAttribute('data-index'));
+    row.classList.add('dragging');
+  };
+  list.ondragend = function(e) {
+    var row = e.target.closest('.item-row');
+    if (row) row.classList.remove('dragging');
+  };
+  list.ondragover = function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
+  list.ondrop = function(e) {
+    e.preventDefault();
+    var fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    var targetRow = e.target.closest('.item-row');
+    if (!targetRow || isNaN(fromIndex)) return;
+    var toIndex = parseInt(targetRow.getAttribute('data-index'), 10);
+    if (fromIndex === toIndex) return;
+    if (ssAppsEditingIndex >= 0) cancelEditApp();
+    var item = ssApps.splice(fromIndex, 1)[0];
+    var insertAt = toIndex > fromIndex ? toIndex - 1 : toIndex;
+    ssApps.splice(insertAt, 0, item);
+    renderApps();
+  };
+}
+function generateSwiftSetup() {
+  var title = document.getElementById('ss-title').value.trim();
+  var message = document.getElementById('ss-message').value.trim();
+  if (!title || !message) { alert('Title and Message are required.'); return; }
+  var mainUuid = uuid();
+  var contentUuid = uuid();
+  var listItems = ssApps.map(function(a) { return a.name + ';' + a.path + ';' + a.method + ';' + a.detail + ';' + (a.dock ? 'yes' : 'no'); });
+  var profile = {
+    PayloadUUID: mainUuid,
+    PayloadType: 'Configuration',
+    PayloadOrganization: 'iStore Business',
+    PayloadIdentifier: mainUuid,
+    PayloadDisplayName: 'SwiftSetup',
+    PayloadDescription: '',
+    PayloadVersion: 1,
+    PayloadEnabled: true,
+    PayloadRemovalDisallowed: true,
+    PayloadScope: 'System',
+    PayloadContent: [{
+      PayloadDisplayName: 'Custom Settings',
+      PayloadIdentifier: contentUuid,
+      PayloadOrganization: 'iStoreBusiness',
+      PayloadType: 'com.apple.ManagedClient.preferences',
+      PayloadUUID: contentUuid,
+      PayloadVersion: 1,
+      PayloadContent: {
+        'com.istorebusiness.swiftsetup': {
+          Forced: [{
+            mcx_preference_settings: {
+              auto_close: getToggle('ss-auto-close'),
+              await_PSSO: getToggle('ss-await-psso'),
+              clear_dock: getToggle('ss-clear-dock'),
+              icon: document.getElementById('ss-icon').value.trim(),
+              message: message,
+              minOS: document.getElementById('ss-minos').value.trim(),
+              open_CP: getToggle('ss-open-cp'),
+              install_rosetta: getToggle('ss-rosetta'),
+              bounce_edge: getToggle('ss-bounce-edge'),
+              install_updater: getToggle('ss-install-updater'),
+              title: title,
+              list_items: listItems,
+              disable_installomator_autoinstall: getToggle('ss-disable-autoinstall'),
+            }
+          }]
+        }
+      }
+    }]
+  };
+  download('SwiftSetup.mobileconfig', buildPlistDoc(profile));
+}
+function loadSwiftSetupDefaults() {
+  document.getElementById('ss-title').value = 'Welcome to iStore Business Automated Onboarding';
+  document.getElementById('ss-message').value = 'Sit back and relax while we set up your new Mac. This should not take too long.';
+  document.getElementById('ss-icon').value = 'https://narcp.s3.af-south-1.amazonaws.com/istore_business_logo.jpeg';
+  document.getElementById('ss-minos').value = '';
+  setToggle('ss-clear-dock', true);
+  setToggle('ss-await-psso', false);
+  setToggle('ss-auto-close', false);
+  setToggle('ss-open-cp', false);
+  setToggle('ss-rosetta', false);
+  setToggle('ss-bounce-edge', true);
+  setToggle('ss-install-updater', true);
+  setToggle('ss-disable-autoinstall', false);
+  ssApps = [
+    { name: 'Company Portal', path: '/Applications/Company Portal.app', method: 'installomator', detail: 'microsoftcompanyportal', dock: false },
+    { name: 'Microsoft Word', path: '/Applications/Microsoft Word.app', method: 'installomator', detail: 'microsoftword', dock: true },
+    { name: 'Microsoft Excel', path: '/Applications/Microsoft Excel.app', method: 'installomator', detail: 'microsoftexcel', dock: true },
+    { name: 'Microsoft Edge', path: '/Applications/Microsoft Edge.app', method: 'installomator', detail: 'microsoftedge', dock: true },
+    { name: 'Microsoft Teams', path: '/Applications/Microsoft Teams.app', method: 'installomator', detail: 'microsoftteams', dock: true },
+    { name: 'Microsoft Outlook', path: '/Applications/Microsoft Outlook.app', method: 'installomator', detail: 'microsoftoutlook', dock: true },
+    { name: 'OneDrive', path: '/Applications/OneDrive.app', method: 'installomator', detail: 'microsoftonedrive', dock: false },
+  ];
+  renderApps();
+}
+function importSwiftSetup(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(function(text) {
+    try {
+      var profile = parsePlistText(text);
+      var payloads = profile.PayloadContent || [];
+      var loaded = false;
+      for (var i = 0; i < payloads.length; i++) {
+        var payload = payloads[i];
+        var content = payload.PayloadContent || {};
+        var settings = (content['com.istorebusiness.swiftsetup'] || content['com.isb.setup']) && (content['com.istorebusiness.swiftsetup'] || content['com.isb.setup']).Forced && (content['com.istorebusiness.swiftsetup'] || content['com.isb.setup']).Forced[0] && (content['com.istorebusiness.swiftsetup'] || content['com.isb.setup']).Forced[0].mcx_preference_settings;
+        if (!settings) continue;
+        loaded = true;
+        document.getElementById('ss-title').value = settings.title || '';
+        document.getElementById('ss-message').value = settings.message || '';
+        document.getElementById('ss-icon').value = settings.icon || '';
+        document.getElementById('ss-minos').value = settings.minOS || '';
+        setToggle('ss-clear-dock', !!settings.clear_dock);
+        setToggle('ss-await-psso', !!settings.await_PSSO);
+        setToggle('ss-auto-close', !!settings.auto_close);
+        setToggle('ss-open-cp', !!settings.open_CP);
+        setToggle('ss-rosetta', !!settings.install_rosetta);
+        setToggle('ss-bounce-edge', !!settings.bounce_edge);
+        setToggle('ss-install-updater', !!settings.install_updater);
+        setToggle('ss-disable-autoinstall', !!settings.disable_installomator_autoinstall);
+        ssApps = (settings.list_items || []).map(function(item) {
+          var parts = item.split(';');
+          if (parts.length < 5) return null;
+          return { name: parts[0], path: parts[1], method: parts[2], detail: parts[3], dock: parts[4] === 'yes' };
+        }).filter(Boolean);
+        renderApps();
+        break;
+      }
+      if (!loaded) alert('No SwiftSetup payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+loadSwiftSetupDefaults();
+</script>
+{% endblock %}

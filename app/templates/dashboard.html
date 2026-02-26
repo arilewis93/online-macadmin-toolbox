@@ -10,20 +10,77 @@
   </div>
 
   <div class="dashboard-tools">
-    <a href="{{ url_for('main.toolbox', tool_name='toolbox') }}" class="tool-card">
-      <div class="tool-card-left">
-        <div class="tool-card-title">iStore Business Toolbox</div>
-        <div class="tool-card-desc">SwiftSetup, SmartBranding, Favourite Bookie, Santa Config, Profile Fusion, Patchy Installer, Compliance Fixer.</div>
-      </div>
-      <span class="btn btn-primary">Open →</span>
-    </a>
-    <a href="{{ url_for('main.toolbox', tool_name='equitrac') }}" class="tool-card">
-      <div class="tool-card-left">
-        <div class="tool-card-title">Equitrac Config Profile Generator</div>
-        <div class="tool-card-desc">Generate a .mobileconfig for Equitrac Mac Client with security, servers, printers, drivers, and feature flags.</div>
-      </div>
-      <span class="btn btn-primary">Open →</span>
-    </a>
+    <h2 class="tool-group-title">Third-party software tools</h2>
+    <p class="tool-group-desc">Tools for Equitrac, Santa, and other vendor integrations.</p>
+    <div class="tool-card-grid">
+      <a href="{{ url_for('main.toolbox', tool_name='equitrac') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Equitrac Config Profile Generator</div>
+          <div class="tool-card-desc">Generate a .mobileconfig for Equitrac Mac Client with security, servers, printers, drivers, and feature flags.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='santa') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Santa Config</div>
+          <div class="tool-card-desc">Build a Santa security policy .mobileconfig with ALLOWLIST and BLOCKLIST rules by SigningID or TeamID.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="dashboard-tools">
+    <h2 class="tool-group-title">General tools</h2>
+    <p class="tool-group-desc">Config profiles, profile tools, and scripts.</p>
+    <div class="tool-card-grid">
+      <a href="{{ url_for('main.toolbox', tool_name='swiftsetup') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">SwiftSetup</div>
+          <div class="tool-card-desc">Generate a SwiftSetup .mobileconfig with app installation list, dock configuration, and behaviour settings.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='smartbranding') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">SmartBranding</div>
+          <div class="tool-card-desc">Generate SmartWallpaper and SmartScreensaver .mobileconfig profiles.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='bookmarks') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Favourite Bookie</div>
+          <div class="tool-card-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined .mobileconfig.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='fusion') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Profile Fusion</div>
+          <div class="tool-card-desc">Upload multiple .mobileconfig files, review payloads, remove any you don't need, then merge into one profile.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='patchy') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Patchy Installer</div>
+          <div class="tool-card-desc">Define custom Installomator labels and generate a .sh patch script that injects them into Installomator.sh.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='compliance_fixer') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Compliance Fixer</div>
+          <div class="tool-card-desc">Upload a script from Jamf Compliance Editor to fix it so it can run headless from any MDM.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="dashboard-tools">
+    <p class="tool-group-desc"><a href="{{ url_for('main.toolbox', tool_name='toolbox') }}">Open full Toolbox</a> (all tools in one page).</p>
   </div>
 
   <div class="dashboard-signout">

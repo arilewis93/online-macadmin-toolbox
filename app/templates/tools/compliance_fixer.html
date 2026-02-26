@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Compliance Fixer{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Compliance Fixer</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-fileeditor">
+      <div class="section-header">
+        <div class="section-tag">Script Tool</div>
+        <div class="section-title">Compliance Script Fixer</div>
+        <div class="section-desc">Upload a script from <code>Jamf Compliance Editor</code> to fix it so it can run headless from any MDM.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upload Script</div>
+        <input type="file" id="fle-file-input" accept=".sh,.zsh,.txt,*" style="display:none;" onchange="handleFileLineEditor(event)">
+        <div class="drop-zone" id="fle-drop-zone" onclick="document.getElementById('fle-file-input').click()" style="margin-bottom:16px;">
+          <input type="file" id="fle-file-input-zone" accept=".sh,.zsh,.txt,*" onclick="event.stopPropagation()" onchange="handleFileLineEditor(event)">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label" id="fle-drop-label">Drop script file here or click to browse</div>
+          <div class="drop-zone-sub">.sh · .zsh · or any text file</div>
+        </div>
+        <div id="fle-status" style="display:none;" class="info-box"></div>
+      </div>
+
+      <div class="card" id="fle-preview-card" style="display:none;">
+        <div class="card-title">Preview</div>
+        <div style="margin-bottom:12px;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">Lines around insertion point</div>
+          <div id="fle-preview" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;line-height:1.8;overflow-x:auto;white-space:pre;"></div>
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <span></span>
+        <button class="btn btn-success" id="fle-download-btn" style="display:none;" onclick="downloadFixedFile()">↓ Download Fixed Script</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var fleOriginalName = '';
+var fleFixedContent = '';
+var FLE_TARGET = 'zparseopts -D -E -help=flag_help -check=check -fix=fix -stats=stats -compliant=compliant_opt -non_compliant=non_compliant_opt -reset=reset -reset-all=reset_all -cfc=cfc -quiet:=quiet || { print -l $usage && return }';
+var FLE_INSERT = 'cfc=1';
+function handleFileLineEditor(event) {
+  var file = event.target && event.target.files && event.target.files[0];
+  if (!file) return;
+  processComplianceFile(file);
+  event.target.value = '';
+}
+function processComplianceFile(file) {
+  fleOriginalName = file.name;
+  fleFixedContent = '';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    var lines = text.split('\n');
+    var foundAt = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].indexOf(FLE_TARGET) !== -1) { foundAt = i; break; }
+    }
+    var statusEl = document.getElementById('fle-status');
+    var previewCard = document.getElementById('fle-preview-card');
+    var previewEl = document.getElementById('fle-preview');
+    var downloadBtn = document.getElementById('fle-download-btn');
+    statusEl.style.display = 'block';
+    if (foundAt === -1) {
+      statusEl.className = 'warning-box';
+      statusEl.textContent = '⚠ Target line not found in "' + file.name + '". The file may already be patched, or it\'s a different script version.';
+      previewCard.style.display = 'none';
+      downloadBtn.style.display = 'none';
+      return;
+    }
+    var patched = lines.slice(0);
+    patched.splice(foundAt + 1, 0, FLE_INSERT);
+    fleFixedContent = patched.join('\n');
+    statusEl.className = 'info-box';
+    statusEl.innerHTML = '✓ Found target line at line <strong>' + (foundAt + 1) + '</strong>. <code>' + esc(FLE_INSERT) + '</code> will be inserted after it.';
+    var previewStart = Math.max(0, foundAt - 1);
+    var previewLines = patched.slice(previewStart, foundAt + 4);
+    var insertedIndex = foundAt - previewStart + 1;
+    previewEl.innerHTML = previewLines.map(function(line, idx) {
+      var lineNum = previewStart + idx + 1;
+      var isInserted = idx === insertedIndex;
+      var style = isInserted ? 'color:var(--green);background:var(--green-dim);padding:0 6px;border-radius:3px;' : 'color:var(--text-dim);';
+      var marker = isInserted ? '+ ' : '  ';
+      return '<span style="' + style + '">' + String(lineNum) + ' ' + marker + esc(line) + '</span>';
+    }).join('\n');
+    previewCard.style.display = 'block';
+    downloadBtn.style.display = 'inline-flex';
+    var zone = document.getElementById('fle-drop-zone');
+    if (zone) { zone.classList.add('has-file'); document.getElementById('fle-drop-label').textContent = '✓ ' + file.name; }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+function downloadFixedFile() {
+  if (!fleFixedContent) return;
+  download(fleOriginalName || 'fixed_script.sh', fleFixedContent, 'text/plain');
+}
+(function() {
+  var zone = document.getElementById('fle-drop-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', function(e) { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) processComplianceFile(e.dataTransfer.files[0]);
+  });
+})();
+</script>
+{% endblock %}

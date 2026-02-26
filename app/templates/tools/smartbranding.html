@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}SmartBranding{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">SmartBranding</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-smartbranding">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">SmartBranding</div>
+        <div class="section-desc">Generate SmartWallpaper and SmartScreensaver <code>.mobileconfig</code> profiles. Wallpaper URL produces two files: <code>SmartWallpaper.mobileconfig</code> and <code>WallpaperLock.mobileconfig</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Wallpaper Configuration</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>WALLPAPER URL <span class="hint">leave blank to skip</span></label>
+            <input type="text" id="sb-wallpaper-url" placeholder="https://example.com/wallpaper.png">
+          </div>
+          <div class="field" style="justify-content:flex-end;">
+            <label class="toggle-row" onclick="toggleOption(this)">
+              <input type="checkbox" id="sb-skip-kill">
+              <div class="toggle-info">
+                <div class="toggle-label">Skip Kill Wallpaper Agent</div>
+                <div class="toggle-desc">Don't kill wallpaperAgent after setting</div>
+              </div>
+              <div class="toggle-switch"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Screensaver URLs</div>
+        <div class="info-box">Add one or more URLs for the SmartScreensaver rotation. Leave empty to skip screensaver profile generation.</div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <input type="text" id="sb-url-input" placeholder="https://example.com/slide.png" style="flex:1;">
+          <button class="btn btn-ghost" onclick="addScreensaverUrl()">＋ Add</button>
+        </div>
+        <div class="item-list" id="sb-url-list"></div>
+      </div>
+
+      <input type="file" id="sb-import-input" accept=".mobileconfig" style="display:none;" onchange="importSmartBranding(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('sb-import-input').click()">↑ Import .mobileconfig</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="generateSmartBranding('wallpaper')" id="sb-btn-wallpaper">↓ Download Wallpaper Profile</button>
+          <button class="btn btn-primary" onclick="generateSmartBranding('screensaver')" id="sb-btn-screensaver">↓ Download Screensaver Profile</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+let sbUrls = [];
+function addScreensaverUrl() {
+  const input = document.getElementById('sb-url-input');
+  const val = input.value.trim();
+  if (!val) return;
+  sbUrls.push(val);
+  renderSbUrls();
+  input.value = '';
+}
+function removeSbUrl(i) { sbUrls.splice(i,1); renderSbUrls(); }
+function renderSbUrls() {
+  const list = document.getElementById('sb-url-list');
+  if (!sbUrls.length) { list.innerHTML = ''; return; }
+  list.innerHTML = sbUrls.map((u,i) =>
+    '<div class="item-row url-row"><span class="item-cell">' + esc(u) + '</span><button class="item-remove" onclick="removeSbUrl(' + i + ')">×</button></div>'
+  ).join('');
+}
+function generateSmartBranding(type) {
+  if (type === 'wallpaper') {
+    const url = document.getElementById('sb-wallpaper-url').value.trim();
+    if (!url) { alert('Please enter a Wallpaper URL.'); return; }
+    const skipKill = getToggle('sb-skip-kill');
+    const wallpaperProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'SmartWallpaper', PayloadDescription: 'Wallpaper configuration settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'SmartWallpaper', PayloadIdentifier: uuid(),
+        PayloadOrganization: 'iStoreBusiness', PayloadType: 'com.apple.ManagedClient.preferences',
+        PayloadUUID: uuid(), PayloadVersion: 1,
+        PayloadContent: {
+          'com.istorebusiness.smartwallpaper': {
+            Forced: [{ mcx_preference_settings: { wallpaper_URL: url, wallpaper_path: '/private/var/wallpaper.png', skip_kill_wallpaper_agent: skipKill }}]
+          }
+        }
+      }]
+    };
+    const lockProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'WallpaperLock', PayloadDescription: 'Locks the wallpaper to prevent changes',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'Desktop Settings', PayloadIdentifier: uuid(),
+        PayloadOrganization: 'iStoreBusiness', PayloadType: 'com.apple.ManagedClient.preferences',
+        PayloadUUID: uuid(), PayloadVersion: 1,
+        PayloadContent: {
+          'com.apple.desktop': {
+            Forced: [{ mcx_preference_settings: { locked: true, 'override-picture-path': '/private/var/wallpaper.png' }}]
+          }
+        }
+      }]
+    };
+    download('SmartWallpaper.mobileconfig', buildPlistDoc(wallpaperProfile));
+    setTimeout(function() { download('WallpaperLock.mobileconfig', buildPlistDoc(lockProfile)); }, 300);
+  }
+  if (type === 'screensaver') {
+    if (!sbUrls.length) { alert('Please add at least one screensaver URL.'); return; }
+    const ssPayload = sbUrls.map(function(u, i) {
+      return {
+        PayloadDisplayName: 'SmartScreensaver URL ' + (i+1),
+        PayloadIdentifier: 'com.istorebusiness.smartscreensaver.url' + i,
+        PayloadOrganization: 'iStoreBusiness',
+        PayloadType: 'com.apple.ManagedClient.preferences',
+        PayloadUUID: uuid(), PayloadVersion: 1,
+        PayloadContent: {
+          'com.istorebusiness.smartscreensaver': {
+            Forced: [{ mcx_preference_settings: { screensaver_url: u } }]
+          }
+        }
+      };
+    });
+    const ssProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'SmartScreensaver', PayloadDescription: 'Screensaver configuration settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: ssPayload
+    };
+    const lockProfile = {
+      PayloadUUID: uuid(), PayloadType: 'Configuration',
+      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
+      PayloadDisplayName: 'ScreensaverLock', PayloadDescription: 'Locks the screensaver settings',
+      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
+      PayloadContent: [{
+        PayloadDisplayName: 'Screensaver', PayloadIdentifier: 'com.apple.screensaver.' + uuid(),
+        PayloadType: 'com.apple.screensaver', PayloadUUID: uuid(), PayloadVersion: 1,
+        moduleName: 'Classic'
+      }]
+    };
+    download('SmartScreensaver.mobileconfig', buildPlistDoc(ssProfile));
+    setTimeout(function() { download('ScreensaverLock.mobileconfig', buildPlistDoc(lockProfile)); }, 300);
+  }
+}
+function importSmartBranding(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(function(text) {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      var found = false;
+      for (var i = 0; i < payloads.length; i++) {
+        var payload = payloads[i];
+        var content = payload.PayloadContent || {};
+        var wallpaperSettings = content['com.istorebusiness.smartwallpaper'] && content['com.istorebusiness.smartwallpaper'].Forced && content['com.istorebusiness.smartwallpaper'].Forced[0] && content['com.istorebusiness.smartwallpaper'].Forced[0].mcx_preference_settings;
+        if (wallpaperSettings) {
+          found = true;
+          document.getElementById('sb-wallpaper-url').value = wallpaperSettings.wallpaper_URL || '';
+          setToggle('sb-skip-kill', !!wallpaperSettings.skip_kill_wallpaper_agent);
+        }
+        var ssSettings = content['com.istorebusiness.smartscreensaver'] && content['com.istorebusiness.smartscreensaver'].Forced && content['com.istorebusiness.smartscreensaver'].Forced[0] && content['com.istorebusiness.smartscreensaver'].Forced[0].mcx_preference_settings;
+        if (ssSettings && ssSettings.screensaver_url) {
+          found = true;
+          if (sbUrls.indexOf(ssSettings.screensaver_url) === -1) sbUrls.push(ssSettings.screensaver_url);
+        }
+      }
+      renderSbUrls();
+      if (!found) alert('No SmartBranding payload found in this profile.');
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+</script>
+{% endblock %}

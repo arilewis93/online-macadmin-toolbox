@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Profile Fusion{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Profile Fusion</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-fusion">
+      <div class="section-header">
+        <div class="section-tag">Profile Tool</div>
+        <div class="section-title">Profile Fusion</div>
+        <div class="section-desc">Upload multiple <code>.mobileconfig</code> files, review their payloads, remove any you don't need, then merge them into one profile.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Output Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>MERGED PROFILE DISPLAY NAME</label>
+            <input type="text" id="fusion-name" placeholder="Merged Configuration Profile">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Import Profiles</div>
+        <div class="info-box">Upload one or more <code>.mobileconfig</code> files. Their payloads will be listed below for review before merging.</div>
+        <div class="drop-zone" id="fusion-drop-zone" onclick="document.getElementById('fusion-file-input').click()" style="margin-bottom:12px;">
+          <input type="file" id="fusion-file-input" multiple accept=".mobileconfig,.plist" onclick="event.stopPropagation()" onchange="handleFusionFiles(event)">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label">Drop .mobileconfig files here or click to browse</div>
+          <div class="drop-zone-sub">Supports multiple files</div>
+        </div>
+        <div class="item-list" id="fusion-profiles-list"></div>
+        <div class="empty-state" id="fusion-profiles-empty">No profiles loaded</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Payloads</div>
+        <div class="col-header fusion-row" id="fusion-payload-headers" style="display:none;">
+          <span>Source Profile</span><span>Payload Type</span><span>Display Name</span><span></span>
+        </div>
+        <div class="item-list" id="fusion-payloads-list"></div>
+        <div class="empty-state" id="fusion-payloads-empty">Import profiles to see their payloads</div>
+      </div>
+
+      <div class="section-footer">
+        <span></span>
+        <button class="btn btn-success" onclick="generateFusion()">↓ Merge &amp; Download</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var fusionPayloads = [];
+var fusionProfileNames = [];
+function parseMobileconfigPayloads(xmlText, sourceName) {
+  var parser = new DOMParser();
+  var doc = parser.parseFromString(xmlText, 'text/xml');
+  var root = doc.querySelector('plist > dict');
+  if (!root) throw new Error('Not a valid plist');
+  var obj = parsePlistNode(root);
+  var content = obj.PayloadContent || [];
+  return content.map(function(p) {
+    return { sourceName: sourceName, payloadType: p.PayloadType || 'Unknown', displayName: p.PayloadDisplayName || 'No Name', rawXml: p };
+  });
+}
+async function handleFusionFiles(event) {
+  var files = Array.from(event.target ? event.target.files : event.files || []);
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    if (fusionProfileNames.indexOf(file.name) !== -1) continue;
+    try {
+      var text = await file.text();
+      var payloads = parseMobileconfigPayloads(text, file.name);
+      fusionProfileNames.push(file.name);
+      payloads.forEach(function(p) { fusionPayloads.push(p); });
+    } catch (e) { alert('Failed to parse ' + file.name + ': ' + e.message); }
+  }
+  renderFusionProfiles();
+  renderFusionPayloads();
+  var zone = document.getElementById('fusion-drop-zone');
+  var uniqueCount = fusionPayloads.map(function(p) { return p.sourceName; }).filter(function(v,i,a) { return a.indexOf(v) === i; }).length;
+  if (zone && uniqueCount > 0) {
+    zone.classList.add('has-file');
+    zone.querySelector('.drop-zone-label').textContent = '✓ ' + uniqueCount + ' profile' + (uniqueCount > 1 ? 's' : '') + ' loaded — drop more to add';
+  }
+}
+function removeFusionPayload(i) {
+  fusionPayloads.splice(i, 1);
+  renderFusionPayloads();
+}
+function renderFusionProfiles() {
+  var list = document.getElementById('fusion-profiles-list');
+  var empty = document.getElementById('fusion-profiles-empty');
+  var uniqueNames = [];
+  fusionPayloads.forEach(function(p) {
+    if (uniqueNames.indexOf(p.sourceName) === -1) uniqueNames.push(p.sourceName);
+  });
+  if (!uniqueNames.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = uniqueNames.map(function(name, idx) {
+    return '<div class="item-row url-row"><span class="item-cell name">' + esc(name) + '</span><button class="item-remove" onclick="removeFusionProfileByIndex(' + idx + ')">×</button></div>';
+  }).join('');
+}
+function removeFusionProfileByIndex(idx) {
+  var names = [];
+  fusionPayloads.forEach(function(p) { if (names.indexOf(p.sourceName) === -1) names.push(p.sourceName); });
+  if (names[idx] !== undefined) removeFusionProfile(names[idx]);
+}
+function removeFusionProfile(name) {
+  fusionPayloads = fusionPayloads.filter(function(p) { return p.sourceName !== name; });
+  fusionProfileNames = fusionProfileNames.filter(function(n) { return n !== name; });
+  renderFusionProfiles();
+  renderFusionPayloads();
+}
+function renderFusionPayloads() {
+  var list = document.getElementById('fusion-payloads-list');
+  var empty = document.getElementById('fusion-payloads-empty');
+  var headers = document.getElementById('fusion-payload-headers');
+  if (!fusionPayloads.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+  list.innerHTML = fusionPayloads.map(function(p, i) {
+    return '<div class="item-row fusion-row"><span class="item-cell">' + esc(p.sourceName) + '</span><span class="item-cell">' + esc(p.payloadType) + '</span><span class="item-cell name">' + esc(p.displayName) + '</span><button class="item-remove" onclick="removeFusionPayload(' + i + ')">×</button></div>';
+  }).join('');
+}
+function generateFusion() {
+  if (!fusionPayloads.length) { alert('Please import at least one profile with payloads.'); return; }
+  var displayName = document.getElementById('fusion-name').value.trim() || 'Merged Configuration Profile';
+  var profile = {
+    PayloadType: 'Configuration',
+    PayloadVersion: 1,
+    PayloadIdentifier: uuid(),
+    PayloadUUID: uuid(),
+    PayloadDisplayName: displayName,
+    PayloadDescription: 'A profile created by merging multiple configuration profiles.',
+    PayloadContent: fusionPayloads.map(function(p) { return p.rawXml; })
+  };
+  download('MergedProfile.mobileconfig', buildPlistDoc(profile));
+}
+(function() {
+  var zone = document.getElementById('fusion-drop-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', function(e) { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', function(e) { e.preventDefault(); if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handleFusionFiles({ target: { files: e.dataTransfer.files } });
+  });
+})();
+</script>
+{% endblock %}

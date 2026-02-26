@@ -22,8 +22,7 @@
             {% if current_user.is_authenticated %}
                 <span class="user-email">{{ current_user.email }}</span>
                 <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-                <a href="{{ url_for('main.toolbox', tool_name='toolbox') }}">Toolbox</a>
-                <a href="{{ url_for('main.toolbox', tool_name='equitrac') }}">Equitrac</a>
+                <a href="{{ url_for('main.toolbox', tool_name='toolbox') }}">Full Toolbox</a>
                 <a href="{{ url_for('auth.logout') }}">Log out</a>
             {% else %}
                 <a href="{{ url_for('auth.login') }}">Sign in</a>

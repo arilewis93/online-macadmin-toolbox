@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Santa Config{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Santa Config</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-santa">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">Santa Config</div>
+        <div class="section-desc">Build a Santa security policy <code>.mobileconfig</code> with ALLOWLIST and BLOCKLIST rules by SigningID or TeamID.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Client Mode</div>
+        <label class="toggle-row" onclick="toggleOption(this)">
+          <input type="checkbox" id="santa-lockdown">
+          <div class="toggle-info">
+            <div class="toggle-label">Lockdown Mode</div>
+            <div class="toggle-desc">Block all unsigned/unlisted binaries. Default: Monitor Mode (log only)</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Add Rule</div>
+        <div class="three-col" style="margin-bottom:12px;">
+          <div class="field">
+            <label>POLICY</label>
+            <select id="santa-policy">
+              <option value="ALLOWLIST">ALLOWLIST</option>
+              <option value="BLOCKLIST">BLOCKLIST</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>RULE TYPE</label>
+            <select id="santa-rule-type">
+              <option value="SIGNINGID">SIGNINGID</option>
+              <option value="TEAMID">TEAMID</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>IDENTIFIER <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="santa-identifier" placeholder="TEAMID:com.example.app">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addSantaRule()" style="width:100%;">＋ Add Rule</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Rules</div>
+        <div class="col-header santa-row" id="santa-headers" style="display:none;">
+          <span>Policy</span><span>Type</span><span>Identifier</span><span></span><span></span>
+        </div>
+        <div class="item-list" id="santa-rules-list"></div>
+        <div class="empty-state" id="santa-empty">No rules added yet</div>
+      </div>
+
+      <input type="file" id="santa-import-input" accept=".mobileconfig" style="display:none;" onchange="importSanta(event)">
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('santa-import-input').click()">↑ Import .mobileconfig</button>
+        <button class="btn btn-success" onclick="generateSanta()">↓ Download Santa Profile</button>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+let santaRules = [];
+function addSantaRule() {
+  const policy = document.getElementById('santa-policy').value;
+  const ruleType = document.getElementById('santa-rule-type').value;
+  const identifier = document.getElementById('santa-identifier').value.trim();
+  if (!identifier) { alert('Identifier is required.'); return; }
+  santaRules.push({ policy, ruleType, identifier });
+  renderSantaRules();
+  document.getElementById('santa-identifier').value = '';
+}
+function removeSantaRule(i) { santaRules.splice(i,1); renderSantaRules(); }
+function renderSantaRules() {
+  const list = document.getElementById('santa-rules-list');
+  const empty = document.getElementById('santa-empty');
+  const headers = document.getElementById('santa-headers');
+  if (!santaRules.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    headers.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  headers.style.display = 'grid';
+  list.innerHTML = santaRules.map((r, i) => {
+    const policyBadge = r.policy === 'ALLOWLIST' ? '<span class="badge badge-allow">ALLOW</span>' : '<span class="badge badge-block">BLOCK</span>';
+    const typeBadge = r.ruleType === 'TEAMID' ? '<span class="badge badge-team">TEAMID</span>' : '<span class="badge badge-sign">SIGNINGID</span>';
+    return '<div class="item-row santa-row"><span class="item-cell">' + policyBadge + '</span><span class="item-cell">' + typeBadge + '</span><span class="item-cell name">' + esc(r.identifier) + '</span><span></span><button class="item-remove" onclick="removeSantaRule(' + i + ')">×</button></div>';
+  }).join('');
+}
+function generateSanta() {
+  if (!santaRules.length) { alert('Please add at least one rule.'); return; }
+  const payloadUuid = uuid();
+  const profileUuid = uuid();
+  const lockdown = getToggle('santa-lockdown');
+  const profile = {
+    PayloadContent: [{
+      StaticRules: santaRules.map(r => ({ identifier: r.identifier, policy: r.policy, rule_type: r.ruleType })),
+      PayloadDisplayName: 'Santa Configuration',
+      PayloadIdentifier: 'com.istorebusiness.santa.' + payloadUuid,
+      PayloadType: 'com.northpolesec.santa',
+      PayloadUUID: payloadUuid,
+      PayloadVersion: 1,
+      ClientMode: lockdown ? 2 : 1
+    }],
+    PayloadDescription: 'Santa rules for allowed/blocked applications',
+    PayloadDisplayName: 'Santa: Configuration',
+    PayloadIdentifier: 'com.istorebusiness.santa',
+    PayloadOrganization: 'Generated by iStore Business Toolbox',
+    PayloadRemovalDisallowed: false,
+    PayloadScope: 'System',
+    PayloadType: 'Configuration',
+    PayloadUUID: profileUuid,
+    PayloadVersion: 1
+  };
+  download('santa_configuration.mobileconfig', buildPlistDoc(profile));
+}
+function importSanta(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  file.text().then(text => {
+    try {
+      const profile = parsePlistText(text);
+      const payloads = profile.PayloadContent || [];
+      let santaPayload = null;
+      for (const p of payloads) {
+        if (p.PayloadType === 'com.northpolesec.santa') { santaPayload = p; break; }
+      }
+      if (!santaPayload) { alert('No Santa payload found in this profile.'); return; }
+      setToggle('santa-lockdown', santaPayload.ClientMode === 2);
+      santaRules = (santaPayload.StaticRules || []).map(r => ({ policy: r.policy, ruleType: r.rule_type, identifier: r.identifier }));
+      renderSantaRules();
+    } catch(e) { alert('Failed to parse profile: ' + e.message); }
+  });
+}
+renderSantaRules();
+</script>
+{% endblock %}
