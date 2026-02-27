@@ -550,7 +550,12 @@ select option { background: var(--surface); }
 .item-row:hover { border-color: var(--border-bright); }
 .item-row.app-row { grid-template-columns: 28px 1fr 1.2fr 120px 1fr 80px auto; }
 .item-row.url-row { grid-template-columns: 1fr auto; }
-.item-row.bookmark-row { grid-template-columns: 80px 1fr 1fr auto; }
+.item-row.bookmark-row { grid-template-columns: 32px 80px 1fr 1fr auto auto; }
+.item-row.bookmark-row .bm-drag { cursor: grab; color: var(--text-muted); font-size: 14px; }
+.item-row.bookmark-row .bm-drag:active { cursor: grabbing; }
+.item-row.bookmark-row .item-edit { padding: 4px 10px; font-size: 11px; min-width: 0; }
+.item-row.bookmark-row.drop-target { border-color: var(--accent); background: var(--accent-dim); }
+.item-row.bookmark-row.drop-target-child { border-color: var(--green); background: var(--green-dim); }
 .item-row.driver-row { grid-template-columns: 1fr auto; }
 .item-row.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
 .item-row.santa-row { grid-template-columns: 1fr 1fr auto; }
@@ -583,7 +588,7 @@ select option { background: var(--surface); }
   text-transform: uppercase;
 }
 .col-header.app-row { grid-template-columns: 28px 1fr 1.2fr 120px 1fr 80px auto; }
-.col-header.bookmark-row { grid-template-columns: 80px 1fr 1fr auto; }
+.col-header.bookmark-row { grid-template-columns: 32px 80px 1fr 1fr auto auto; }
 .col-header.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
 .col-header.santa-row { grid-template-columns: 1fr 1fr auto; }
 .col-header.fusion-row { grid-template-columns: 1fr 1fr 1fr auto; }
@@ -1005,7 +1010,7 @@ input.invalid { border-color: var(--danger) !important; }
   .item-row.app-row,
   .col-header.app-row { grid-template-columns: 1fr 1fr auto; }
   .item-row.bookmark-row,
-  .col-header.bookmark-row { grid-template-columns: 1fr auto; }
+  .col-header.bookmark-row { grid-template-columns: 28px 60px 1fr 1fr auto auto; }
   .item-row.custom-label-row,
   .col-header.custom-label-row { grid-template-columns: 1fr 1fr auto; }
 }

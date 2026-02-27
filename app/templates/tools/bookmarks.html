@@ -61,15 +61,19 @@
             </select>
           </div>
         </div>
-        <button class="btn btn-primary" onclick="addBookmark()" style="width:100%;">＋ Add</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="bm-add-btn" onclick="addOrUpdateBookmark()" style="flex:1;">＋ Add</button>
+          <button class="btn btn-ghost" id="bm-cancel-btn" onclick="cancelEditBookmark()" style="display:none;">Cancel</button>
+        </div>
       </div>
 
       <div class="card">
         <div class="card-title">Bookmarks</div>
+        <p class="section-desc" style="margin-bottom:12px;font-size:12px;">Drag rows to reorder or move into a folder. Use Edit to change name, URL, or parent.</p>
         <div class="col-header bookmark-row" id="bm-headers" style="display:none;">
-          <span>Type</span><span>Name</span><span>URL / Children</span><span></span>
+          <span></span><span>Type</span><span>Name</span><span>URL / Parent</span><span></span>
         </div>
-        <div class="item-list" id="bm-list"></div>
+        <div class="item-list item-list-draggable" id="bm-list"></div>
         <div class="empty-state" id="bm-empty">No bookmarks added yet</div>
       </div>
 
@@ -87,6 +91,8 @@
 {% include 'tools/_shared_utils.html' %}
 <script>
 var bookmarks = [];
+var editingId = null;
+
 function updateBookmarkForm() {
   document.getElementById('bm-url-row').style.display = document.getElementById('bm-type').value === 'bookmark' ? 'grid' : 'none';
 }
@@ -96,23 +102,77 @@ function updateParentDropdown() {
   sel.innerHTML = '<option value="">Root (no folder)</option>' +
     folders.map(function(f) { return '<option value="' + f.id + '">' + esc(f.name) + '</option>'; }).join('');
 }
-function addBookmark() {
+function addOrUpdateBookmark() {
   var type = document.getElementById('bm-type').value;
   var name = document.getElementById('bm-name').value.trim();
   var url = document.getElementById('bm-url').value.trim();
   var parent = document.getElementById('bm-parent').value;
   if (!name) { alert('Name is required.'); return; }
   if (type === 'bookmark' && !url) { alert('URL is required for bookmarks.'); return; }
-  bookmarks.push({ id: uuid(), type: type, name: name, url: type === 'bookmark' ? url : '', parentId: parent || null });
+  if (editingId) {
+    var item = bookmarks.find(function(b) { return b.id === editingId; });
+    if (item) {
+      item.type = type;
+      item.name = name;
+      item.url = type === 'bookmark' ? url : '';
+      item.parentId = parent || null;
+    }
+    editingId = null;
+    document.getElementById('bm-add-btn').textContent = '\uFF0B Add';
+    document.getElementById('bm-cancel-btn').style.display = 'none';
+  } else {
+    bookmarks.push({ id: uuid(), type: type, name: name, url: type === 'bookmark' ? url : '', parentId: parent || null });
+  }
   renderBookmarks();
   updateParentDropdown();
   document.getElementById('bm-name').value = '';
   document.getElementById('bm-url').value = '';
 }
+function startEditBookmark(id) {
+  var b = bookmarks.find(function(x) { return x.id === id; });
+  if (!b) return;
+  editingId = id;
+  document.getElementById('bm-type').value = b.type;
+  document.getElementById('bm-name').value = b.name;
+  document.getElementById('bm-url').value = b.url || '';
+  document.getElementById('bm-parent').value = b.parentId || '';
+  document.getElementById('bm-add-btn').textContent = 'Update';
+  document.getElementById('bm-cancel-btn').style.display = '';
+  updateBookmarkForm();
+  updateParentDropdown();
+}
+function cancelEditBookmark() {
+  editingId = null;
+  document.getElementById('bm-add-btn').textContent = '\uFF0B Add';
+  document.getElementById('bm-cancel-btn').style.display = 'none';
+  document.getElementById('bm-name').value = '';
+  document.getElementById('bm-url').value = '';
+  document.getElementById('bm-parent').value = '';
+  updateBookmarkForm();
+}
 function removeBookmark(id) {
   bookmarks = bookmarks.filter(function(b) { return b.id !== id && b.parentId !== id; });
+  if (editingId === id) {
+    cancelEditBookmark();
+  }
   renderBookmarks();
   updateParentDropdown();
+}
+function bookmarksInTreeOrder() {
+  var ordered = [];
+  function addChildren(pid, depth) {
+    for (var i = 0; i < bookmarks.length; i++) {
+      if (bookmarks[i].parentId !== pid) continue;
+      ordered.push({ item: bookmarks[i], depth: depth });
+      if (bookmarks[i].type === 'folder') addChildren(bookmarks[i].id, depth + 1);
+    }
+  }
+  for (var j = 0; j < bookmarks.length; j++) {
+    if (bookmarks[j].parentId) continue;
+    ordered.push({ item: bookmarks[j], depth: 0 });
+    if (bookmarks[j].type === 'folder') addChildren(bookmarks[j].id, 1);
+  }
+  return ordered;
 }
 function renderBookmarks() {
   var list = document.getElementById('bm-list');
@@ -126,12 +186,90 @@ function renderBookmarks() {
   }
   empty.style.display = 'none';
   headers.style.display = 'grid';
-  list.innerHTML = bookmarks.map(function(b) {
+  var rows = bookmarksInTreeOrder();
+  list.innerHTML = rows.map(function(r) {
+    var b = r.item;
+    var depth = r.depth;
     var typeBadge = b.type === 'folder' ? '<span class="badge badge-team">Folder</span>' : '<span class="badge badge-sign">Bookmark</span>';
     var parent = b.parentId ? bookmarks.find(function(x) { return x.id === b.parentId; }) : null;
-    var sub = b.type === 'folder' ? (bookmarks.filter(function(x) { return x.parentId === b.id; }).length + ' child(ren)') : (parent ? '↳ ' + esc(parent.name) : esc(b.url));
-    return '<div class="item-row bookmark-row"><span class="item-cell">' + typeBadge + '</span><span class="item-cell name">' + esc(b.name) + '</span><span class="item-cell">' + sub + '</span><button class="item-remove" onclick="removeBookmark(\'' + b.id + '\')">×</button></div>';
+    var sub = b.type === 'folder' ? (bookmarks.filter(function(x) { return x.parentId === b.id; }).length + ' child(ren)') : (parent ? '\u21B3 ' + esc(parent.name) : esc(b.url));
+    var indent = depth ? ' style="padding-left:' + (20 * depth) + 'px"' : '';
+    return '<div class="item-row bookmark-row" data-id="' + b.id + '" data-parent-id="' + (b.parentId || '') + '" data-is-folder="' + (b.type === 'folder') + '" draggable="true">' +
+      '<span class="item-cell bm-drag" title="Drag to reorder">\u2630</span>' +
+      '<span class="item-cell">' + typeBadge + '</span>' +
+      '<span class="item-cell name"' + indent + '>' + esc(b.name) + '</span>' +
+      '<span class="item-cell">' + sub + '</span>' +
+      '<button type="button" class="btn btn-ghost item-edit" onclick="event.stopPropagation(); startEditBookmark(\'' + b.id + '\')" title="Edit">Edit</button>' +
+      '<button type="button" class="item-remove" onclick="removeBookmark(\'' + b.id + '\')">\u00D7</button>' +
+      '</div>';
   }).join('');
+  attachBookmarkDragDrop(list);
+}
+function attachBookmarkDragDrop(list) {
+  if (!list) return;
+  var draggedId = null;
+  var dropTargetId = null;
+  var dropAsChild = false;
+  list.querySelectorAll('.item-row.bookmark-row').forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      draggedId = e.target.closest('.item-row').getAttribute('data-id');
+      e.target.closest('.item-row').classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedId);
+    });
+    row.addEventListener('dragend', function(e) {
+      e.target.closest('.item-row').classList.remove('dragging');
+      list.querySelectorAll('.item-row').forEach(function(r) { r.classList.remove('drop-target', 'drop-target-child'); });
+    });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      if (!draggedId) return;
+      var rowEl = e.target.closest('.item-row');
+      var targetId = rowEl.getAttribute('data-id');
+      if (targetId === draggedId) return;
+      list.querySelectorAll('.item-row').forEach(function(r) { r.classList.remove('drop-target', 'drop-target-child'); });
+      var isFolder = rowEl.getAttribute('data-is-folder') === 'true';
+      if (isFolder) {
+        rowEl.classList.add('drop-target-child');
+        dropTargetId = targetId;
+        dropAsChild = true;
+      } else {
+        rowEl.classList.add('drop-target');
+        dropTargetId = targetId;
+        dropAsChild = false;
+      }
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (!draggedId || !dropTargetId) return;
+      var targetIdx = bookmarks.findIndex(function(b) { return b.id === dropTargetId; });
+      var draggedIdx = bookmarks.findIndex(function(b) { return b.id === draggedId; });
+      if (targetIdx === -1 || draggedIdx === -1) return;
+      var target = bookmarks[targetIdx];
+      var dragged = bookmarks[draggedIdx];
+      function isDescendant(ancestorId, nodeId) {
+        var n = bookmarks.find(function(b) { return b.id === nodeId; });
+        if (!n || !n.parentId) return false;
+        if (n.parentId === ancestorId) return true;
+        return isDescendant(ancestorId, n.parentId);
+      }
+      if (dropAsChild && target.type === 'folder') {
+        if (dragged.id === target.id || isDescendant(dragged.id, target.id)) return;
+        dragged.parentId = target.id;
+        bookmarks.splice(draggedIdx, 1);
+        var newIdx = bookmarks.findIndex(function(b) { return b.id === dropTargetId; });
+        bookmarks.splice(newIdx + 1, 0, dragged);
+      } else {
+        dragged.parentId = target.parentId;
+        bookmarks.splice(draggedIdx, 1);
+        var newIdx = bookmarks.findIndex(function(b) { return b.id === dropTargetId; });
+        bookmarks.splice(newIdx, 0, dragged);
+      }
+      draggedId = dropTargetId = null;
+      renderBookmarks();
+      updateParentDropdown();
+    });
+  });
 }
 function buildBookmarkStructure() {
   var toplevel = document.getElementById('bm-toplevel').value.trim();
