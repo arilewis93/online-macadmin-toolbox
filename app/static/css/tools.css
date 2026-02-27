@@ -560,6 +560,7 @@ select option { background: var(--surface); }
 .item-row.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
 .item-row.santa-row { grid-template-columns: 1fr 1fr auto; }
 .item-row.fusion-row { grid-template-columns: 1fr 1fr 1fr auto; }
+.item-row.autoconfig-row { grid-template-columns: 1fr 1.2fr 1.5fr auto; }
 
 .item-cell { font-family: var(--mono); font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-cell.name { color: var(--text); font-weight: 500; }
@@ -592,6 +593,7 @@ select option { background: var(--surface); }
 .col-header.custom-label-row { grid-template-columns: 1fr 1fr 100px 1fr 80px auto; }
 .col-header.santa-row { grid-template-columns: 1fr 1fr auto; }
 .col-header.fusion-row { grid-template-columns: 1fr 1fr 1fr auto; }
+.col-header.autoconfig-row { grid-template-columns: 1fr 1.2fr 1.5fr auto; }
 
 .item-remove {
   background: none;

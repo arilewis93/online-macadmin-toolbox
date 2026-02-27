@@ -1,0 +1,949 @@
+{% extends "base.html" %}
+{% block title %}Auto Configurator{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+<a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+<div class="logo-badge">
+  <div class="logo-icon">
+    <svg viewBox="0 0 16 16">
+      <path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z" />
+    </svg>
+  </div>
+  <span class="logo-text">iSTORE BUSINESS</span>
+  <span class="logo-sep">/</span>
+  <span class="logo-sub">Auto Configurator</span>
+</div>
+<span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-autoconfig">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">Auto Configurator</div>
+        <div class="section-desc">Drop an app to see its permissions and build a Privacy (TCC) profile. Add or edit
+          entries, then download.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Drop app</div>
+        <p class="section-desc" style="margin-bottom:12px;">Drop a <strong>.app</strong> or binary here. Permissions for
+          that app will be loaded from your Mac.</p>
+        <input type="file" id="autoconfig-analyze-input" accept="*" style="display:none;"
+          onchange="autoconfigAnalyzeFile(event)">
+        <div class="drop-zone" id="autoconfig-analyze-zone"
+          onclick="document.getElementById('autoconfig-analyze-input').click()" style="margin-bottom:12px;">
+          <div class="drop-zone-icon">⬆</div>
+          <div class="drop-zone-label" id="autoconfig-analyze-label">Drop .app or binary here</div>
+          <div class="drop-zone-sub">Or click to select</div>
+        </div>
+        <div id="autoconfig-analyze-status" style="display:none;" class="info-box"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Permission entries</div>
+        <div class="col-header autoconfig-row" id="autoconfig-headers" style="display:none;">
+          <span>App / Path</span><span>Identifier</span><span>Permissions</span><span></span>
+        </div>
+        <div class="item-list" id="autoconfig-entries-list"></div>
+        <div class="empty-state" id="autoconfig-empty">No entries yet. Drop an app above or add one manually in the
+          section below.</div>
+      </div>
+
+      <div class="card card-collapsible" id="autoconfig-add-card">
+        <button type="button" class="card-title card-collapse-trigger" id="autoconfig-add-collapse-trigger"
+          onclick="autoconfigToggleAddSection()" aria-expanded="false">
+          <span class="card-collapse-icon" id="autoconfig-add-collapse-icon">▶</span>
+          <span id="autoconfig-add-title">Add permission entry</span>
+        </button>
+        <div class="card-collapse-body" id="autoconfig-add-body" style="display:none;">
+          <p class="section-desc" style="margin-bottom:10px;">Add or edit an app and the permissions to grant in the
+            profile. Drop an app or binary here to fill identifier and get code requirement from your Mac.</p>
+          <input type="file" id="autoconfig-add-drop-input" accept="*" style="display:none;"
+            onchange="autoconfigAddFormFile(event)">
+          <div class="drop-zone autoconfig-add-drop" id="autoconfig-add-drop-zone"
+            onclick="document.getElementById('autoconfig-add-drop-input').click()"
+            style="margin-bottom:12px;min-height:56px;">
+            <div class="drop-zone-icon">⬆</div>
+            <div class="drop-zone-label" id="autoconfig-add-drop-label">Drop app or binary here to fill from Mac</div>
+            <div class="drop-zone-sub">Same as the drop zone above</div>
+          </div>
+          <div id="autoconfig-add-drop-status" class="info-box" style="display:none;margin-bottom:10px;"></div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Path or app label</label>
+            <input type="text" id="autoconfig-path-label" placeholder="e.g. /Applications/MyApp.app or MyApp">
+          </div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Identifier (bundle ID) <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="autoconfig-identifier" placeholder="com.example.MyApp">
+          </div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Code requirement <span style="color:var(--danger);font-size:10px">*</span></label>
+            <input type="text" id="autoconfig-code-requirement"
+              placeholder="Paste full line from: codesign -dr - /path/to/App.app">
+          </div>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Permissions to grant</label>
+            <div id="autoconfig-permissions" class="autoconfig-checkgrid"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="autoconfig-add-btn" onclick="autoconfigAddEntry()">＋ Add entry</button>
+            <button class="btn btn-ghost" id="autoconfig-cancel-edit-btn" onclick="autoconfigCancelEdit()"
+              style="display:none;">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Profile name</div>
+        <div class="field">
+          <input type="text" id="autoconfig-profile-name" placeholder="MyApp Permissions">
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="document.getElementById('autoconfig-import-input').click()">↑ Import
+          .mobileconfig</button>
+        <button class="btn btn-success" onclick="autoconfigGenerate()">↓ Download TCC Profile</button>
+      </div>
+      <input type="file" id="autoconfig-import-input" accept=".mobileconfig" style="display:none;"
+        onchange="autoconfigImport(event)">
+    </div>
+  </main>
+</div>
+<style>
+  .autoconfig-checkgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px 16px;
+  }
+
+  .autoconfig-checkgrid label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .item-row.autoconfig-row .item-cell.name {
+    color: var(--text);
+  }
+
+  .item-row.autoconfig-row .item-edit {
+    padding: 4px 8px;
+    font-size: 11px;
+    min-width: 0;
+    margin-right: 4px;
+  }
+
+  .item-row.autoconfig-row.editing {
+    border-color: var(--accent);
+    background: var(--accent-dim, rgba(0, 122, 255, 0.08));
+  }
+
+  .card-collapsible .card-collapse-trigger {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-collapsible .card-collapse-trigger:hover {
+    opacity: 0.9;
+  }
+
+  .card-collapsible .card-collapse-icon {
+    font-size: 10px;
+    opacity: 0.8;
+    transition: transform 0.2s ease;
+  }
+
+  .card-collapsible .card-collapse-body {
+    margin-top: 12px;
+    padding-top: 0;
+  }
+</style>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+  (function () {
+    // --- Mach-O code signature parsing (same as Santa: bundle ID in browser) ---
+    var MH_MAGIC = 0xFEEDFACE, MH_MAGIC_64 = 0xFEEDFACF, LC_CODE_SIGNATURE = 0x1d;
+    var FAT_MAGIC = 0xCAFEBABE, FAT_CIGAM = 0xBEBAFECA;
+    var CSMAGIC_EMBEDDED_SIGNATURE = 0xFADE0CC0, CSMAGIC_CODEDIRECTORY = 0xFADE0C02;
+    function parseMachO(buffer, baseOffset) {
+      var view = new DataView(buffer);
+      if (baseOffset + 28 > buffer.byteLength) return null;
+      var magic = view.getUint32(baseOffset, false);
+      var le = (magic === 0xCEFAEDFE || magic === 0xCFFAEDFE);
+      var is64 = (magic === 0xFEEDFACF || magic === 0xCFFAEDFE);
+      var r32 = function (off) { return view.getUint32(baseOffset + off, le); };
+      var ncmds = r32(16);
+      var headerSize = is64 ? 32 : 28;
+      var cmdOffset = headerSize;
+      for (var i = 0; i < ncmds; i++) {
+        if (baseOffset + cmdOffset + 8 > buffer.byteLength) break;
+        var cmd = r32(cmdOffset), cmdsize = r32(cmdOffset + 4);
+        if (cmd === LC_CODE_SIGNATURE) {
+          return { dataoff: baseOffset + r32(cmdOffset + 8), datasize: r32(cmdOffset + 12) };
+        }
+        if (cmdsize < 8) break;
+        cmdOffset += cmdsize;
+      }
+      return null;
+    }
+    function findCodeSignature(buffer) {
+      var view = new DataView(buffer);
+      if (buffer.byteLength < 8) return null;
+      var magic = view.getUint32(0, false);
+      if (magic === FAT_MAGIC || magic === FAT_CIGAM) {
+        var nfat = view.getUint32(4, magic === FAT_CIGAM);
+        for (var i = 0; i < Math.min(nfat, 20); i++) {
+          var base = 8 + i * 20;
+          var archOffset = view.getUint32(base + 8, false);
+          if (archOffset < buffer.byteLength) {
+            var result = parseMachO(buffer, archOffset);
+            if (result) return result;
+          }
+        }
+        return null;
+      }
+      return parseMachO(buffer, 0);
+    }
+    function parseCodeDirectory(buffer, offset) {
+      var view = new DataView(buffer);
+      if (view.getUint32(offset, false) !== CSMAGIC_CODEDIRECTORY) return null;
+      var identOff = view.getUint32(offset + 20, false);
+      var teamOff = view.getUint32(offset + 8, false) >= 0x20200 ? view.getUint32(offset + 48, false) : 0;
+      var bytes = new Uint8Array(buffer);
+      function readCStr(base) { var s = '', i = base; while (i < bytes.length && bytes[i]) s += String.fromCharCode(bytes[i++]); return s; }
+      return { bundleId: identOff ? readCStr(offset + identOff) : '', teamId: teamOff ? readCStr(offset + teamOff) : '' };
+    }
+    function parseSuperBlob(buffer, dataoff, datasize) {
+      var view = new DataView(buffer);
+      if (view.getUint32(dataoff, false) !== CSMAGIC_EMBEDDED_SIGNATURE) return { error: 'No embedded signature' };
+      var count = view.getUint32(dataoff + 8, false);
+      for (var i = 0; i < count; i++) {
+        var boff = view.getUint32(dataoff + 12 + i * 8 + 4, false);
+        var babs = dataoff + boff;
+        if (view.getUint32(babs, false) === CSMAGIC_CODEDIRECTORY) {
+          var codeDir = parseCodeDirectory(buffer, babs);
+          if (codeDir) return { codeDir: codeDir };
+        }
+      }
+      return { error: 'No CodeDirectory blob' };
+    }
+    function autoconfigParseMachOSigning(buffer) {
+      var sig = findCodeSignature(buffer);
+      if (!sig) return { error: 'Not a Mach-O or no code signature' };
+      var result = parseSuperBlob(buffer, sig.dataoff, sig.datasize);
+      if (result.error) return result;
+      var cd = result.codeDir;
+      return { identifier: cd.bundleId || null, teamId: cd.teamId || null };
+    }
+    // --- .app directory traversal (same as Santa: Contents/MacOS then BFS fallback) ---
+    function getDirectoryEntry(parentEntry, name) {
+      return new Promise(function (resolve, reject) { parentEntry.getDirectory(name, {}, resolve, reject); });
+    }
+    function readDirectoryEntries(dirEntry) {
+      var reader = dirEntry.createReader(), all = [];
+      function readBatch() {
+        return new Promise(function (res, rej) { reader.readEntries(res, rej); }).then(function (batch) {
+          if (!batch.length) return all;
+          all.push.apply(all, batch);
+          return readBatch();
+        });
+      }
+      return readBatch();
+    }
+    function readFileEntry(fileEntry) {
+      return new Promise(function (resolve, reject) {
+        fileEntry.file(function (f) { f.arrayBuffer().then(resolve).catch(reject); }, reject);
+      });
+    }
+    function isMachOMagic(buffer) {
+      if (buffer.byteLength < 4) return false;
+      var m = new DataView(buffer).getUint32(0, false);
+      return m === 0xFEEDFACE || m === 0xFEEDFACF || m === 0xCEFAEDFE || m === 0xCFFAEDFE || m === 0xCAFEBABE;
+    }
+    function findMachOInApp(dirEntry) {
+      return getDirectoryEntry(dirEntry, 'Contents').then(function (contents) {
+        return getDirectoryEntry(contents, 'MacOS');
+      }).then(function (macos) {
+        return readDirectoryEntries(macos);
+      }).then(function (files) {
+        function tryFile(i) {
+          if (i >= files.length) return Promise.resolve(null);
+          var f = files[i];
+          if (!f.isFile || f.name.endsWith('.dylib') || f.name.endsWith('.plist')) return tryFile(i + 1);
+          return readFileEntry(f).then(function (buf) {
+            return isMachOMagic(buf) ? buf : tryFile(i + 1);
+          }).catch(function () { return tryFile(i + 1); });
+        }
+        return tryFile(0);
+      }).then(function (buf) {
+        if (buf) return buf;
+        return findMachOInAppBFS(dirEntry);
+      }).catch(function () {
+        return findMachOInAppBFS(dirEntry);
+      });
+    }
+    function findMachOInAppBFS(dirEntry) {
+      var queue = [dirEntry];
+      function next() {
+        if (!queue.length) return Promise.resolve(null);
+        var entry = queue.shift();
+        if (entry.isFile) {
+          return readFileEntry(entry).then(function (b) { return isMachOMagic(b) ? b : next(); }).catch(function () { return next(); });
+        }
+        if (entry.isDirectory) {
+          return readDirectoryEntries(entry).then(function (children) { queue.push.apply(queue, children); return next(); }).catch(function () { return next(); });
+        }
+        return next();
+      }
+      return next();
+    }
+
+    var TCC_DISPLAY_NAMES = {
+      "SystemPolicyAllFiles": "Full Disk Access",
+      "SystemPolicySysAdminFiles": "Admin Files",
+      "Accessibility": "Accessibility",
+      "ScreenCapture": "Screen Recording",
+      "PostEvent": "Post Event",
+      "AppleEvents": "Apple Events",
+      "Camera": "Camera",
+      "Microphone": "Microphone",
+      "Photos": "Photos",
+      "Reminders": "Reminders",
+      "Calendar": "Calendar",
+      "AddressBook": "Address Book",
+      "DeveloperTool": "Developer Tool",
+      "SystemPolicyDesktopFolder": "Desktop",
+      "SystemPolicyDocumentsFolder": "Documents",
+      "SystemPolicyDownloadsFolder": "Downloads",
+      "SystemPolicyNetworkVolumes": "Network Volumes",
+      "SystemPolicyRemovableVolumes": "Removable Volumes"
+    };
+    var TCC_KEYS_SORTED = Object.keys(TCC_DISPLAY_NAMES).sort(function (a, b) { return (TCC_DISPLAY_NAMES[a] || a).localeCompare(TCC_DISPLAY_NAMES[b] || b); });
+
+    var autoconfigEntries = [];
+    var autoconfigEditingIndex = -1;
+    var autoconfigSearchTerm = '';
+    var autoconfigNotifications = [];
+    var autoconfigLoginItems = [];
+    var autoconfigSystemExtensions = [];
+
+    var permEl = document.getElementById('autoconfig-permissions');
+    TCC_KEYS_SORTED.forEach(function (key) {
+      var label = document.createElement('label');
+      label.innerHTML = '<input type="checkbox" name="autoconfig-perm" value="' + esc(key) + '"> ' + esc(TCC_DISPLAY_NAMES[key]);
+      permEl.appendChild(label);
+    });
+
+    function getAutoconfigSelectedPermissions() {
+      var checkboxes = document.querySelectorAll('#autoconfig-permissions input:checked');
+      return Array.prototype.map.call(checkboxes, function (cb) { return cb.value; });
+    }
+
+    function setAutoconfigPermissions(keys) {
+      var set = new Set(keys || []);
+      document.querySelectorAll('#autoconfig-permissions input').forEach(function (cb) { cb.checked = set.has(cb.value); });
+    }
+
+    window.autoconfigAnalyzeFile = function (event) {
+      var file = event.target && event.target.files && event.target.files[0];
+      if (!file) return;
+      event.target.value = '';
+      autoconfigAnalyzeFromFile(file);
+    };
+
+    function autoconfigAnalyzeFromFile(file) {
+      var zone = document.getElementById('autoconfig-analyze-zone');
+      var labelEl = document.getElementById('autoconfig-analyze-label');
+      var status = document.getElementById('autoconfig-analyze-status');
+      status.style.display = 'block';
+      status.className = 'info-box';
+      status.textContent = 'Reading \u2026';
+      zone.classList.remove('has-file');
+      file.arrayBuffer().then(function (buffer) {
+        var result = autoconfigParseMachOSigning(buffer);
+        if (result.error) {
+          status.className = 'warning-box';
+          status.textContent = result.error;
+          return;
+        }
+        var ident = result.identifier || '';
+        var teamId = result.teamId || null;
+        var searchTerm = '';
+        if (ident) {
+          var parts = ident.split('.');
+          var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
+          searchTerm = truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.';
+          autoconfigSearchTerm = searchTerm;
+        } else {
+          autoconfigSearchTerm = '';
+        }
+        status.className = 'info-box';
+        status.textContent = ident ? 'Bundle ID: ' + ident + (teamId ? ', Team ID: ' + teamId : '') + '. Getting permissions from your Mac…' : 'No identifier found.';
+        zone.classList.add('has-file');
+        labelEl.textContent = '\u2713 ' + file.name;
+        var appName = (file.name || '').replace(/\.app$/i, '');
+        if (appName) document.getElementById('autoconfig-profile-name').value = appName;
+        if (searchTerm) autoconfigFetchFromMac(searchTerm, status);
+      }).catch(function (e) {
+        status.className = 'warning-box';
+        status.textContent = e.message || 'Failed to read file.';
+      });
+    }
+
+    function autoconfigAnalyzeFromBuffer(buffer, name) {
+      var zone = document.getElementById('autoconfig-analyze-zone');
+      var labelEl = document.getElementById('autoconfig-analyze-label');
+      var status = document.getElementById('autoconfig-analyze-status');
+      status.style.display = 'block';
+      zone.classList.remove('has-file');
+      var result = autoconfigParseMachOSigning(buffer);
+      if (result.error) {
+        status.className = 'warning-box';
+        status.textContent = result.error;
+        return;
+      }
+      var ident = result.identifier || '';
+      var searchTerm = '';
+      if (ident) {
+        var parts = ident.split('.');
+        var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
+        searchTerm = truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.';
+        autoconfigSearchTerm = searchTerm;
+      } else {
+        autoconfigSearchTerm = '';
+      }
+      status.className = 'info-box';
+      status.textContent = ident ? 'Bundle ID: ' + ident + '. Getting permissions from your Mac…' : 'No identifier found.';
+      zone.classList.add('has-file');
+      labelEl.textContent = '\u2713 ' + name;
+      var appName = (name || '').replace(/\.app$/i, '');
+      if (appName) document.getElementById('autoconfig-profile-name').value = appName;
+      if (searchTerm) autoconfigFetchFromMac(searchTerm, status);
+    }
+
+    window.autoconfigToggleAddSection = function () {
+      var body = document.getElementById('autoconfig-add-body');
+      var icon = document.getElementById('autoconfig-add-collapse-icon');
+      var trigger = document.getElementById('autoconfig-add-collapse-trigger');
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      icon.textContent = open ? '▶' : '▼';
+      trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+    };
+
+    var AUTOCONFIG_POLL_PORT = 8765;
+    var AUTOCONFIG_POLL_MAX_ATTEMPTS = 60;
+
+    function autoconfigFetchFromMac(searchTerm, statusEl) {
+      if (!searchTerm || !statusEl) return;
+      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
+      window.open(url, '_blank');
+      var attempts = 0;
+      function poll() {
+        attempts++;
+        fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function (res) { return res.json(); }).then(function (json) {
+          if (json.search_term && searchTerm && json.search_term.toLowerCase() !== searchTerm.toLowerCase()) {
+            // Stale response from previous agent run — keep polling
+            if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
+          }
+          var n = json.entries && json.entries.length ? json.entries.length : 0;
+          statusEl.className = 'info-box';
+          statusEl.textContent = n ? 'Found ' + n + ' permission entr' + (n === 1 ? 'y' : 'ies') + '.' : 'No permission entries found for this app.';
+          autoconfigMergeAgentEntries(json);
+        }).catch(function () {
+          if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) setTimeout(poll, 1000);
+          else {
+            statusEl.className = 'warning-box';
+            statusEl.textContent = "Couldn't get permissions. Try dropping the app again.";
+          }
+        });
+      }
+      setTimeout(poll, 1500);
+    }
+
+    /** Find an entry matching targetIdentifier (lenient: exact, case-insensitive, or contains). */
+    function autoconfigFindMatchingEntry(entries, targetIdentifier) {
+      var target = (targetIdentifier || '').trim();
+      var targetLower = target.toLowerCase();
+      if (!target) return null;
+      function id(e) { return (e.identifier || '').trim(); }
+      function idLower(e) { return id(e).toLowerCase(); }
+      var match = entries.find(function (e) { return id(e) === target; });
+      if (match) return match;
+      match = entries.find(function (e) { return idLower(e) === targetLower; });
+      if (match) return match;
+      match = entries.find(function (e) { return idLower(e).indexOf(targetLower) !== -1 || targetLower.indexOf(idLower(e)) !== -1; });
+      return match || (entries.length === 1 ? entries[0] : null);
+    }
+
+    /** Fetch from agent (code_requirement only) and pre-fill Add form. Does not merge into list or touch notifications/login items/system extensions. */
+    function autoconfigFetchFromMacForAddForm(searchTerm, targetIdentifier, pathLabel, statusEl) {
+      if (!searchTerm || !statusEl) return;
+      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=code_requirement';
+      window.open(url, '_blank');
+      var attempts = 0;
+      function poll() {
+        attempts++;
+        fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function (res) { return res.json(); }).then(function (json) {
+          if (json.search_term && searchTerm && json.search_term.toLowerCase() !== searchTerm.toLowerCase()) {
+            if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
+          }
+          var entries = (json && json.entries) ? json.entries : [];
+          var match = autoconfigFindMatchingEntry(entries, targetIdentifier);
+          if (match) {
+            document.getElementById('autoconfig-code-requirement').value = (match.code_requirement || match.codeRequirement || '').trim();
+            setAutoconfigPermissions(match.permissions || []);
+            statusEl.className = 'info-box';
+            statusEl.textContent = 'Code requirement and permissions filled. Choose permissions above and click Add entry.';
+          } else {
+            statusEl.className = 'warning-box';
+            statusEl.textContent = 'No TCC data for this app on your Mac. Add code requirement manually (e.g. from Terminal: codesign -dr - /path/to/App.app).';
+          }
+          statusEl.style.display = 'block';
+        }).catch(function () {
+          if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) setTimeout(poll, 1000);
+          else {
+            statusEl.className = 'warning-box';
+            statusEl.textContent = "Couldn't get data from Mac. Add code requirement manually.";
+            statusEl.style.display = 'block';
+          }
+        });
+      }
+      statusEl.style.display = 'block';
+      statusEl.className = 'info-box';
+      statusEl.textContent = 'Getting code requirement from your Mac…';
+      setTimeout(poll, 1500);
+    }
+
+    window.autoconfigAddFormFile = function (event) {
+      var file = event.target && event.target.files && event.target.files[0];
+      if (!file) return;
+      event.target.value = '';
+      autoconfigAddFormDropFromFile(file);
+    };
+
+    function autoconfigAddFormDropFromFile(file) {
+      var zone = document.getElementById('autoconfig-add-drop-zone');
+      var labelEl = document.getElementById('autoconfig-add-drop-label');
+      var statusEl = document.getElementById('autoconfig-add-drop-status');
+      statusEl.style.display = 'block';
+      statusEl.className = 'info-box';
+      statusEl.textContent = 'Reading…';
+      zone.classList.remove('has-file');
+      file.arrayBuffer().then(function (buffer) {
+        var result = autoconfigParseMachOSigning(buffer);
+        if (result.error) {
+          statusEl.className = 'warning-box';
+          statusEl.textContent = result.error;
+          return;
+        }
+        var ident = result.identifier || '';
+        if (!ident) {
+          statusEl.className = 'warning-box';
+          statusEl.textContent = 'No bundle ID found.';
+          return;
+        }
+        var parts = ident.split('.');
+        var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
+        var searchTerm = (truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.');
+        document.getElementById('autoconfig-path-label').value = file.name || ident;
+        document.getElementById('autoconfig-identifier').value = ident;
+        zone.classList.add('has-file');
+        labelEl.textContent = '\u2713 ' + file.name;
+        autoconfigFetchFromMacForAddForm(searchTerm, ident, file.name, statusEl);
+      }).catch(function (e) {
+        statusEl.className = 'warning-box';
+        statusEl.textContent = e.message || 'Failed to read file.';
+      });
+    }
+
+    function autoconfigAddFormDropFromBuffer(buffer, name) {
+      var zone = document.getElementById('autoconfig-add-drop-zone');
+      var labelEl = document.getElementById('autoconfig-add-drop-label');
+      var statusEl = document.getElementById('autoconfig-add-drop-status');
+      statusEl.style.display = 'block';
+      zone.classList.remove('has-file');
+      var result = autoconfigParseMachOSigning(buffer);
+      if (result.error) {
+        statusEl.className = 'warning-box';
+        statusEl.textContent = result.error;
+        return;
+      }
+      var ident = result.identifier || '';
+      if (!ident) {
+        statusEl.className = 'warning-box';
+        statusEl.textContent = 'No bundle ID found.';
+        return;
+      }
+      var parts = ident.split('.');
+      var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
+      var searchTerm = (truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.');
+      document.getElementById('autoconfig-path-label').value = name || ident;
+      document.getElementById('autoconfig-identifier').value = ident;
+      zone.classList.add('has-file');
+      labelEl.textContent = '\u2713 ' + name;
+      autoconfigFetchFromMacForAddForm(searchTerm, ident, name, statusEl);
+    }
+
+    /** Merge agent JSON: entries into list; store notifications, login_items, system_extensions for profile generation. */
+    function autoconfigMergeAgentEntries(data) {
+      var entries = (data && data.entries) ? data.entries : [];
+      function key(e) { return (e.identifier || '') + '\0' + (e.codeRequirement || ''); }
+      var byKey = {};
+      autoconfigEntries.forEach(function (e) { byKey[key(e)] = e; });
+      entries.forEach(function (e) {
+        var id = (e.identifier || '').trim();
+        if (!id) return;
+        var pathLabel = (e.path_or_label || e.pathLabel || id).trim();
+        var codeReq = (e.code_requirement || e.codeRequirement || '').trim();
+        var perms = e.permissions && Array.isArray(e.permissions) ? e.permissions : [];
+        var k = id + '\0' + codeReq;
+        if (byKey[k]) {
+          byKey[k].pathLabel = pathLabel;
+          var existing = byKey[k].permissions || [];
+          perms.forEach(function (p) { if (existing.indexOf(p) === -1) existing.push(p); });
+          byKey[k].permissions = existing;
+        } else {
+          var newEntry = { pathLabel: pathLabel, identifier: id, codeRequirement: codeReq, permissions: perms };
+          byKey[k] = newEntry;
+          autoconfigEntries.push(newEntry);
+        }
+      });
+      autoconfigNotifications = (data && data.notifications) ? data.notifications : [];
+      autoconfigLoginItems = (data && data.login_items) ? data.login_items : [];
+      autoconfigSystemExtensions = (data && data.system_extensions) ? data.system_extensions : [];
+      autoconfigCancelEdit();
+      autoconfigRender();
+    }
+
+    window.autoconfigAddEntry = function () {
+      var pathLabel = document.getElementById('autoconfig-path-label').value.trim();
+      var identifier = document.getElementById('autoconfig-identifier').value.trim();
+      var codeRequirement = document.getElementById('autoconfig-code-requirement').value.trim();
+      var perms = getAutoconfigSelectedPermissions();
+      if (!identifier) { alert('Identifier (bundle ID) is required.'); return; }
+      if (!codeRequirement) { alert('Code requirement is required.'); return; }
+      if (!perms.length) { alert('Select at least one permission.'); return; }
+      var entry = { pathLabel: pathLabel || identifier, identifier: identifier, codeRequirement: codeRequirement, permissions: perms };
+      if (autoconfigEditingIndex >= 0) {
+        autoconfigEntries[autoconfigEditingIndex] = entry;
+        autoconfigCancelEdit();
+      } else {
+        autoconfigEntries.push(entry);
+        document.getElementById('autoconfig-path-label').value = '';
+        document.getElementById('autoconfig-identifier').value = '';
+        document.getElementById('autoconfig-code-requirement').value = '';
+        setAutoconfigPermissions([]);
+      }
+      autoconfigRender();
+    };
+
+    window.autoconfigCancelEdit = function () {
+      autoconfigEditingIndex = -1;
+      document.getElementById('autoconfig-path-label').value = '';
+      document.getElementById('autoconfig-identifier').value = '';
+      document.getElementById('autoconfig-code-requirement').value = '';
+      setAutoconfigPermissions([]);
+      document.getElementById('autoconfig-add-title').textContent = 'Add permission entry';
+      document.getElementById('autoconfig-add-btn').textContent = '＋ Add entry';
+      document.getElementById('autoconfig-cancel-edit-btn').style.display = 'none';
+      autoconfigRender();
+    };
+
+    window.autoconfigEditEntry = function (i) {
+      var e = autoconfigEntries[i];
+      if (!e) return;
+      autoconfigEditingIndex = i;
+      document.getElementById('autoconfig-path-label').value = e.pathLabel || '';
+      document.getElementById('autoconfig-identifier').value = e.identifier || '';
+      document.getElementById('autoconfig-code-requirement').value = e.codeRequirement || '';
+      setAutoconfigPermissions(e.permissions || []);
+      document.getElementById('autoconfig-add-title').textContent = 'Edit permission entry';
+      var body = document.getElementById('autoconfig-add-body');
+      if (body.style.display === 'none') {
+        body.style.display = 'block';
+        document.getElementById('autoconfig-add-collapse-icon').textContent = '▼';
+        document.getElementById('autoconfig-add-collapse-trigger').setAttribute('aria-expanded', 'true');
+      }
+      document.getElementById('autoconfig-add-btn').textContent = 'Update entry';
+      document.getElementById('autoconfig-cancel-edit-btn').style.display = '';
+      document.getElementById('autoconfig-add-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      autoconfigRender();
+    };
+
+    window.autoconfigRemoveEntry = function (i) {
+      if (i === autoconfigEditingIndex) autoconfigCancelEdit();
+      autoconfigEntries.splice(i, 1);
+      autoconfigRender();
+    };
+
+    function autoconfigRender() {
+      var list = document.getElementById('autoconfig-entries-list');
+      var empty = document.getElementById('autoconfig-empty');
+      var headers = document.getElementById('autoconfig-headers');
+      if (!autoconfigEntries.length) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        headers.style.display = 'none';
+        return;
+      }
+      empty.style.display = 'none';
+      headers.style.display = 'grid';
+      list.innerHTML = autoconfigEntries.map(function (e, i) {
+        var permNames = (e.permissions || []).map(function (p) { return TCC_DISPLAY_NAMES[p] || p; }).join(', ');
+        var editing = i === autoconfigEditingIndex ? ' editing' : '';
+        return '<div class="item-row autoconfig-row' + editing + '"><span class="item-cell">' + esc(e.pathLabel || e.identifier) + '</span><span class="item-cell name">' + esc(e.identifier) + '</span><span class="item-cell">' + esc(permNames) + '</span><span><button class="item-edit" onclick="autoconfigEditEntry(' + i + ')">Edit</button><button class="item-remove" onclick="autoconfigRemoveEntry(' + i + ')">×</button></span></div>';
+      }).join('');
+    }
+
+    window.autoconfigGenerate = function () {
+      if (!autoconfigEntries.length) { alert('Add at least one permission entry.'); return; }
+      var payloadContent = [];
+      var servicesPayload = {};
+      autoconfigEntries.forEach(function (e) {
+        var item = { Allowed: true, CodeRequirement: e.codeRequirement, Identifier: e.identifier, IdentifierType: 'bundleID', StaticCode: false };
+        (e.permissions || []).forEach(function (profileKey) {
+          if (!servicesPayload[profileKey]) servicesPayload[profileKey] = [];
+          servicesPayload[profileKey].push(item);
+        });
+      });
+      if (Object.keys(servicesPayload).length) {
+        payloadContent.push({
+          PayloadDisplayName: 'Privacy Preferences Policy Control',
+          PayloadIdentifier: 'com.apple.TCC.configuration-profile-policy.' + uuid(),
+          PayloadType: 'com.apple.TCC.configuration-profile-policy',
+          PayloadUUID: uuid(),
+          PayloadVersion: 1,
+          Services: servicesPayload
+        });
+      }
+      if (autoconfigLoginItems && autoconfigLoginItems.length) {
+        payloadContent.push({
+          PayloadDisplayName: 'Managed Login Items',
+          PayloadIdentifier: 'com.apple.servicemanagement.' + uuid(),
+          PayloadType: 'com.apple.servicemanagement',
+          PayloadUUID: uuid(),
+          PayloadVersion: 1,
+          Rules: autoconfigLoginItems.map(function (teamId) { return { RuleType: 'TeamIdentifier', RuleValue: teamId }; })
+        });
+      }
+      if (autoconfigNotifications && autoconfigNotifications.length) {
+        payloadContent.push({
+          PayloadDisplayName: 'Notifications',
+          PayloadIdentifier: 'com.apple.notificationsettings.' + uuid(),
+          PayloadType: 'com.apple.notificationsettings',
+          PayloadUUID: uuid(),
+          PayloadVersion: 1,
+          NotificationSettings: autoconfigNotifications.map(function (n) {
+            return {
+              AlertType: 2,
+              BadgesEnabled: true,
+              BundleIdentifier: n.original_id || n.found_id || n,
+              CriticalAlertEnabled: false,
+              NotificationsEnabled: true,
+              PreviewType: 0,
+              ShowInCarPlay: false,
+              ShowInLockScreen: false,
+              ShowInNotificationCenter: true,
+              SoundsEnabled: true
+            };
+          })
+        });
+      }
+      (autoconfigSystemExtensions || []).forEach(function (ext) {
+        var teamId = ext.team_id || '';
+        var ident = ext.identifier || '';
+        var endpointSecurity = ext.endpoint_security;
+        var networkExt = ext.network_extension;
+        if (!teamId || (!endpointSecurity && !networkExt)) return;
+        var types = [];
+        if (endpointSecurity) types.push('EndpointSecurityExtension');
+        if (networkExt) types.push('NetworkExtension');
+        payloadContent.push({
+          PayloadDisplayName: 'System Extension Policy',
+          PayloadIdentifier: 'com.apple.system-extension-policy.' + uuid(),
+          PayloadType: 'com.apple.system-extension-policy',
+          PayloadUUID: uuid(),
+          PayloadVersion: 1,
+          PayloadOrganization: 'iStore Business',
+          AllowUserOverrides: true,
+          AllowedSystemExtensionTypes: (function () { var o = {}; o[teamId] = types; return o; })(),
+          AllowedSystemExtensions: (function () { var o = {}; o[teamId] = [ident]; return o; })()
+        });
+        if (networkExt && ext.filter_data_provider_designated_requirement) {
+          payloadContent.push({
+            PayloadDisplayName: 'Web Content Filter',
+            PayloadIdentifier: 'com.apple.webcontent-filter.' + uuid(),
+            PayloadType: 'com.apple.webcontent-filter',
+            PayloadUUID: uuid(),
+            PayloadVersion: 1,
+            FilterDataProviderBundleIdentifier: ident,
+            FilterDataProviderDesignatedRequirement: ext.filter_data_provider_designated_requirement,
+            FilterSockets: true,
+            FilterType: 'Plugin',
+            PluginBundleID: ext.app_identifier || '',
+            UserDefinedName: 'Web Content Filter'
+          });
+        }
+      });
+      var profileName = document.getElementById('autoconfig-profile-name').value.trim() || 'Permissions';
+      var config = {
+        PayloadContent: payloadContent,
+        PayloadDisplayName: profileName,
+        PayloadIdentifier: 'com.istorebusiness.autoconfig.' + uuid(),
+        PayloadType: 'Configuration',
+        PayloadUUID: uuid(),
+        PayloadVersion: 1,
+        PayloadOrganization: 'iStore Business'
+      };
+      var filename = (profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '.mobileconfig';
+      download(filename, buildPlistDoc(config), 'application/x-apple-aspen-config');
+    };
+
+    window.autoconfigImport = function (event) {
+      var file = event.target.files[0];
+      if (!file) return;
+      event.target.value = '';
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var profile = parsePlistText(reader.result);
+          var content = profile.PayloadContent || [];
+          var tccPayload = content.find(function (p) { return p.PayloadType === 'com.apple.TCC.configuration-profile-policy'; });
+          if (!tccPayload || !tccPayload.Services) { alert('No TCC Privacy payload found in this profile.'); return; }
+          autoconfigEntries = [];
+          var seen = {};
+          Object.keys(tccPayload.Services).forEach(function (profileKey) {
+            var items = tccPayload.Services[profileKey] || [];
+            items.forEach(function (item) {
+              var id = item.Identifier;
+              if (!id) return;
+              if (!seen[id]) {
+                seen[id] = { pathLabel: id, identifier: id, codeRequirement: item.CodeRequirement || '', permissions: [] };
+                autoconfigEntries.push(seen[id]);
+              }
+              if (profileKey && seen[id].permissions.indexOf(profileKey) === -1) seen[id].permissions.push(profileKey);
+            });
+          });
+          var loginPayload = content.find(function (p) { return p.PayloadType === 'com.apple.servicemanagement'; });
+          autoconfigLoginItems = (loginPayload && loginPayload.Rules) ? loginPayload.Rules.map(function (r) { return r.RuleValue || r.TeamIdentifier || ''; }).filter(Boolean) : [];
+          var notifPayload = content.find(function (p) { return p.PayloadType === 'com.apple.notificationsettings'; });
+          autoconfigNotifications = (notifPayload && notifPayload.NotificationSettings) ? notifPayload.NotificationSettings.map(function (n) { return { original_id: n.BundleIdentifier }; }) : [];
+          var sysExtPayloads = content.filter(function (p) { return p.PayloadType === 'com.apple.system-extension-policy' && p.AllowedSystemExtensions; });
+          autoconfigSystemExtensions = [];
+          sysExtPayloads.forEach(function (p) {
+            Object.keys(p.AllowedSystemExtensions || {}).forEach(function (tid) {
+              (p.AllowedSystemExtensions[tid] || []).forEach(function (ident) {
+                var types = (p.AllowedSystemExtensionTypes || {})[tid] || [];
+                var webFilter = content.find(function (q) { return q.PayloadType === 'com.apple.webcontent-filter' && q.FilterDataProviderBundleIdentifier === ident; });
+                autoconfigSystemExtensions.push({
+                  identifier: ident,
+                  team_id: tid,
+                  app_identifier: (webFilter && webFilter.PluginBundleID) || '',
+                  network_extension: types.indexOf('NetworkExtension') !== -1,
+                  endpoint_security: types.indexOf('EndpointSecurityExtension') !== -1,
+                  filter_data_provider_designated_requirement: (webFilter && webFilter.FilterDataProviderDesignatedRequirement) || ''
+                });
+              });
+            });
+          });
+          autoconfigEditingIndex = -1;
+          autoconfigCancelEdit();
+          autoconfigRender();
+        } catch (e) { alert('Failed to parse profile: ' + e.message); }
+      };
+      reader.readAsText(file, 'utf-8');
+    };
+
+    autoconfigRender();
+
+    var zone = document.getElementById('autoconfig-analyze-zone');
+    if (zone) {
+      zone.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', function (e) { e.preventDefault(); if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+      zone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        var items = e.dataTransfer.items;
+        if (!items || !items.length) return;
+        var item = items[0];
+        if (item.webkitGetAsEntry) {
+          var entry = item.webkitGetAsEntry();
+          if (entry && entry.isDirectory) {
+            var status = document.getElementById('autoconfig-analyze-status');
+            status.style.display = 'block';
+            status.className = 'info-box';
+            status.textContent = 'Reading \u2026';
+            findMachOInApp(entry).then(function (buffer) {
+              if (buffer) autoconfigAnalyzeFromBuffer(buffer, entry.name);
+              else {
+                status.className = 'warning-box';
+                status.textContent = 'No Mach-O binary found inside ' + entry.name;
+              }
+            }).catch(function (err) {
+              status.className = 'warning-box';
+              status.textContent = err.message || 'Failed to read .app bundle.';
+            });
+            return;
+          }
+        }
+        var file = item.getAsFile ? item.getAsFile() : (e.dataTransfer.files && e.dataTransfer.files[0]);
+        if (file) autoconfigAnalyzeFromFile(file);
+      });
+    }
+
+    var addDropZone = document.getElementById('autoconfig-add-drop-zone');
+    if (addDropZone) {
+      addDropZone.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); addDropZone.classList.add('drag-over'); });
+      addDropZone.addEventListener('dragleave', function (e) { e.preventDefault(); if (!addDropZone.contains(e.relatedTarget)) addDropZone.classList.remove('drag-over'); });
+      addDropZone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        addDropZone.classList.remove('drag-over');
+        var items = e.dataTransfer.items;
+        if (!items || !items.length) return;
+        var item = items[0];
+        if (item.webkitGetAsEntry) {
+          var entry = item.webkitGetAsEntry();
+          if (entry && entry.isDirectory) {
+            var statusEl = document.getElementById('autoconfig-add-drop-status');
+            statusEl.style.display = 'block';
+            statusEl.className = 'info-box';
+            statusEl.textContent = 'Reading \u2026';
+            findMachOInApp(entry).then(function (buffer) {
+              if (buffer) autoconfigAddFormDropFromBuffer(buffer, entry.name);
+              else {
+                statusEl.className = 'warning-box';
+                statusEl.textContent = 'No Mach-O binary found inside ' + entry.name;
+              }
+            }).catch(function (err) {
+              statusEl.className = 'warning-box';
+              statusEl.textContent = err.message || 'Failed to read .app bundle.';
+            });
+            return;
+          }
+        }
+        var file = item.getAsFile ? item.getAsFile() : (e.dataTransfer.files && e.dataTransfer.files[0]);
+        if (file) autoconfigAddFormDropFromFile(file);
+      });
+    }
+  })();
+</script>
+{% endblock %}

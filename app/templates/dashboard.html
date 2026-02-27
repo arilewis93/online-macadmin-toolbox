@@ -69,6 +69,15 @@
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
+      {% if show_auto_config %}
+      <a href="{{ url_for('main.toolbox', tool_name='auto_configurator') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Auto Configurator</div>
+          <div class="tool-card-desc">Build a Privacy (TCC) configuration profile for Full Disk Access, Accessibility, and other app permissions. Provide identifier and code requirement from the Mac.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      {% endif %}
     </div>
   </div>
 

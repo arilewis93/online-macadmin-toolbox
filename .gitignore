@@ -42,3 +42,12 @@ instance/
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent (Swift / SPM)
+agent/.build/
+agent/.swiftpm/
+agent/AutoConfigAgent.app/
+agent/*.xcodeproj/xcuserdata/
+agent/*.xcworkspace/xcuserdata/
+DerivedData/
+.build/
