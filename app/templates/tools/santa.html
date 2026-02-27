@@ -65,12 +65,12 @@
         </div>
         <div class="field" style="margin-bottom:12px;">
           <label>ACTION</label>
-          <div class="santa-action-options" id="santa-action-options">
-            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="allow_app" id="santa-action-allow-app"><span class="toggle-label">Allow this app</span></label>
-            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="allow_developer" id="santa-action-allow-dev"><span class="toggle-label">Allow all apps by this developer</span></label>
-            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="block_app" id="santa-action-block-app" checked><span class="toggle-label">Block this app</span></label>
-            <label class="toggle-row santa-action-row"><input type="radio" name="santa-action" value="block_developer" id="santa-action-block-dev"><span class="toggle-label">Block all apps by this developer</span></label>
-          </div>
+          <select id="santa-action-select" class="field-select">
+            <option value="allow_app" id="santa-action-allow-app">Allow this app</option>
+            <option value="allow_developer" id="santa-action-allow-dev">Allow all apps by this developer</option>
+            <option value="block_app" id="santa-action-block-app" selected>Block this app</option>
+            <option value="block_developer" id="santa-action-block-dev">Block all apps by this developer</option>
+          </select>
         </div>
         <button class="btn btn-primary" onclick="addSantaRule()" style="width:100%;">＋ Add Rule</button>
       </div>
@@ -212,8 +212,8 @@ var santaCurrentTeamId = null;
 var santaCurrentIsPlatform = false;
 
 function getSantaAction() {
-  var r = document.querySelector('input[name="santa-action"]:checked');
-  return r ? r.value : 'block_app';
+  var sel = document.getElementById('santa-action-select');
+  return sel ? sel.value : 'block_app';
 }
 function addSantaRule() {
   var action = getSantaAction();
@@ -244,29 +244,22 @@ function removeSantaRule(i) { santaRules.splice(i,1); renderSantaRules(); }
 function updateSantaActionOptions() {
   var lockdown = getToggle('santa-lockdown');
   var isPlatform = santaCurrentIsPlatform;
+  var sel = document.getElementById('santa-action-select');
+  if (!sel) return;
   var allowApp = document.getElementById('santa-action-allow-app');
   var allowDev = document.getElementById('santa-action-allow-dev');
   var blockApp = document.getElementById('santa-action-block-app');
   var blockDev = document.getElementById('santa-action-block-dev');
-  function enable(el, on) { if (el) el.style.opacity = on ? '' : '0.5'; el.disabled = !on; }
+  function enable(opt, on) { if (opt) { opt.disabled = !on; opt.style.opacity = on ? '' : '0.5'; } }
   if (isPlatform) {
     enable(allowApp, true); enable(allowDev, false); enable(blockApp, true); enable(blockDev, false);
-    if (getSantaAction() === 'allow_developer' || getSantaAction() === 'block_developer') {
-      var allowRadio = document.getElementById('santa-action-allow-app');
-      if (allowRadio) allowRadio.checked = true;
-    }
+    if (sel.value === 'allow_developer' || sel.value === 'block_developer') sel.value = 'allow_app';
   } else if (lockdown) {
     enable(allowApp, true); enable(allowDev, true); enable(blockApp, true); enable(blockDev, false);
-    if (getSantaAction() === 'block_developer') {
-      var ar = document.getElementById('santa-action-allow-app');
-      if (ar) ar.checked = true;
-    }
+    if (sel.value === 'block_developer') sel.value = 'allow_app';
   } else {
     enable(allowApp, true); enable(allowDev, false); enable(blockApp, true); enable(blockDev, true);
-    if (getSantaAction() === 'allow_developer') {
-      var br = document.getElementById('santa-action-block-app');
-      if (br) br.checked = true;
-    }
+    if (sel.value === 'allow_developer') sel.value = 'block_app';
   }
 }
 
