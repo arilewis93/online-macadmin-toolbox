@@ -56,8 +56,8 @@
         </label>
       </div>
 
-      <div class="card">
-        <div class="card-title">Add Rule</div>
+      <div class="card" id="santa-add-rule-card">
+        <div class="card-title" id="santa-add-rule-title">Add Rule</div>
         <p class="section-desc" style="margin-bottom:10px;">Choose what to allow or block. Options depend on Lockdown mode and whether the app is Apple-signed.</p>
         <div class="field" style="margin-bottom:10px;">
           <label>IDENTIFIER <span style="color:var(--danger);font-size:10px">*</span></label>
@@ -72,7 +72,10 @@
             <option value="block_developer" id="santa-action-block-dev">Block all apps by this developer</option>
           </select>
         </div>
-        <button class="btn btn-primary" onclick="addSantaRule()" style="width:100%;">＋ Add Rule</button>
+        <div id="santa-add-rule-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="santa-add-rule-btn" onclick="addSantaRule()" style="flex:1;min-width:120px;">＋ Add Rule</button>
+          <button class="btn btn-ghost" id="santa-cancel-edit-btn" onclick="cancelEditSantaRule()" style="display:none;">Cancel</button>
+        </div>
       </div>
 
       <div class="card">
@@ -80,6 +83,7 @@
         <div class="col-header santa-row" id="santa-headers" style="display:none;">
           <span>Action</span><span>Identifier</span><span></span>
         </div>
+        <style>.item-row.santa-row .item-edit { padding: 4px 8px; font-size: 11px; min-width: 0; margin-right: 4px; } .item-row.santa-row.editing { border-color: var(--accent); background: var(--accent-dim, rgba(0,122,255,0.08)); }</style>
         <div class="item-list" id="santa-rules-list"></div>
         <div class="empty-state" id="santa-empty">No rules added yet</div>
       </div>
@@ -207,6 +211,7 @@
 })();
 
 let santaRules = [];
+var santaEditingIndex = -1;
 var santaCurrentIdentifier = null;
 var santaCurrentTeamId = null;
 var santaCurrentIsPlatform = false;
@@ -235,11 +240,46 @@ function addSantaRule() {
   } else {
     alert('Please choose an action.'); return;
   }
-  santaRules.push({ policy: policy, ruleType: ruleType, identifier: identifier });
+  if (santaEditingIndex >= 0) {
+    santaRules[santaEditingIndex] = { policy: policy, ruleType: ruleType, identifier: identifier };
+    cancelEditSantaRule();
+  } else {
+    santaRules.push({ policy: policy, ruleType: ruleType, identifier: identifier });
+    document.getElementById('santa-identifier').value = '';
+  }
   renderSantaRules();
-  document.getElementById('santa-identifier').value = '';
 }
-function removeSantaRule(i) { santaRules.splice(i,1); renderSantaRules(); }
+function removeSantaRule(i) {
+  if (i === santaEditingIndex) cancelEditSantaRule();
+  santaRules.splice(i, 1);
+  renderSantaRules();
+}
+function editSantaRule(i) {
+  var r = santaRules[i];
+  if (!r) return;
+  santaEditingIndex = i;
+  document.getElementById('santa-identifier').value = r.identifier || '';
+  var actionKey = (r.policy === 'ALLOWLIST' && r.ruleType === 'SIGNINGID') ? 'allow_app' : (r.policy === 'ALLOWLIST' && r.ruleType === 'TEAMID') ? 'allow_developer' : (r.policy === 'BLOCKLIST' && r.ruleType === 'SIGNINGID') ? 'block_app' : 'block_developer';
+  var sel = document.getElementById('santa-action-select');
+  if (sel) sel.value = actionKey;
+  updateSantaActionOptions();
+  document.getElementById('santa-add-rule-title').textContent = 'Edit Rule';
+  document.getElementById('santa-add-rule-btn').textContent = 'Update Rule';
+  document.getElementById('santa-cancel-edit-btn').style.display = '';
+  document.getElementById('santa-add-rule-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  renderSantaRules();
+}
+function cancelEditSantaRule() {
+  santaEditingIndex = -1;
+  document.getElementById('santa-identifier').value = '';
+  var sel = document.getElementById('santa-action-select');
+  if (sel) sel.value = 'block_app';
+  updateSantaActionOptions();
+  document.getElementById('santa-add-rule-title').textContent = 'Add Rule';
+  document.getElementById('santa-add-rule-btn').textContent = '＋ Add Rule';
+  document.getElementById('santa-cancel-edit-btn').style.display = 'none';
+  renderSantaRules();
+}
 
 function updateSantaActionOptions() {
   var lockdown = getToggle('santa-lockdown');
@@ -286,7 +326,8 @@ function renderSantaRules() {
   list.innerHTML = santaRules.map(function(r, i) {
     var actionKey = actionFromRule(r);
     var label = actionLabels[actionKey] || (r.policy + ' / ' + r.ruleType);
-    return '<div class="item-row santa-row"><span class="item-cell">' + esc(label) + '</span><span class="item-cell name">' + esc(r.identifier) + '</span><button class="item-remove" onclick="removeSantaRule(' + i + ')">×</button></div>';
+    var editing = i === santaEditingIndex ? ' editing' : '';
+    return '<div class="item-row santa-row' + editing + '"><span class="item-cell">' + esc(label) + '</span><span class="item-cell name">' + esc(r.identifier) + '</span><span><button class="item-edit" onclick="editSantaRule(' + i + ')">Edit</button><button class="item-remove" onclick="removeSantaRule(' + i + ')">×</button></span></div>';
   }).join('');
 }
 function generateSanta() {
