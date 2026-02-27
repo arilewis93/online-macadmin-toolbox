@@ -42,6 +42,7 @@
         <div id="autoconfig-analyze-status" style="display:none;" class="info-box"></div>
       </div>
 
+      <div id="autoconfig-after-drop" style="display:none;">
       <div class="card">
         <div class="card-title">Permission entries</div>
         <div class="col-header autoconfig-row" id="autoconfig-headers" style="display:none;">
@@ -50,6 +51,9 @@
         <div class="item-list" id="autoconfig-entries-list"></div>
         <div class="empty-state" id="autoconfig-empty">No entries yet. Drop an app above or add one manually in the
           section below.</div>
+        <div class="info-box" style="margin-top:12px;font-size:12px;">
+          <strong>Something missing?</strong> We do our best to detect everything, but some items may be missed. Check for yourself: open <strong>System Settings → Privacy &amp; Security → Full Disk Access</strong>. If your app (or a helper from it) appears in that list, right‑click it → <strong>Show in Finder</strong>, then drag that item into the “Add permission entry” drop zone below to add it.
+        </div>
       </div>
 
       <div class="card card-collapsible" id="autoconfig-add-card">
@@ -71,6 +75,7 @@
             <div class="drop-zone-sub">Same as the drop zone above</div>
           </div>
           <div id="autoconfig-add-drop-status" class="info-box" style="display:none;margin-bottom:10px;"></div>
+          <div id="autoconfig-add-manual-fields">
           <div class="field" style="margin-bottom:10px;">
             <label>Path or app label</label>
             <input type="text" id="autoconfig-path-label" placeholder="e.g. /Applications/MyApp.app or MyApp">
@@ -83,6 +88,12 @@
             <label>Code requirement <span style="color:var(--danger);font-size:10px">*</span></label>
             <input type="text" id="autoconfig-code-requirement"
               placeholder="Paste full line from: codesign -dr - /path/to/App.app">
+          </div>
+          <div class="info-box" style="margin-top:10px;margin-bottom:10px;font-size:12px;">
+            <strong>How to get these values:</strong> On your Mac, open Terminal and run:<br>
+            <code style="font-size:11px;">codesign -dr - /path/to/YourApp.app</code><br>
+            (Use the full path to the app or its main binary.) Copy the whole line that appears and paste it into <strong>Code requirement</strong>. The quoted identifier is the bundle ID for <strong>Identifier</strong>.
+          </div>
           </div>
           <div class="field" style="margin-bottom:12px;">
             <label>Permissions to grant</label>
@@ -106,7 +117,8 @@
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="document.getElementById('autoconfig-import-input').click()">↑ Import
           .mobileconfig</button>
-        <button class="btn btn-success" onclick="autoconfigGenerate()">↓ Download TCC Profile</button>
+        <button class="btn btn-success" onclick="autoconfigGenerate()">↓ Download profile(s)</button>
+      </div>
       </div>
       <input type="file" id="autoconfig-import-input" accept=".mobileconfig" style="display:none;"
         onchange="autoconfigImport(event)">
@@ -508,12 +520,15 @@
           }
           var entries = (json && json.entries) ? json.entries : [];
           var match = autoconfigFindMatchingEntry(entries, targetIdentifier);
+          var manualEl = document.getElementById('autoconfig-add-manual-fields');
           if (match) {
             document.getElementById('autoconfig-code-requirement').value = (match.code_requirement || match.codeRequirement || '').trim();
             setAutoconfigPermissions(match.permissions || []);
+            if (manualEl) manualEl.style.display = 'none';
             statusEl.className = 'info-box';
             statusEl.textContent = 'Code requirement and permissions filled. Choose permissions above and click Add entry.';
           } else {
+            if (manualEl) manualEl.style.display = '';
             statusEl.className = 'warning-box';
             statusEl.textContent = 'No TCC data for this app on your Mac. Add code requirement manually (e.g. from Terminal: codesign -dr - /path/to/App.app).';
           }
@@ -521,6 +536,8 @@
         }).catch(function () {
           if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) setTimeout(poll, 1000);
           else {
+            var manualEl = document.getElementById('autoconfig-add-manual-fields');
+            if (manualEl) manualEl.style.display = '';
             statusEl.className = 'warning-box';
             statusEl.textContent = "Couldn't get data from Mac. Add code requirement manually.";
             statusEl.style.display = 'block';
@@ -632,6 +649,12 @@
       autoconfigSystemExtensions = (data && data.system_extensions) ? data.system_extensions : [];
       autoconfigCancelEdit();
       autoconfigRender();
+      autoconfigShowAfterDropIfNeeded();
+    }
+
+    function autoconfigShowAfterDropIfNeeded() {
+      var el = document.getElementById('autoconfig-after-drop');
+      if (el && autoconfigEntries.length > 0) el.style.display = '';
     }
 
     window.autoconfigAddEntry = function () {
@@ -652,6 +675,8 @@
         document.getElementById('autoconfig-identifier').value = '';
         document.getElementById('autoconfig-code-requirement').value = '';
         setAutoconfigPermissions([]);
+        var manualEl = document.getElementById('autoconfig-add-manual-fields');
+        if (manualEl) manualEl.style.display = '';
       }
       autoconfigRender();
     };
@@ -663,6 +688,8 @@
       document.getElementById('autoconfig-code-requirement').value = '';
       setAutoconfigPermissions([]);
       document.getElementById('autoconfig-add-title').textContent = 'Add permission entry';
+      var manualEl = document.getElementById('autoconfig-add-manual-fields');
+      if (manualEl) manualEl.style.display = '';
       document.getElementById('autoconfig-add-btn').textContent = '＋ Add entry';
       document.getElementById('autoconfig-cancel-edit-btn').style.display = 'none';
       autoconfigRender();
@@ -677,6 +704,8 @@
       document.getElementById('autoconfig-code-requirement').value = e.codeRequirement || '';
       setAutoconfigPermissions(e.permissions || []);
       document.getElementById('autoconfig-add-title').textContent = 'Edit permission entry';
+      var manualEl = document.getElementById('autoconfig-add-manual-fields');
+      if (manualEl) manualEl.style.display = '';
       var body = document.getElementById('autoconfig-add-body');
       if (body.style.display === 'none') {
         body.style.display = 'block';
@@ -712,6 +741,7 @@
         var editing = i === autoconfigEditingIndex ? ' editing' : '';
         return '<div class="item-row autoconfig-row' + editing + '"><span class="item-cell">' + esc(e.pathLabel || e.identifier) + '</span><span class="item-cell name">' + esc(e.identifier) + '</span><span class="item-cell">' + esc(permNames) + '</span><span><button class="item-edit" onclick="autoconfigEditEntry(' + i + ')">Edit</button><button class="item-remove" onclick="autoconfigRemoveEntry(' + i + ')">×</button></span></div>';
       }).join('');
+      autoconfigShowAfterDropIfNeeded();
     }
 
     window.autoconfigGenerate = function () {
@@ -816,6 +846,44 @@
       };
       var filename = (profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '.mobileconfig';
       download(filename, buildPlistDoc(config), 'application/x-apple-aspen-config');
+
+      if (autoconfigSystemExtensions && autoconfigSystemExtensions.length > 0) {
+        var nonRemovable = {};
+        autoconfigSystemExtensions.forEach(function (ext) {
+          var tid = ext.team_id || '';
+          var ident = ext.identifier || '';
+          if (!tid || !ident) return;
+          if (!nonRemovable[tid]) nonRemovable[tid] = [];
+          if (nonRemovable[tid].indexOf(ident) === -1) nonRemovable[tid].push(ident);
+        });
+        if (Object.keys(nonRemovable).length > 0) {
+          var sequoiaPayload = {
+            AllowUserOverrides: true,
+            NonRemovableSystemExtensions: nonRemovable,
+            PayloadDescription: '',
+            PayloadDisplayName: 'System Extensions',
+            PayloadIdentifier: 'com.apple.system-extension-policy.sequoia.' + uuid(),
+            PayloadOrganization: 'Company Name',
+            PayloadType: 'com.apple.system-extension-policy',
+            PayloadUUID: uuid(),
+            PayloadVersion: 1
+          };
+          var sequoiaConfig = {
+            PayloadContent: [sequoiaPayload],
+            PayloadDescription: '',
+            PayloadDisplayName: profileName + ' System Extension NonRemovable Settings',
+            PayloadIdentifier: 'com.istorebusiness.autoconfig.sequoia.' + uuid(),
+            PayloadOrganization: 'iStore Business',
+            PayloadRemovalDisallowed: true,
+            PayloadScope: 'System',
+            PayloadType: 'Configuration',
+            PayloadUUID: uuid(),
+            PayloadVersion: 1
+          };
+          var sequoiaFilename = (profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '_Sequoia.mobileconfig';
+          download(sequoiaFilename, buildPlistDoc(sequoiaConfig), 'application/x-apple-aspen-config');
+        }
+      }
     };
 
     window.autoconfigImport = function (event) {
