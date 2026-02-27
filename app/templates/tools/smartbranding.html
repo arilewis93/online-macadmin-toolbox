@@ -129,28 +129,29 @@ function generateSmartBranding(type) {
   }
   if (type === 'screensaver') {
     if (!sbUrls.length) { alert('Please add at least one screensaver URL.'); return; }
-    const ssPayload = sbUrls.map(function(u, i) {
-      return {
-        PayloadDisplayName: 'SmartScreensaver URL ' + (i+1),
-        PayloadIdentifier: 'com.istorebusiness.smartscreensaver.url' + i,
-        PayloadOrganization: 'iStoreBusiness',
-        PayloadType: 'com.apple.ManagedClient.preferences',
-        PayloadUUID: uuid(), PayloadVersion: 1,
-        PayloadContent: {
-          'com.istorebusiness.smartscreensaver': {
-            Forced: [{ mcx_preference_settings: { screensaver_url: u } }]
-          }
-        }
-      };
-    });
-    const ssProfile = {
-      PayloadUUID: uuid(), PayloadType: 'Configuration',
-      PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
-      PayloadDisplayName: 'SmartScreensaver', PayloadDescription: 'Screensaver configuration settings',
-      PayloadVersion: 1, PayloadEnabled: true, PayloadRemovalDisallowed: true, PayloadScope: 'System',
-      PayloadContent: ssPayload
+    var ssPayload = {
+      PayloadDescription: 'Images for SmartScreensaver to download.',
+      PayloadIdentifier: 'com.istorebusiness.smartscreensaver.' + uuid(),
+      PayloadOrganization: 'iStore Business',
+      PayloadType: 'com.istorebusiness.smartscreensaver',
+      PayloadUUID: uuid(),
+      PayloadVersion: 1,
+      URLs: sbUrls.slice()
     };
-    const lockProfile = {
+    var ssProfile = {
+      PayloadContent: [ssPayload],
+      PayloadDescription: 'Screensaver configuration settings',
+      PayloadDisplayName: 'SmartScreensaver',
+      PayloadEnabled: true,
+      PayloadIdentifier: uuid(),
+      PayloadOrganization: 'iStore Business',
+      PayloadRemovalDisallowed: true,
+      PayloadScope: 'System',
+      PayloadType: 'Configuration',
+      PayloadUUID: uuid(),
+      PayloadVersion: 1
+    };
+    var lockProfile = {
       PayloadUUID: uuid(), PayloadType: 'Configuration',
       PayloadOrganization: 'iStore Business', PayloadIdentifier: uuid(),
       PayloadDisplayName: 'ScreensaverLock', PayloadDescription: 'Locks the screensaver settings',
@@ -176,21 +177,51 @@ function importSmartBranding(event) {
       var found = false;
       for (var i = 0; i < payloads.length; i++) {
         var payload = payloads[i];
-        var content = payload.PayloadContent || {};
-        var wallpaperSettings = content['com.istorebusiness.smartwallpaper'] && content['com.istorebusiness.smartwallpaper'].Forced && content['com.istorebusiness.smartwallpaper'].Forced[0] && content['com.istorebusiness.smartwallpaper'].Forced[0].mcx_preference_settings;
-        if (wallpaperSettings) {
+        if (payload.PayloadType === 'com.istorebusiness.smartscreensaver' && Array.isArray(payload.URLs)) {
           found = true;
-          document.getElementById('sb-wallpaper-url').value = wallpaperSettings.wallpaper_URL || '';
-          setToggle('sb-skip-kill', !!wallpaperSettings.skip_kill_wallpaper_agent);
+          for (var u = 0; u < payload.URLs.length; u++) {
+            var url = payload.URLs[u];
+            if (url && sbUrls.indexOf(url) === -1) sbUrls.push(url);
+          }
         }
-        var ssSettings = content['com.istorebusiness.smartscreensaver'] && content['com.istorebusiness.smartscreensaver'].Forced && content['com.istorebusiness.smartscreensaver'].Forced[0] && content['com.istorebusiness.smartscreensaver'].Forced[0].mcx_preference_settings;
-        if (ssSettings && ssSettings.screensaver_url) {
-          found = true;
-          if (sbUrls.indexOf(ssSettings.screensaver_url) === -1) sbUrls.push(ssSettings.screensaver_url);
+      }
+      var contentsToCheck = [];
+      for (var j = 0; j < payloads.length; j++) {
+        var p = payloads[j];
+        var pc = p.PayloadContent;
+        if (pc && typeof pc === 'object' && !Array.isArray(pc)) {
+          contentsToCheck.push(pc);
+        } else if (Array.isArray(pc)) {
+          for (var k = 0; k < pc.length; k++) {
+            var sub = pc[k] && pc[k].PayloadContent;
+            if (sub && typeof sub === 'object') contentsToCheck.push(sub);
+          }
+        }
+      }
+      for (var c = 0; c < contentsToCheck.length; c++) {
+        var content = contentsToCheck[c];
+        var wp = content['com.istorebusiness.smartwallpaper'];
+        if (wp && wp.Forced && wp.Forced[0]) {
+          var wallpaperSettings = wp.Forced[0].mcx_preference_settings;
+          if (wallpaperSettings) {
+            found = true;
+            document.getElementById('sb-wallpaper-url').value = wallpaperSettings.wallpaper_URL || '';
+            setToggle('sb-skip-kill', !!wallpaperSettings.skip_kill_wallpaper_agent);
+          }
+        }
+        var ss = content['com.istorebusiness.smartscreensaver'];
+        if (ss && ss.Forced && Array.isArray(ss.Forced)) {
+          for (var f = 0; f < ss.Forced.length; f++) {
+            var mcx = ss.Forced[f] && ss.Forced[f].mcx_preference_settings;
+            if (mcx && mcx.screensaver_url) {
+              found = true;
+              if (sbUrls.indexOf(mcx.screensaver_url) === -1) sbUrls.push(mcx.screensaver_url);
+            }
+          }
         }
       }
       renderSbUrls();
-      if (!found) alert('No SmartBranding payload found in this profile.');
+      if (!found) alert('No SmartBranding (wallpaper or screensaver) payload found in this profile.');
     } catch(e) { alert('Failed to parse profile: ' + e.message); }
   });
 }
