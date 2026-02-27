@@ -36,14 +36,6 @@
         <div id="fle-status" style="display:none;" class="info-box"></div>
       </div>
 
-      <div class="card" id="fle-preview-card" style="display:none;">
-        <div class="card-title">Preview</div>
-        <div style="margin-bottom:12px;">
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">Lines around insertion point</div>
-          <div id="fle-preview" style="font-family:var(--mono);font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;line-height:1.8;overflow-x:auto;white-space:pre;"></div>
-        </div>
-      </div>
-
       <div class="section-footer">
         <span></span>
         <button class="btn btn-success" id="fle-download-btn" style="display:none;" onclick="downloadFixedFile()">↓ Download Fixed Script</button>
@@ -79,33 +71,27 @@ function processComplianceFile(file) {
       if (lines[i].indexOf(FLE_TARGET) !== -1) { foundAt = i; break; }
     }
     var statusEl = document.getElementById('fle-status');
-    var previewCard = document.getElementById('fle-preview-card');
-    var previewEl = document.getElementById('fle-preview');
     var downloadBtn = document.getElementById('fle-download-btn');
     statusEl.style.display = 'block';
     if (foundAt === -1) {
       statusEl.className = 'warning-box';
-      statusEl.textContent = '⚠ Target line not found in "' + file.name + '". The file may already be patched, or it\'s a different script version.';
-      previewCard.style.display = 'none';
+      statusEl.textContent = 'Failed';
       downloadBtn.style.display = 'none';
       return;
     }
-    var patched = lines.slice(0);
-    patched.splice(foundAt + 1, 0, FLE_INSERT);
-    fleFixedContent = patched.join('\n');
+    var nextLine = (lines[foundAt + 1] || '').trim();
+    var alreadyHasInsert = (nextLine === FLE_INSERT || nextLine.indexOf(FLE_INSERT) !== -1);
+    var patched;
+    if (alreadyHasInsert) {
+      patched = lines.slice(0);
+      fleFixedContent = patched.join('\n');
+    } else {
+      patched = lines.slice(0);
+      patched.splice(foundAt + 1, 0, FLE_INSERT);
+      fleFixedContent = patched.join('\n');
+    }
     statusEl.className = 'info-box';
-    statusEl.innerHTML = '✓ Found target line at line <strong>' + (foundAt + 1) + '</strong>. <code>' + esc(FLE_INSERT) + '</code> will be inserted after it.';
-    var previewStart = Math.max(0, foundAt - 1);
-    var previewLines = patched.slice(previewStart, foundAt + 4);
-    var insertedIndex = foundAt - previewStart + 1;
-    previewEl.innerHTML = previewLines.map(function(line, idx) {
-      var lineNum = previewStart + idx + 1;
-      var isInserted = idx === insertedIndex;
-      var style = isInserted ? 'color:var(--green);background:var(--green-dim);padding:0 6px;border-radius:3px;' : 'color:var(--text-dim);';
-      var marker = isInserted ? '+ ' : '  ';
-      return '<span style="' + style + '">' + String(lineNum) + ' ' + marker + esc(line) + '</span>';
-    }).join('\n');
-    previewCard.style.display = 'block';
+    statusEl.textContent = 'Success';
     downloadBtn.style.display = 'inline-flex';
     var zone = document.getElementById('fle-drop-zone');
     if (zone) { zone.classList.add('has-file'); document.getElementById('fle-drop-label').textContent = '✓ ' + file.name; }
