@@ -521,9 +521,12 @@ func serveResult(jsonData: Data, terminateAfter: Bool = true) {
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // If we were opened with a URL, it will come in application(_:open:)
-        // If not, quit after a short delay so we don't sit in dock
+        // If not, open the toolbox in the browser and quit
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if !self.handledURL {
+                if let url = URL(string: "https://online-macadmin-toolbox.onrender.com/dashboard") {
+                    NSWorkspace.shared.open(url)
+                }
                 NSApp.terminate(nil)
             }
         }

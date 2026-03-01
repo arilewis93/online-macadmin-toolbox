@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and sign AutoConfigAgent.app for the Auto Configurator web tool.
+# Build and sign Mac Admin Toolbox.app for the Auto Configurator web tool.
 # Bundle ID: cloud.swiftsetup.mac_toolbox
 # Signs with: Developer ID Application: CORE PERIPHERALS (PTY) LTD (4WTK96D2J8)
 set -e
@@ -7,10 +7,10 @@ cd "$(dirname "$0")"
 
 BUNDLE_ID="cloud.swiftsetup.mac_toolbox"
 DEVELOPER_ID="Developer ID Application: CORE PERIPHERALS (PTY) LTD (4WTK96D2J8)"
-APP_NAME="AutoConfigAgent.app"
+APP_NAME="Mac Admin Toolbox.app"
 BIN=".build/release/AutoConfigAgent"
 
-echo "Building AutoConfigAgent..."
+echo "Building Mac Admin Toolbox..."
 swift build -c release
 
 test -x "$BIN" || { echo "Build failed: $BIN not found"; exit 1; }

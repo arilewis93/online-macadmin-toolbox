@@ -27,6 +27,25 @@
           entries, then download.</div>
       </div>
 
+      <div class="card card-collapsible" id="autoconfig-companion-card">
+        <button type="button" class="card-title card-collapse-trigger" id="autoconfig-companion-collapse-trigger"
+          onclick="autoconfigToggleCompanionSection()" aria-expanded="false">
+          <span class="card-collapse-icon" id="autoconfig-companion-collapse-icon">▶</span>
+          <span>Companion app (Mac)</span>
+        </button>
+        <div class="card-collapse-body" id="autoconfig-companion-body" style="display:none;">
+          <p class="section-desc" style="margin-bottom:12px;">This tool needs a small <strong>Mac companion app</strong> (Mac Admin Toolbox) that runs on your Mac and reads Privacy (TCC) data. The companion app must have <strong>Full Disk Access</strong> so it can read system permission settings. When you open the app, it opens the toolbox in your browser.</p>
+          <ol class="autoconfig-companion-steps">
+            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+            <li><strong>Unzip</strong> the file (double‑click the .zip). You’ll get <code>Mac Admin Toolbox.app</code>.</li>
+            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
+            <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings → Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
+            <li>In <strong>System Settings → Privacy &amp; Security → Full Disk Access</strong>, click + and add <strong>Mac Admin Toolbox</strong>.</li>
+          </ol>
+          <a id="autoconfig-companion-download-btn" href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-title">Drop app</div>
         <p class="section-desc" style="margin-bottom:12px;">Drop a <strong>.app</strong> or binary here. Permissions for
@@ -187,6 +206,21 @@
   .card-collapsible .card-collapse-body {
     margin-top: 12px;
     padding-top: 0;
+  }
+
+  .autoconfig-companion-steps {
+    margin: 0 0 16px 0;
+    padding-left: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-dim, #999);
+  }
+  .autoconfig-companion-steps li { margin-bottom: 6px; }
+  .autoconfig-companion-steps code {
+    font-size: 12px;
+    background: var(--bg, #111);
+    padding: 2px 6px;
+    border-radius: 4px;
   }
 </style>
 {% endblock %}
@@ -465,15 +499,20 @@
       trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
     };
 
+    window.autoconfigToggleCompanionSection = function () {
+      var body = document.getElementById('autoconfig-companion-body');
+      var icon = document.getElementById('autoconfig-companion-collapse-icon');
+      var trigger = document.getElementById('autoconfig-companion-collapse-trigger');
+      var open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      icon.textContent = open ? '▶' : '▼';
+      trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+    };
+
     var AUTOCONFIG_POLL_PORT = 8765;
     var AUTOCONFIG_POLL_MAX_ATTEMPTS = 60;
 
-    function autoconfigFetchFromMac(searchTerm, statusEl) {
-      if (!searchTerm || !statusEl) return;
-      var errEl = document.getElementById('autoconfig-permission-error');
-      if (errEl) errEl.style.display = 'none';
-      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
-      window.open(url, '_blank');
+    function startPollForFull(searchTerm, statusEl) {
       var attempts = 0;
       function poll() {
         attempts++;
@@ -489,7 +528,6 @@
             return;
           }
           if (json.search_term && searchTerm && json.search_term.toLowerCase() !== searchTerm.toLowerCase()) {
-            // Stale response from previous agent run — keep polling
             if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
           }
           document.getElementById('autoconfig-permission-error').style.display = 'none';
@@ -509,6 +547,15 @@
       setTimeout(poll, 1500);
     }
 
+    function autoconfigFetchFromMac(searchTerm, statusEl) {
+      if (!searchTerm || !statusEl) return;
+      var errEl = document.getElementById('autoconfig-permission-error');
+      if (errEl) errEl.style.display = 'none';
+      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
+      window.open(url, '_blank');
+      startPollForFull(searchTerm, statusEl);
+    }
+
     /** Find an entry matching targetIdentifier (lenient: exact, case-insensitive, or contains). */
     function autoconfigFindMatchingEntry(entries, targetIdentifier) {
       var target = (targetIdentifier || '').trim();
@@ -524,13 +571,7 @@
       return match || (entries.length === 1 ? entries[0] : null);
     }
 
-    /** Fetch from agent (code_requirement only) and pre-fill Add form. Does not merge into list or touch notifications/login items/system extensions. */
-    function autoconfigFetchFromMacForAddForm(searchTerm, targetIdentifier, pathLabel, statusEl) {
-      if (!searchTerm || !statusEl) return;
-      var errEl = document.getElementById('autoconfig-permission-error');
-      if (errEl) errEl.style.display = 'none';
-      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=code_requirement';
-      window.open(url, '_blank');
+    function startPollForAddForm(searchTerm, targetIdentifier, statusEl) {
       var attempts = 0;
       function poll() {
         attempts++;
@@ -579,10 +620,20 @@
           }
         });
       }
+      setTimeout(poll, 1500);
+    }
+
+    /** Fetch from agent (code_requirement only) and pre-fill Add form. Does not merge into list or touch notifications/login items/system extensions. */
+    function autoconfigFetchFromMacForAddForm(searchTerm, targetIdentifier, pathLabel, statusEl) {
+      if (!searchTerm || !statusEl) return;
+      var errEl = document.getElementById('autoconfig-permission-error');
+      if (errEl) errEl.style.display = 'none';
+      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=code_requirement';
       statusEl.style.display = 'block';
       statusEl.className = 'info-box';
       statusEl.textContent = 'Getting code requirement from your Mac…';
-      setTimeout(poll, 1500);
+      window.open(url, '_blank');
+      startPollForAddForm(searchTerm, targetIdentifier, statusEl);
     }
 
     window.autoconfigAddFormFile = function (event) {

@@ -51,3 +51,7 @@ agent/*.xcodeproj/xcuserdata/
 agent/*.xcworkspace/xcuserdata/
 DerivedData/
 .build/
+
+
+*.zip
+*.app
