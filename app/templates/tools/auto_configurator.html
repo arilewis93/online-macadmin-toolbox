@@ -40,6 +40,10 @@
           <div class="drop-zone-sub">Or click to select</div>
         </div>
         <div id="autoconfig-analyze-status" style="display:none;" class="info-box"></div>
+        <div id="autoconfig-permission-error" style="display:none;" class="warning-box autoconfig-permission-error">
+          <p id="autoconfig-permission-error-message" class="autoconfig-permission-error-msg"></p>
+          <a id="autoconfig-permission-error-open-fda" href="macadmin-toolbox://open-full-disk-access" class="btn btn-secondary" style="margin-top:10px;display:inline-block;">Open Full Disk Access Settings</a>
+        </div>
       </div>
 
       <div id="autoconfig-after-drop" style="display:none;">
@@ -466,18 +470,32 @@
 
     function autoconfigFetchFromMac(searchTerm, statusEl) {
       if (!searchTerm || !statusEl) return;
+      var errEl = document.getElementById('autoconfig-permission-error');
+      if (errEl) errEl.style.display = 'none';
       var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
       window.open(url, '_blank');
       var attempts = 0;
       function poll() {
         attempts++;
         fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function (res) { return res.json(); }).then(function (json) {
+          if (json.error && json.permission_required) {
+            statusEl.style.display = 'none';
+            var errEl = document.getElementById('autoconfig-permission-error');
+            var msgEl = document.getElementById('autoconfig-permission-error-message');
+            if (errEl && msgEl) {
+              msgEl.textContent = json.error;
+              errEl.style.display = 'block';
+            }
+            return;
+          }
           if (json.search_term && searchTerm && json.search_term.toLowerCase() !== searchTerm.toLowerCase()) {
             // Stale response from previous agent run — keep polling
             if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
           }
+          document.getElementById('autoconfig-permission-error').style.display = 'none';
           var n = json.entries && json.entries.length ? json.entries.length : 0;
           statusEl.className = 'info-box';
+          statusEl.style.display = 'block';
           statusEl.textContent = n ? 'Found ' + n + ' permission entr' + (n === 1 ? 'y' : 'ies') + '.' : 'No permission entries found for this app.';
           autoconfigMergeAgentEntries(json);
         }).catch(function () {
@@ -509,15 +527,32 @@
     /** Fetch from agent (code_requirement only) and pre-fill Add form. Does not merge into list or touch notifications/login items/system extensions. */
     function autoconfigFetchFromMacForAddForm(searchTerm, targetIdentifier, pathLabel, statusEl) {
       if (!searchTerm || !statusEl) return;
+      var errEl = document.getElementById('autoconfig-permission-error');
+      if (errEl) errEl.style.display = 'none';
       var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=code_requirement';
       window.open(url, '_blank');
       var attempts = 0;
       function poll() {
         attempts++;
         fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function (res) { return res.json(); }).then(function (json) {
+          if (json.error && json.permission_required) {
+            statusEl.style.display = 'block';
+            statusEl.className = 'warning-box';
+            statusEl.textContent = json.error;
+            var errEl = document.getElementById('autoconfig-permission-error');
+            var msgEl = document.getElementById('autoconfig-permission-error-message');
+            if (errEl && msgEl) {
+              msgEl.textContent = json.error;
+              errEl.style.display = 'block';
+            }
+            var manualEl = document.getElementById('autoconfig-add-manual-fields');
+            if (manualEl) manualEl.style.display = '';
+            return;
+          }
           if (json.search_term && searchTerm && json.search_term.toLowerCase() !== searchTerm.toLowerCase()) {
             if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
           }
+          document.getElementById('autoconfig-permission-error').style.display = 'none';
           var entries = (json && json.entries) ? json.entries : [];
           var match = autoconfigFindMatchingEntry(entries, targetIdentifier);
           var manualEl = document.getElementById('autoconfig-add-manual-fields');

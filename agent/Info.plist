@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>AutoConfigAgent</string>
     <key>CFBundleIdentifier</key>
-    <string>com.istorebusiness.autoconfig-agent</string>
+    <string>cloud.swiftsetup.mac_toolbox</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

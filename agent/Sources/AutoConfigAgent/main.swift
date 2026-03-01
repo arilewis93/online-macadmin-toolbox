@@ -400,11 +400,88 @@ func fetchCodeRequirementOnly(searchTerm: String) -> AgentResponse {
     )
 }
 
+// MARK: - Permission check (Full Disk Access)
+
+let fullDiskAccessSettingsURL = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+
+/// Returns nil if we have permission to read TCC; otherwise returns the error message to show.
+func checkTCCPermission() -> String? {
+    switch runSQLite(query: "SELECT 1 LIMIT 1;", dbPath: tccDBPath) {
+    case .success:
+        return nil
+    case .failure:
+        return "Full Disk Access is required to read Privacy (TCC) and notification data. Please grant Full Disk Access to this app in System Settings → Privacy & Security → Full Disk Access."
+    }
+}
+
+/// Open System Settings to Full Disk Access pane.
+func openFullDiskAccessSettings() {
+    if let url = URL(string: fullDiskAccessSettingsURL) {
+        NSWorkspace.shared.open(url)
+    }
+}
+
+/// Error payload returned on port 8765 when permission is missing (so the webpage can show it).
+struct AgentErrorResponse: Encodable {
+    let error: String
+    let permission_required: Bool
+}
+
+func showPermissionErrorWindow(message: String) {
+    DispatchQueue.main.async {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Permission Required"
+        window.center()
+        let contentView = NSView(frame: window.contentView!.bounds)
+        contentView.autoresizingMask = [.width, .height]
+
+        let text = NSTextField(labelWithString: message)
+        text.frame = NSRect(x: 24, y: 100, width: 432, height: 60)
+        text.autoresizingMask = [.minYMargin, .width]
+        text.lineBreakMode = .byWordWrapping
+        text.maximumNumberOfLines = 0
+        text.preferredMaxLayoutWidth = 432
+        text.isEditable = false
+        text.isBordered = false
+        text.drawsBackground = false
+        contentView.addSubview(text)
+
+        let openAction = { [weak window] in
+            openFullDiskAccessSettings()
+            window?.close()
+        }
+        let handler = BlockHandler(openAction)
+        objc_setAssociatedObject(window, &blockHandlerKey, handler, .OBJC_ASSOCIATION_RETAIN)
+        let button = NSButton(title: "Open Full Disk Access Settings", target: handler, action: #selector(BlockHandler.invoke))
+        button.frame = NSRect(x: 24, y: 40, width: 220, height: 32)
+        button.bezelStyle = .rounded
+        contentView.addSubview(button)
+
+        window.contentView?.addSubview(contentView)
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+private var blockHandlerKey: UInt8 = 0
+private class BlockHandler: NSObject {
+    let block: () -> Void
+    init(_ block: @escaping () -> Void) { self.block = block }
+    @objc func invoke() { block() }
+}
+
 // MARK: - HTTP server on 8765
 
 let resultPort: UInt16 = 8765
 
-func serveResult(jsonData: Data) {
+func serveResult(jsonData: Data, terminateAfter: Bool = true) {
     let queue = DispatchQueue(label: "server")
     guard let port = NWEndpoint.Port(rawValue: resultPort),
           let listener = try? NWListener(using: .tcp, on: port) else { return }
@@ -424,14 +501,18 @@ func serveResult(jsonData: Data) {
             conn.send(content: responseData, completion: .contentProcessed { _ in
                 conn.cancel()
                 listener.cancel()
-                DispatchQueue.main.async { NSApp.terminate(nil) }
+                if terminateAfter {
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                }
             })
         }
     }
     listener.start(queue: queue)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-        listener.cancel()
-        NSApp.terminate(nil)
+    if terminateAfter {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            listener.cancel()
+            NSApp.terminate(nil)
+        }
     }
 }
 
@@ -451,7 +532,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var handledURL = false
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first, url.scheme == "macadmin-toolbox", url.host == "fetch-tcc" else { return }
+        guard let url = urls.first, url.scheme == "macadmin-toolbox" else { return }
+        let host = url.host ?? ""
+
+        // Open Full Disk Access settings (from webpage button or direct URL)
+        if host == "open-full-disk-access" {
+            handledURL = true
+            openFullDiskAccessSettings()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
+            return
+        }
+
+        guard host == "fetch-tcc" else { return }
         let query = url.query ?? ""
         let search = query
             .split(separator: "&")
@@ -461,14 +553,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !search.isEmpty else { return }
         let scopeFull = !query.split(separator: "&").contains(where: { $0.hasPrefix("scope=") && ($0.dropFirst(6).removingPercentEncoding ?? "").lowercased() == "code_requirement" })
         handledURL = true
+
         DispatchQueue.global(qos: .userInitiated).async {
+            if let permissionError = checkTCCPermission() {
+                let encoder = JSONEncoder()
+                let errorResponse = AgentErrorResponse(error: permissionError, permission_required: true)
+                guard let data = try? encoder.encode(errorResponse) else {
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                    return
+                }
+                DispatchQueue.main.async {
+                    showPermissionErrorWindow(message: permissionError)
+                    serveResult(jsonData: data, terminateAfter: false)
+                }
+                return
+            }
             let response = scopeFull ? fetchAll(searchTerm: search) : fetchCodeRequirementOnly(searchTerm: search)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             guard let data = try? encoder.encode(response) else {
-        DispatchQueue.main.async { NSApp.terminate(nil) }
-        return
-    }
+                DispatchQueue.main.async { NSApp.terminate(nil) }
+                return
+            }
             DispatchQueue.main.async {
                 serveResult(jsonData: data)
             }

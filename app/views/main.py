@@ -1,5 +1,5 @@
 """Main routes: index, dashboard."""
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import login_required, current_user
 
 main = Blueprint("main", __name__)
@@ -19,14 +19,34 @@ TOOL_NAMES = {
 }
 
 
+# Substrings that indicate a non-macOS platform (exclude these first).
+# Ref: MDN "Browser detection using the user agent", Windows/Android/iOS UA patterns.
+_NON_MACOS_UA_SUBSTRINGS = (
+    "windows nt",  # Windows (Chrome/Edge: "Windows NT 10.0", "Windows NT 11.0")
+    "win32",
+    "wow64",
+    "win64",
+    "android",     # Android (phones, tablets)
+    "iphone",
+    "ipad",        # iPad; iPadOS 13+ can send "Macintosh" so we must exclude "ipad" first
+    "ipod",
+    "cros",        # Chrome OS
+    "linux",       # Linux desktop (macOS UA does not contain "linux")
+)
+
+
 def _is_mac_user_agent():
-    """True if the request looks like it came from a Mac (macOS)."""
+    """True only for macOS desktop. Excludes Windows, Android, iPhone, iPad, Chrome OS, Linux."""
     ua = (request.headers.get("User-Agent") or "").lower()
-    return "mac" in ua or "macintosh" in ua or "darwin" in ua or "os x" in ua
+    if any(sub in ua for sub in _NON_MACOS_UA_SUBSTRINGS):
+        return False
+    return "macintosh" in ua
 
 
 @main.route("/")
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.dashboard"))
     return render_template("index.html")
 
 
