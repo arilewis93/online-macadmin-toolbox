@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "AutoConfigAgent",
+    name: "MacAdminToolbox",
     platforms: [.macOS(.v10_15)],
     products: [
-        .executable(name: "AutoConfigAgent", targets: ["AutoConfigAgent"]),
+        .executable(name: "MacAdminToolbox", targets: ["MacAdminToolbox"]),
     ],
     targets: [
         .executableTarget(
-            name: "AutoConfigAgent",
-            path: "Sources/AutoConfigAgent"
+            name: "MacAdminToolbox",
+            path: "Sources/MacAdminToolbox"
         ),
     ]
 )
