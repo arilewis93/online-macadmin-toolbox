@@ -18,7 +18,29 @@ test -x "$BIN" || { echo "Build failed: $BIN not found"; exit 1; }
 echo "Creating $APP_NAME..."
 rm -rf "$APP_NAME"
 mkdir -p "$APP_NAME/Contents/MacOS"
+mkdir -p "$APP_NAME/Contents/Resources"
 cp "$BIN" "$APP_NAME/Contents/MacOS/"
+
+# App icon: build AppIcon.icns from Online Toolbox.png
+ICON_SRC="Online Toolbox.png"
+if [ -f "$ICON_SRC" ] && command -v iconutil >/dev/null 2>&1; then
+  echo "Building app icon..."
+  ICONSET="AppIcon.iconset"
+  rm -rf "$ICONSET"
+  mkdir -p "$ICONSET"
+  sips -z 16 16 "$ICON_SRC" --out "$ICONSET/icon_16x16.png" 2>/dev/null || true
+  sips -z 32 32 "$ICON_SRC" --out "$ICONSET/icon_16x16@2x.png" 2>/dev/null || true
+  sips -z 32 32 "$ICON_SRC" --out "$ICONSET/icon_32x32.png" 2>/dev/null || true
+  sips -z 64 64 "$ICON_SRC" --out "$ICONSET/icon_32x32@2x.png" 2>/dev/null || true
+  sips -z 128 128 "$ICON_SRC" --out "$ICONSET/icon_128x128.png" 2>/dev/null || true
+  sips -z 256 256 "$ICON_SRC" --out "$ICONSET/icon_128x128@2x.png" 2>/dev/null || true
+  sips -z 256 256 "$ICON_SRC" --out "$ICONSET/icon_256x256.png" 2>/dev/null || true
+  sips -z 512 512 "$ICON_SRC" --out "$ICONSET/icon_256x256@2x.png" 2>/dev/null || true
+  sips -z 512 512 "$ICON_SRC" --out "$ICONSET/icon_512x512.png" 2>/dev/null || true
+  sips -z 1024 1024 "$ICON_SRC" --out "$ICONSET/icon_512x512@2x.png" 2>/dev/null || true
+  iconutil -c icns "$ICONSET" -o "$APP_NAME/Contents/Resources/AppIcon.icns" 2>/dev/null || true
+  rm -rf "$ICONSET"
+fi
 
 # Copy Info.plist (with URL scheme etc.) and set bundle ID for signing
 PLIST="$APP_NAME/Contents/Info.plist"
