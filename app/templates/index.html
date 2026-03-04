@@ -7,7 +7,7 @@
     {% if current_user.is_authenticated %}
         <a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Go to Dashboard</a>
     {% else %}
-        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Sign in with Microsoft</a>
+        <a class="btn btn-primary" href="{{ url_for('auth.oidc_login') }}" style="margin-top:1rem;">Sign in with Microsoft</a>
     {% endif %}
 </div>
 {% endblock %}
