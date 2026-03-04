@@ -45,7 +45,7 @@
 
     <div class="nav-section-label">Output</div>
     <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
-      <span class="nav-dot"></span> Generate &amp; Export
+      <span class="nav-dot"></span> Deploy
     </a>
 
     <div class="nav-section-label">Build</div>
@@ -258,7 +258,7 @@
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="navigate('s-drivers', navLink('s-drivers'))">← Back</button>
         <button class="btn btn-primary" onclick="navigate('s-generate', navLink('s-generate')); generateProfile()">
-          Generate Profile →
+          Deploy →
         </button>
       </div>
     </div><!-- end #s-features -->
@@ -267,8 +267,8 @@
     <div class="section" id="s-generate">
       <div class="section-header">
         <div class="section-tag">06 / Export</div>
-        <div class="section-title">Generated Config Profile</div>
-        <div class="section-desc">Apple Configuration Profile (.mobileconfig) ready to sign and deploy via Intune or Jamf.</div>
+        <div class="section-title">Deploy</div>
+        <div class="section-desc">Three items to deploy via Intune or Jamf. Download all three below.</div>
       </div>
 
       <div class="validation-banner" id="validationBanner">
@@ -276,23 +276,45 @@
         <span id="validationMsg">Please fix the errors above before exporting.</span>
       </div>
 
-      <div class="generate-card">
-        <div class="generate-header">
-          <div class="generate-title">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
-            <span id="outputFilename">com.istorebusiness.equitrac.mobileconfig</span>
+      <!-- ── 1. Config Profile ── -->
+      <div class="card">
+        <div class="card-title">1 &mdash; Config Profile</div>
+        <div class="generate-card" style="margin:0">
+          <div class="generate-header">
+            <div class="generate-title">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+              <span id="outputFilename">com.istorebusiness.equitrac.mobileconfig</span>
+            </div>
+            <div class="generate-actions">
+              <button class="btn btn-ghost" onclick="copyToClipboard()">Copy XML</button>
+              <button class="btn btn-success" onclick="downloadProfile()">↓ Download .mobileconfig</button>
+            </div>
           </div>
-          <div class="generate-actions">
-            <button class="btn btn-ghost" onclick="copyToClipboard()">Copy XML</button>
-            <button class="btn btn-success" onclick="downloadProfile()">↓ Download</button>
-          </div>
+          <div class="xml-preview" id="xmlPreview"><!-- generated --></div>
         </div>
-        <div class="xml-preview" id="xmlPreview"><!-- generated --></div>
+      </div>
+
+      <!-- ── 2. Equitrac Installer PKG ── -->
+      <div class="card">
+        <div class="card-title">2 &mdash; Equitrac Installer</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
+          <span style="color:var(--text-secondary);font-size:0.85rem">Static package containing the Equitrac client and postinstall script.</span>
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/Equitrac.pkg" class="btn btn-success" download style="text-decoration:none;white-space:nowrap">↓ Download Equitrac.pkg</a>
+        </div>
+      </div>
+
+      <!-- ── 3. Payload Mega-PKG ── -->
+      <div class="card">
+        <div class="card-title">3 &mdash; Payload Package</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
+          <span style="color:var(--text-secondary);font-size:0.85rem">Run the build script to package your Equitrac installer and driver .pkgs.</span>
+          <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()" style="white-space:nowrap">Build Package →</button>
+        </div>
       </div>
 
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()">Build Package →</button>
+        <span></span>
       </div>
     </div>
 
@@ -300,8 +322,8 @@
     <div class="section" id="s-build">
       <div class="section-header">
         <div class="section-tag">07 / Build</div>
-        <div class="section-title">Build Deployment Package</div>
-        <div class="section-desc">Run this script on your admin Mac to create a payload-only mega-pkg. It asks for files in two batches: the Equitrac installer pkg, then any driver pkgs. No scripts are embedded &mdash; the postinstall lives in your separate outer pkg. Deploy 3 pieces: <strong>this mega-pkg</strong> (payload), <strong>your outer pkg</strong> (postinstall + other payloads), and the <strong>config profile</strong> from Step 06.</div>
+        <div class="section-title">Build Payload Package</div>
+        <div class="section-desc">Download and run this script on your admin Mac. It opens a folder for you to drag in the Equitrac installer and driver .pkgs, then bundles them into a single deployment package.</div>
       </div>
 
       <div class="generate-card">
@@ -805,22 +827,8 @@ function buildScriptContent() {
 
   return `#!/bin/bash
 # =============================================================================
-# Equitrac Deployment Mega-Package Builder
-# =============================================================================
-#
-# Designed and engineered by:
-#   iStore Business - Apple Platform Managed Services
-#
-# Creates a PAYLOAD-ONLY .pkg that deploys Equitrac installer and driver pkgs
-# to a hidden directory on the target Mac. No scripts are embedded in this pkg.
-#
-# Deployment model (3 pieces):
-#   1. This mega-pkg   -- delivers pkgs to the hidden payload directory
-#   2. Your outer pkg  -- contains other payloads + the postinstall script
-#   3. Config profile   -- generated by the Equitrac Config Profile Generator
-#
-# The postinstall (in your outer pkg) reads only filenames from the config
-# profile and combines them with the hardcoded payload path at runtime.
+# Equitrac Payload Package Builder
+# iStore Business - Apple Platform Managed Services
 # =============================================================================
 
 set -euo pipefail
@@ -829,103 +837,73 @@ IFS=$'\\n\\t'
 PAYLOAD_DIR="/private/var/tmp/.eqpayload"
 PKG_ID="com.istorebusiness.equitrac.megapkg"
 PKG_VERSION="1.0"
-OUTPUT_PKG="${'$'}{HOME}/Desktop/Equitrac_MegaPkg.pkg"
+OUTPUT_PKG="${'$'}{HOME}/Desktop/Equitrac_Payload.pkg"
 
-# Driver pkgs expected (filenames only -- from config profile)${driverArrayBlock}
+${driverArrayBlock}
 
-# ── Create a guaranteed-empty staging directory ──────────────────────────────
 STAGING_DIR=$(mktemp -d "${'$'}{TMPDIR:-/tmp}/equitrac_build.XXXXXX")
 PAYLOAD_ROOT="${'$'}{STAGING_DIR}/payload${'$'}{PAYLOAD_DIR}"
-
 mkdir -p "$PAYLOAD_ROOT"
 
-echo "================================================"
-echo "  Equitrac Deployment Mega-Package Builder"
-echo "================================================"
+echo ""
+echo "  Equitrac Payload Package Builder"
+echo "  ================================"
 echo ""
 
-# ── Step 1: Installer PKG filename ──────────────────────────────────────────
-echo "Enter the Equitrac installer .pkg filename"
-echo "(e.g. Equitrac_MacOSX_6_4_3_59.pkg):"
-echo ""
-read -rp "> " INSTALLER_PKG_NAME
-
-if [[ -z "$INSTALLER_PKG_NAME" ]]; then
-  echo "ERROR: Filename cannot be empty."
-  rm -rf "$STAGING_DIR"
-  exit 1
-fi
-
-# Security: reject paths
-if [[ "$INSTALLER_PKG_NAME" == */* ]] || [[ "$INSTALLER_PKG_NAME" == *..* ]]; then
-  echo "ERROR: Enter a filename only, not a path."
-  rm -rf "$STAGING_DIR"
-  exit 1
-fi
-
-echo ""
-
-# ── Step 2: Batch 1 — Equitrac installer pkg ────────────────────────────────
-echo "────────────────────────────────────────────────"
-echo "  BATCH 1: Equitrac Installer"
-echo "────────────────────────────────────────────────"
-echo ""
-echo "Drag the Equitrac installer pkg into the Finder window that opens:"
-echo "  Expected: $INSTALLER_PKG_NAME"
+# ── Batch 1: Equitrac installer pkg ─────────────────────────────────────────
+echo "  Drag the Equitrac installer .pkg into the Finder window."
 echo ""
 open "$PAYLOAD_ROOT"
-echo "Press ENTER when the file is in place..."
+echo "Press ENTER when done..."
 read -r
 
-if [[ ! -f "${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}" ]]; then
-  echo "ERROR: $INSTALLER_PKG_NAME not found in staging folder."
-  echo "       Expected at: ${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}"
+INSTALLER_PKG_NAME=$(ls "$PAYLOAD_ROOT"/*.pkg 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
+if [[ -z "$INSTALLER_PKG_NAME" ]]; then
+  echo "  ERROR: No .pkg file found in the folder."
   rm -rf "$STAGING_DIR"
   exit 1
 fi
-echo "✓ $INSTALLER_PKG_NAME verified."
+PKG_COUNT=$(ls "$PAYLOAD_ROOT"/*.pkg 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$PKG_COUNT" -ne 1 ]]; then
+  echo "  ERROR: Expected exactly 1 .pkg file, found $PKG_COUNT."
+  echo "  Please start again with only the Equitrac installer."
+  rm -rf "$STAGING_DIR"
+  exit 1
+fi
+echo "  ✓ $INSTALLER_PKG_NAME"
 echo ""
 
-# ── Step 3: Batch 2 — Driver pkgs ───────────────────────────────────────────
-if [[ ${'$'}{#DRIVER_PKGS[@]} -gt 0 ]]; then
-  echo "────────────────────────────────────────────────"
-  echo "  BATCH 2: Print Driver Packages"
-  echo "────────────────────────────────────────────────"
-  echo ""
-  echo "Drag the following driver pkgs into the same Finder window:"
-  echo ""
+# ── Batch 2: Driver pkgs ────────────────────────────────────────────────────
+if [[ ${'$'}{${'#'}DRIVER_PKGS[@]} -gt 0 ]]; then
+  echo "  Now drag in the print driver packages:"
   for f in "${'$'}{DRIVER_PKGS[@]}"; do
-    echo "  - $f"
+    echo "    - $f"
   done
   echo ""
   open "$PAYLOAD_ROOT"
-  echo "Press ENTER when all driver files are in place..."
+  echo "Press ENTER when done..."
   read -r
 
   MISSING=0
   for f in "${'$'}{DRIVER_PKGS[@]}"; do
     if [[ ! -f "${'$'}{PAYLOAD_ROOT}/$f" ]]; then
-      echo "ERROR: Missing driver pkg: $f"
+      echo "  ✗ $f  (missing)"
       MISSING=1
     else
-      echo "✓ $f"
+      echo "  ✓ $f"
     fi
   done
   if [[ $MISSING -ne 0 ]]; then
     echo ""
-    echo "Aborting -- add the missing files and try again."
+    echo "  ERROR: Missing files. Add them and try again."
     rm -rf "$STAGING_DIR"
     exit 1
   fi
   echo ""
-  echo "All driver pkgs verified."
-else
-  echo "(No driver pkgs configured -- skipping batch 2)"
 fi
-echo ""
 
-# ── Step 4: Build payload-only .pkg ─────────────────────────────────────────
-echo "Building mega-package (payload only, no scripts)..."
+# ── Build ────────────────────────────────────────────────────────────────────
+echo "Building package..."
 pkgbuild \\
   --root "${'$'}{STAGING_DIR}/payload" \\
   --identifier "$PKG_ID" \\
@@ -933,24 +911,12 @@ pkgbuild \\
   "$OUTPUT_PKG"
 
 echo ""
-echo "================================================"
-echo "  Mega-package built successfully!"
-echo "  $OUTPUT_PKG"
+echo "  ✓ Package saved to: $OUTPUT_PKG"
 echo ""
-echo "  Installer PKG: $INSTALLER_PKG_NAME"
-echo "  Driver PKGs:   ${'$'}{#DRIVER_PKGS[@]}"
-echo "  Payload dir:   $PAYLOAD_DIR"
-echo "================================================"
+echo "  INSTALLER_PKG filename:  $INSTALLER_PKG_NAME"
+echo "  Use this value in your config profile."
 echo ""
-echo "Next steps:"
-echo "  1. Add this mega-pkg to your deployment pipeline"
-echo "  2. Deploy your outer pkg (with postinstall script)"
-echo "  3. Deploy the config profile (.mobileconfig)"
-echo ""
-echo "IMPORTANT: Make sure the INSTALLER_PKG value in your"
-echo "config profile matches: $INSTALLER_PKG_NAME"
 
-# ── Cleanup ─────────────────────────────────────────────────────────────────
 rm -rf "$STAGING_DIR"
 `;
 }
