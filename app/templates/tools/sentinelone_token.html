@@ -20,15 +20,16 @@
       <div class="section-header">
         <div class="section-tag">Config Profile</div>
         <div class="section-title">SentinelOne Token</div>
-        <div class="section-desc">Paste a base64 registration token below. The download is a <code>.mobileconfig</code> with a single <code>com.sentinelone.registration-token</code> payload ready to deploy via MDM.</div>
+        <div class="section-desc">Paste your site token below. The download is a <code>.mobileconfig</code> with a single <code>com.sentinelone.registration-token</code> payload ready to deploy via MDM.</div>
       </div>
 
       <div class="card">
         <div class="card-title">Token</div>
         <div class="field">
-          <label>BASE64 TOKEN <span class="required">*</span></label>
-          <input type="text" id="tokenInput" placeholder="Paste base64 token here" autocomplete="off" oninput="tokenProfileUpdateButton()">
+          <label>SITE TOKEN <span class="required">*</span></label>
+          <input type="text" id="tokenInput" placeholder="Paste site token here" autocomplete="off" oninput="tokenProfileUpdateButton()">
         </div>
+        <div id="tokenError" class="field-error" style="display:none; margin-top:8px;"></div>
         <div class="card-actions" style="margin-top:12px;">
           <button class="btn btn-primary" id="tokenDownloadBtn" disabled onclick="tokenProfileDownload()">↓ Download .mobileconfig</button>
         </div>
@@ -58,16 +59,60 @@
     });
   }
 
+  /** Validates that the string is base64 and decodes to valid JSON. */
+  function validateToken(str) {
+    var trimmed = (str && str.trim) ? str.trim() : '';
+    if (!trimmed) return { valid: false, message: '' };
+    try {
+      var base64 = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+      if (base64.length % 4 !== 0) {
+        return { valid: false, message: 'Invalid site token. Please paste a valid site token from your SentinelOne console.' };
+      }
+      var decoded = atob(base64);
+      var decodedStr = decoded;
+      if (typeof TextDecoder !== 'undefined') {
+        var bytes = new Uint8Array(decoded.length);
+        for (var i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+        decodedStr = new TextDecoder().decode(bytes);
+      }
+      JSON.parse(decodedStr);
+      return { valid: true };
+    } catch (e) {
+      return { valid: false, message: 'Invalid site token. Please paste a valid site token from your SentinelOne console.' };
+    }
+  }
+
   window.tokenProfileUpdateButton = function() {
-    const input = document.getElementById('tokenInput');
-    const btn = document.getElementById('tokenDownloadBtn');
-    btn.disabled = !input || !input.value.trim();
+    var input = document.getElementById('tokenInput');
+    var btn = document.getElementById('tokenDownloadBtn');
+    var errEl = document.getElementById('tokenError');
+    var raw = input ? input.value.trim() : '';
+    var result = validateToken(raw);
+    if (!raw) {
+      errEl.style.display = 'none';
+      btn.disabled = true;
+    } else if (result.valid) {
+      errEl.style.display = 'none';
+      btn.disabled = false;
+    } else {
+      errEl.textContent = result.message;
+      errEl.style.display = 'block';
+      btn.disabled = true;
+    }
   };
 
   window.tokenProfileDownload = function() {
-    const input = document.getElementById('tokenInput');
-    const raw = input ? input.value.trim() : '';
-    if (!raw) return;
+    var input = document.getElementById('tokenInput');
+    var raw = input ? input.value.trim() : '';
+    var result = validateToken(raw);
+    if (!raw || !result.valid) {
+      if (result.message && document.getElementById('tokenError')) {
+        var errEl = document.getElementById('tokenError');
+        errEl.textContent = result.message;
+        errEl.style.display = 'block';
+      }
+      return;
+    }
 
     const payloadUuid = generateUUID();
     const profileUuid = generateUUID();
