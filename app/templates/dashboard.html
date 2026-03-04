@@ -3,41 +3,41 @@
 {% block content %}
 <div class="dashboard">
   <div class="dashboard-tools">
-    <h2 class="tool-group-title">Third-party software tools</h2>
-    <p class="tool-group-desc">Tools for Equitrac, Santa, and other vendor integrations.</p>
+    <h2 class="tool-group-title">Vendor Tools</h2>
+    <p class="tool-group-desc">Config profiles and scripts for third-party software.</p>
     <div class="tool-card-grid">
       <a href="{{ url_for('main.toolbox', tool_name='equitrac') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Equitrac</div>
-          <div class="tool-card-desc">Generate a .mobileconfig for Equitrac, and a pkg with required printer drivers to enable easy deployment via MDM.</div>
+          <div class="tool-card-desc">Config profile, payload package, and installer for Equitrac MDM deployment.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='santa') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Santa</div>
-          <div class="tool-card-desc">Build a Santa security policy .mobileconfig with ALLOWLIST and BLOCKLIST rules by SigningID or TeamID.</div>
+          <div class="tool-card-desc">Security policy profile with allowlist and blocklist rules.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='sentinelone_token') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">SentinelOne Token</div>
-          <div class="tool-card-desc">Paste your site token and download a .mobileconfig with a single SentinelOne registration-token payload.</div>
+          <div class="tool-card-desc">Registration token profile for SentinelOne agent enrollment.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='netskope') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Netskope</div>
-          <div class="tool-card-desc">Generate a preinstall script with the domain and tenant for Netskope STAgent.</div>
+          <div class="tool-card-desc">Preinstall script with domain and tenant for Netskope STAgent.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='bookmarks') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Favourite Bookie</div>
-          <div class="tool-card-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined .mobileconfig.</div>
+          <div class="tool-card-desc">Managed bookmarks profile for Chrome and Edge.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
@@ -45,41 +45,41 @@
   </div>
 
   <div class="dashboard-tools">
-    <h2 class="tool-group-title">Internal tools</h2>
-    <p class="tool-group-desc">Config profiles, profile tools, and scripts.</p>
+    <h2 class="tool-group-title">Platform Tools</h2>
+    <p class="tool-group-desc">Profiles, scripts, and utilities for Mac management.</p>
     <div class="tool-card-grid">
       <a href="{{ url_for('main.toolbox', tool_name='swiftsetup') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">SwiftSetup</div>
-          <div class="tool-card-desc">Generate a SwiftSetup .mobileconfig with app installation list, dock configuration, and behaviour settings.</div>
+          <div class="tool-card-desc">App installation list, dock layout, and behaviour settings profile.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='smartbranding') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">SmartBranding</div>
-          <div class="tool-card-desc">Generate SmartWallpaper and SmartScreensaver .mobileconfig profiles.</div>
+          <div class="tool-card-desc">Wallpaper and screensaver branding profiles.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='fusion') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Profile Fusion</div>
-          <div class="tool-card-desc">Upload multiple .mobileconfig files, review payloads, remove any you don't need, then merge into one profile.</div>
+          <div class="tool-card-desc">Merge multiple .mobileconfig files into a single profile.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='patchy') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Patchy Installer</div>
-          <div class="tool-card-desc">Define custom Installomator labels and generate a .sh patch script that injects them into Installomator.sh.</div>
+          <div class="tool-card-desc">Custom Installomator labels and patch script generator.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
       <a href="{{ url_for('main.toolbox', tool_name='compliance_fixer') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Compliance Fixer</div>
-          <div class="tool-card-desc">Upload a script from Jamf Compliance Editor to fix it so it can run headless from any MDM.</div>
+          <div class="tool-card-desc">Convert Jamf Compliance Editor scripts to run headless from any MDM.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
@@ -87,7 +87,7 @@
       <a href="{{ url_for('main.toolbox', tool_name='auto_configurator') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Auto Configurator</div>
-          <div class="tool-card-desc">Build a Privacy (TCC) configuration profile for Full Disk Access, Accessibility, and other app permissions. Provide identifier and code requirement from the Mac.</div>
+          <div class="tool-card-desc">Privacy (TCC) profile for Full Disk Access, Accessibility, and other app permissions.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>

@@ -22,33 +22,27 @@
 <div class="shell">
 
   <nav id="sideNav">
-    <div class="nav-section-label">Server</div>
+    <div class="nav-section-label">Config</div>
     <a href="#" class="active" data-section="s-security" onclick="navigate('s-security',this)">
-      <span class="nav-dot"></span> Security &amp; Auth
+      <span class="nav-dot"></span> Security
     </a>
     <a href="#" data-section="s-servers" onclick="navigate('s-servers',this)">
       <span class="nav-dot"></span> Servers
     </a>
-
-    <div class="nav-section-label">Printers</div>
     <a href="#" data-section="s-printers" onclick="navigate('s-printers',this)">
-      <span class="nav-dot"></span> Printer Queues
+      <span class="nav-dot"></span> Printers
     </a>
     <a href="#" data-section="s-drivers" onclick="navigate('s-drivers',this)">
-      <span class="nav-dot"></span> Print Drivers
+      <span class="nav-dot"></span> Packages
     </a>
-
-    <div class="nav-section-label">Preferences</div>
     <a href="#" data-section="s-features" onclick="navigate('s-features',this)">
-      <span class="nav-dot"></span> Feature Selection
-    </a>
-
-    <div class="nav-section-label">Build</div>
-    <a href="#" data-section="s-build" onclick="navigate('s-build',this)">
-      <span class="nav-dot"></span> Build Package
+      <span class="nav-dot"></span> Features
     </a>
 
     <div class="nav-section-label">Output</div>
+    <a href="#" data-section="s-build" onclick="navigate('s-build',this)">
+      <span class="nav-dot"></span> Build
+    </a>
     <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
       <span class="nav-dot"></span> Deploy
     </a>
@@ -59,9 +53,9 @@
     <!-- ══════════════════════════ SECURITY ══════════════════════════ -->
     <div class="section active" id="s-security">
       <div class="section-header">
-        <div class="section-tag">01 / Security &amp; Auth</div>
-        <div class="section-title">Security Framework</div>
-        <div class="section-desc">Credentials used by NDI.SecurityConfig.sh to enroll this Mac with the Equitrac Security Framework.</div>
+        <div class="section-tag">01 / Security</div>
+        <div class="section-title">Security Enrollment</div>
+        <div class="section-desc">Credentials used to enroll Macs with the Equitrac Security Framework.</div>
       </div>
 
       <div class="card">
@@ -111,8 +105,8 @@
     <div class="section" id="s-servers">
       <div class="section-header">
         <div class="section-tag">02 / Servers</div>
-        <div class="section-title">Server Endpoints</div>
-        <div class="section-desc">CAS and DRE server addresses. The install script pings these to verify network reachability before enrollment.</div>
+        <div class="section-title">Servers</div>
+        <div class="section-desc">CAS and DRE server addresses used for enrollment and print routing.</div>
       </div>
 
       <div class="card">
@@ -153,9 +147,9 @@
     <!-- ══════════════════════════ PRINTERS ══════════════════════════ -->
     <div class="section" id="s-printers">
       <div class="section-header">
-        <div class="section-tag">03 / Printer Queues</div>
-        <div class="section-title">CUPS Print Queues</div>
-        <div class="section-desc">Each entry creates a CUPS queue via <code style="color:var(--accent);font-family:var(--mono)">lpadmin</code>. Set PPD to <em>generic</em> or supply an absolute path to a source .ppd file.</div>
+        <div class="section-tag">03 / Printers</div>
+        <div class="section-title">Printers</div>
+        <div class="section-desc">Print queues to create on the Mac. Set PPD to <em>generic</em> or provide a path to a .ppd file.</div>
       </div>
 
       <div class="card">
@@ -173,13 +167,13 @@
     <!-- ══════════════════════════ DRIVERS ══════════════════════════ -->
     <div class="section" id="s-drivers">
       <div class="section-header">
-        <div class="section-tag">04 / Print Drivers</div>
-        <div class="section-title">Driver Packages</div>
-        <div class="section-desc">Filenames only &mdash; no paths. The postinstall script prepends a hardcoded payload directory at runtime for security.</div>
+        <div class="section-tag">04 / Packages</div>
+        <div class="section-title">Packages</div>
+        <div class="section-desc">The Equitrac installer and any print driver .pkgs to include.</div>
       </div>
 
       <div class="card">
-        <div class="card-title">Installer Package</div>
+        <div class="card-title">Equitrac Installer</div>
         <div class="field-grid single">
           <div class="field">
             <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
@@ -190,7 +184,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Driver PKG Filenames</div>
+        <div class="card-title">Print Drivers</div>
         <div class="driver-list" id="driverList"></div>
         <button class="btn-add" onclick="addDriver()">＋ Add Driver Package</button>
       </div>
@@ -204,13 +198,13 @@
     <!-- ══════════════════════════ FEATURES ══════════════════════════ -->
     <div class="section" id="s-features">
       <div class="section-header">
-        <div class="section-tag">05 / Feature Selection</div>
-        <div class="section-title">EQPrinterUtilityX Preferences</div>
-        <div class="section-desc">Enable or disable Equitrac print features for all users on this Mac.</div>
+        <div class="section-tag">05 / Features</div>
+        <div class="section-title">Features</div>
+        <div class="section-desc">Toggle Equitrac print features for all users on this Mac.</div>
       </div>
 
       <div class="card">
-        <div class="card-title">Feature Flags</div>
+        <div class="card-title">Print Features</div>
         <div class="toggle-group">
           <label class="toggle-row" id="tr-clientBilling" onclick="toggleFeature('clientBilling')">
             <input type="checkbox" id="clientBilling">
@@ -267,8 +261,8 @@
     <div class="section" id="s-build">
       <div class="section-header">
         <div class="section-tag">06 / Build</div>
-        <div class="section-title">Build Payload Package</div>
-        <div class="section-desc">Download and run this script on your admin Mac. It opens a folder for you to drag in the Equitrac installer and driver .pkgs, then bundles them into a single deployment package.</div>
+        <div class="section-title">Build</div>
+        <div class="section-desc">Download and run this script on your admin Mac to bundle the .pkgs into a single deployment package.</div>
       </div>
 
       <div class="generate-card">
@@ -296,7 +290,7 @@
       <div class="section-header">
         <div class="section-tag">07 / Deploy</div>
         <div class="section-title">Deploy</div>
-        <div class="section-desc">Three items to deploy via Intune or Jamf. Download all three below.</div>
+        <div class="section-desc">Deploy these three items via Intune or Jamf.</div>
       </div>
 
       <div class="validation-banner" id="validationBanner">
@@ -326,7 +320,7 @@
       <div class="card">
         <div class="card-title">2 &mdash; Equitrac Installer</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
-          <span style="color:var(--text-secondary);font-size:0.85rem">Static package containing the Equitrac client and postinstall script.</span>
+          <span style="color:var(--text-secondary);font-size:0.85rem">Equitrac client installer with postinstall script.</span>
           <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/Equitrac.pkg" class="btn btn-success" download style="text-decoration:none;white-space:nowrap">↓ Download Equitrac.pkg</a>
         </div>
       </div>
@@ -335,7 +329,7 @@
       <div class="card">
         <div class="card-title">3 &mdash; Payload Package</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
-          <span style="color:var(--text-secondary);font-size:0.85rem">Built in the previous step using the build script.</span>
+          <span style="color:var(--text-secondary);font-size:0.85rem">Generated in the previous step.</span>
           <button class="btn btn-ghost" onclick="navigate('s-build', navLink('s-build'))" style="white-space:nowrap">← Back to Build</button>
         </div>
       </div>
