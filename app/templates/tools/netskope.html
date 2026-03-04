@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Netskope Preinstall Script{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">Toolbox</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Netskope Preinstall Script</span>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-netskope">
+      <div class="section-header">
+        <div class="section-tag">Script</div>
+        <div class="section-title">Netskope Preinstall Script</div>
+        <div class="section-desc">Enter your domain and tenant. The tool generates a bash script that writes <code>nsidpconfig.json</code> to <code>/Library/Application Support/Netskope/STAgent</code>. <strong>Deploy this script as a preinstall script</strong> (e.g. in your Netskope app packaging or MDM) so the configuration is in place before the Netskope client runs.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Netskope Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>IDP_DOMAIN <span class="required">*</span></label>
+            <input type="text" id="idpDomain" placeholder="your-idp-domain" autocomplete="off" oninput="netskopeUpdateButton()">
+          </div>
+          <div class="field">
+            <label>IDP_TENANT <span class="required">*</span></label>
+            <input type="text" id="idpTenant" placeholder="your-tenant" autocomplete="off" oninput="netskopeUpdateButton()">
+          </div>
+        </div>
+        <div id="netskopeError" class="field-error" style="display:none; margin-top:8px;"></div>
+        <div class="card-actions" style="margin-top:12px;">
+          <button class="btn btn-primary" id="netskopeDownloadBtn" disabled onclick="netskopeDownload()">↓ Download script</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /** Escape for safe use inside double-quoted bash string (escape " and \). */
+  function bashEsc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
+  }
+
+  function buildScript(idpDomain, idpTenant) {
+    var domainEsc = bashEsc(idpDomain);
+    var tenantEsc = bashEsc(idpTenant);
+    return '#!/bin/bash\n' +
+      '# Netskope preinstall script — deploy as preinstall script\n' +
+      '# Define Static Values\n' +
+      'IDP_DOMAIN="' + domainEsc + '"\n' +
+      'IDP_TENANT="' + tenantEsc + '"\n' +
+      '\n' +
+      '# Define Paths\n' +
+      'NSIDPCONFIG_DIR="/Library/Application Support/Netskope/STAgent"\n' +
+      'NSIDPCONFIG_FILE="$NSIDPCONFIG_DIR/nsidpconfig.json"\n' +
+      '\n' +
+      '# Ensure Directory Exists\n' +
+      'mkdir -p "$NSIDPCONFIG_DIR"\n' +
+      '\n' +
+      '# Write configuration\n' +
+      'echo "{\\"serviceProvider\\": {\\"domain\\": \\"$IDP_DOMAIN\\", \\"tenant\\": \\"$IDP_TENANT\\"}}" > "$NSIDPCONFIG_FILE"\n' +
+      '\n' +
+      'exit 0\n';
+  }
+
+  window.netskopeUpdateButton = function() {
+    var domain = document.getElementById('idpDomain');
+    var tenant = document.getElementById('idpTenant');
+    var btn = document.getElementById('netskopeDownloadBtn');
+    var errEl = document.getElementById('netskopeError');
+    var d = domain && domain.value ? domain.value.trim() : '';
+    var t = tenant && tenant.value ? tenant.value.trim() : '';
+    if (!d || !t) {
+      errEl.style.display = 'none';
+      btn.disabled = true;
+    } else {
+      errEl.style.display = 'none';
+      btn.disabled = false;
+    }
+  };
+
+  window.netskopeDownload = function() {
+    var domainEl = document.getElementById('idpDomain');
+    var tenantEl = document.getElementById('idpTenant');
+    var d = domainEl && domainEl.value ? domainEl.value.trim() : '';
+    var t = tenantEl && tenantEl.value ? tenantEl.value.trim() : '';
+    if (!d || !t) {
+      var errEl = document.getElementById('netskopeError');
+      if (errEl) {
+        errEl.textContent = 'Please enter both IDP_DOMAIN and IDP_TENANT.';
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+    var script = buildScript(d, t);
+    var blob = new Blob([script], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'netskope_preinstall.sh';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+})();
+</script>
+{% endblock %}

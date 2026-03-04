@@ -7,6 +7,7 @@ main = Blueprint("main", __name__)
 # Tool names that have their own page (dashboard links direct to these)
 TOOL_NAMES = {
     "equitrac",
+    "netskope",
     "santa",
     "swiftsetup",
     "smartbranding",
