@@ -47,6 +47,11 @@
     <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
       <span class="nav-dot"></span> Generate &amp; Export
     </a>
+
+    <div class="nav-section-label">Build</div>
+    <a href="#" data-section="s-build" onclick="navigate('s-build',this)">
+      <span class="nav-dot"></span> Build Package
+    </a>
   </nav>
 
   <main>
@@ -170,11 +175,22 @@
       <div class="section-header">
         <div class="section-tag">04 / Print Drivers</div>
         <div class="section-title">Driver Packages</div>
-        <div class="section-desc">Installed in order before any printer queues are created. A missing pkg is a fatal install error.</div>
+        <div class="section-desc">Filenames only &mdash; no paths. The postinstall script prepends a hardcoded payload directory at runtime for security.</div>
       </div>
 
       <div class="card">
-        <div class="card-title">PKG Paths</div>
+        <div class="card-title">Installer Package</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
+            <input type="text" id="installerPkgName" value="Equitrac_MacOSX_6_4_3_59.pkg" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
+            <span class="field-error" id="err-installerPkgName">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Driver PKG Filenames</div>
         <div class="driver-list" id="driverList"></div>
         <button class="btn-add" onclick="addDriver()">＋ Add Driver Package</button>
       </div>
@@ -276,6 +292,34 @@
 
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()">Build Package →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ BUILD PACKAGE ══════════════════════════ -->
+    <div class="section" id="s-build">
+      <div class="section-header">
+        <div class="section-tag">07 / Build</div>
+        <div class="section-title">Build Deployment Package</div>
+        <div class="section-desc">Run this script on your admin Mac to create a payload-only mega-pkg. It asks for files in two batches: the Equitrac installer pkg, then any driver pkgs. No scripts are embedded &mdash; the postinstall lives in your separate outer pkg. Deploy 3 pieces: <strong>this mega-pkg</strong> (payload), <strong>your outer pkg</strong> (postinstall + other payloads), and the <strong>config profile</strong> from Step 06.</div>
+      </div>
+
+      <div class="generate-card">
+        <div class="generate-header">
+          <div class="generate-title">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+            <span>build_equitrac_pkg.sh</span>
+          </div>
+          <div class="generate-actions">
+            <button class="btn btn-ghost" onclick="copyBuildScript()">Copy Script</button>
+            <button class="btn btn-success" onclick="downloadBuildScript()">↓ Download</button>
+          </div>
+        </div>
+        <div class="xml-preview" id="buildScriptPreview" style="white-space:pre;font-family:var(--mono);font-size:0.82rem;line-height:1.5"><!-- generated --></div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-generate', navLink('s-generate'))">← Back</button>
         <span></span>
       </div>
     </div>
@@ -302,18 +346,20 @@ let printers = [
   { name: 'Printer-Queue-1',  ppd: 'generic' },
   { name: 'Printer-Queue-2',  ppd: 'generic' },
   { name: 'Printer-Queue-3',  ppd: 'generic' },
-  { name: 'Printer-Queue-4',  ppd: '/private/var/tmp/Equitrac/your-ppd-file' }
+  { name: 'Printer-Queue-4',  ppd: '/private/var/tmp/.eqpayload/your-ppd-file' }
 ];
 
+let installerPkgName = 'Equitrac_MacOSX_6_4_3_59.pkg';
+
 let drivers = [
-  '/private/var/tmp/Equitrac/your-driver-package.pkg'
+  'your-driver-package.pkg'
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-generate'];
+const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-generate','s-build'];
 
 function navLink(id) {
   return document.querySelector(`[data-section="${id}"]`);
@@ -414,7 +460,7 @@ function renderDrivers() {
     const row = document.createElement('div');
     row.className = 'driver-item';
     row.innerHTML = `
-      <input type="text" value="${esc(d)}" placeholder="/private/var/tmp/Equitrac/driver.pkg"
+      <input type="text" value="${esc(d)}" placeholder="driver-package.pkg"
              oninput="drivers[${i}]=this.value;markDirty()">
       <button class="item-remove" onclick="removeDriver(${i})" title="Remove">×</button>
     `;
@@ -442,7 +488,8 @@ function removeDriver(i) {
 
 const REQUIRED_FIELDS = [
   'secDomain','secUsername','secPassword',
-  'secNode','datacenterName','casServer','dreServer'
+  'secNode','datacenterName','casServer','dreServer',
+  'installerPkgName'
 ];
 
 function validate() {
@@ -490,7 +537,7 @@ function boolTag(val) {
 function buildXML() {
   const bundleId     = 'com.istorebusiness.equitrac';
   const profileName  = 'Equitrac Mac Client';
-  const installerPkg = '/private/var/tmp/Equitrac/Equitrac_MacOSX_6_4_3_59.pkg';
+  const installerPkg = document.getElementById('installerPkgName').value.trim();
 
   const installDrc    = document.getElementById('installDrc').value === 'true';
   const secDomain     = document.getElementById('secDomain').value.trim();
@@ -737,6 +784,204 @@ function copyToClipboard() {
     btn.style.color = 'var(--green)';
     setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUILD SCRIPT GENERATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildScriptContent() {
+  const liveDrivers = [...document.querySelectorAll('.driver-item')].map(row =>
+    row.querySelector('input').value.trim()
+  ).filter(Boolean);
+
+  const hasDrivers = liveDrivers.length > 0;
+  const driverList = liveDrivers.map(p => `  "${p}"`).join('\n');
+
+  // Build the DRIVER_PKGS array declaration only if there are drivers
+  const driverArrayBlock = hasDrivers
+    ? `\nDRIVER_PKGS=(\n${driverList}\n)`
+    : `\nDRIVER_PKGS=()`;
+
+  return `#!/bin/bash
+# =============================================================================
+# Equitrac Deployment Mega-Package Builder
+# =============================================================================
+#
+# Designed and engineered by:
+#   iStore Business - Apple Platform Managed Services
+#
+# Creates a PAYLOAD-ONLY .pkg that deploys Equitrac installer and driver pkgs
+# to a hidden directory on the target Mac. No scripts are embedded in this pkg.
+#
+# Deployment model (3 pieces):
+#   1. This mega-pkg   -- delivers pkgs to the hidden payload directory
+#   2. Your outer pkg  -- contains other payloads + the postinstall script
+#   3. Config profile   -- generated by the Equitrac Config Profile Generator
+#
+# The postinstall (in your outer pkg) reads only filenames from the config
+# profile and combines them with the hardcoded payload path at runtime.
+# =============================================================================
+
+set -euo pipefail
+IFS=$'\\n\\t'
+
+PAYLOAD_DIR="/private/var/tmp/.eqpayload"
+PKG_ID="com.istorebusiness.equitrac.megapkg"
+PKG_VERSION="1.0"
+OUTPUT_PKG="${'$'}{HOME}/Desktop/Equitrac_MegaPkg.pkg"
+
+# Driver pkgs expected (filenames only -- from config profile)${driverArrayBlock}
+
+# ── Create a guaranteed-empty staging directory ──────────────────────────────
+STAGING_DIR=$(mktemp -d "${'$'}{TMPDIR:-/tmp}/equitrac_build.XXXXXX")
+PAYLOAD_ROOT="${'$'}{STAGING_DIR}/payload${'$'}{PAYLOAD_DIR}"
+
+mkdir -p "$PAYLOAD_ROOT"
+
+echo "================================================"
+echo "  Equitrac Deployment Mega-Package Builder"
+echo "================================================"
+echo ""
+
+# ── Step 1: Installer PKG filename ──────────────────────────────────────────
+echo "Enter the Equitrac installer .pkg filename"
+echo "(e.g. Equitrac_MacOSX_6_4_3_59.pkg):"
+echo ""
+read -rp "> " INSTALLER_PKG_NAME
+
+if [[ -z "$INSTALLER_PKG_NAME" ]]; then
+  echo "ERROR: Filename cannot be empty."
+  rm -rf "$STAGING_DIR"
+  exit 1
+fi
+
+# Security: reject paths
+if [[ "$INSTALLER_PKG_NAME" == */* ]] || [[ "$INSTALLER_PKG_NAME" == *..* ]]; then
+  echo "ERROR: Enter a filename only, not a path."
+  rm -rf "$STAGING_DIR"
+  exit 1
+fi
+
+echo ""
+
+# ── Step 2: Batch 1 — Equitrac installer pkg ────────────────────────────────
+echo "────────────────────────────────────────────────"
+echo "  BATCH 1: Equitrac Installer"
+echo "────────────────────────────────────────────────"
+echo ""
+echo "Drag the Equitrac installer pkg into the Finder window that opens:"
+echo "  Expected: $INSTALLER_PKG_NAME"
+echo ""
+open "$PAYLOAD_ROOT"
+echo "Press ENTER when the file is in place..."
+read -r
+
+if [[ ! -f "${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}" ]]; then
+  echo "ERROR: $INSTALLER_PKG_NAME not found in staging folder."
+  echo "       Expected at: ${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}"
+  rm -rf "$STAGING_DIR"
+  exit 1
+fi
+echo "✓ $INSTALLER_PKG_NAME verified."
+echo ""
+
+# ── Step 3: Batch 2 — Driver pkgs ───────────────────────────────────────────
+if [[ ${'$'}{#DRIVER_PKGS[@]} -gt 0 ]]; then
+  echo "────────────────────────────────────────────────"
+  echo "  BATCH 2: Print Driver Packages"
+  echo "────────────────────────────────────────────────"
+  echo ""
+  echo "Drag the following driver pkgs into the same Finder window:"
+  echo ""
+  for f in "${'$'}{DRIVER_PKGS[@]}"; do
+    echo "  - $f"
+  done
+  echo ""
+  open "$PAYLOAD_ROOT"
+  echo "Press ENTER when all driver files are in place..."
+  read -r
+
+  MISSING=0
+  for f in "${'$'}{DRIVER_PKGS[@]}"; do
+    if [[ ! -f "${'$'}{PAYLOAD_ROOT}/$f" ]]; then
+      echo "ERROR: Missing driver pkg: $f"
+      MISSING=1
+    else
+      echo "✓ $f"
+    fi
+  done
+  if [[ $MISSING -ne 0 ]]; then
+    echo ""
+    echo "Aborting -- add the missing files and try again."
+    rm -rf "$STAGING_DIR"
+    exit 1
+  fi
+  echo ""
+  echo "All driver pkgs verified."
+else
+  echo "(No driver pkgs configured -- skipping batch 2)"
+fi
+echo ""
+
+# ── Step 4: Build payload-only .pkg ─────────────────────────────────────────
+echo "Building mega-package (payload only, no scripts)..."
+pkgbuild \\
+  --root "${'$'}{STAGING_DIR}/payload" \\
+  --identifier "$PKG_ID" \\
+  --version "$PKG_VERSION" \\
+  "$OUTPUT_PKG"
+
+echo ""
+echo "================================================"
+echo "  Mega-package built successfully!"
+echo "  $OUTPUT_PKG"
+echo ""
+echo "  Installer PKG: $INSTALLER_PKG_NAME"
+echo "  Driver PKGs:   ${'$'}{#DRIVER_PKGS[@]}"
+echo "  Payload dir:   $PAYLOAD_DIR"
+echo "================================================"
+echo ""
+echo "Next steps:"
+echo "  1. Add this mega-pkg to your deployment pipeline"
+echo "  2. Deploy your outer pkg (with postinstall script)"
+echo "  3. Deploy the config profile (.mobileconfig)"
+echo ""
+echo "IMPORTANT: Make sure the INSTALLER_PKG value in your"
+echo "config profile matches: $INSTALLER_PKG_NAME"
+
+# ── Cleanup ─────────────────────────────────────────────────────────────────
+rm -rf "$STAGING_DIR"
+`;
+}
+
+function generateBuildScript() {
+  const script = buildScriptContent();
+  const el = document.getElementById('buildScriptPreview');
+  el.textContent = script;
+  window._lastBuildScript = script;
+}
+
+function copyBuildScript() {
+  if (!window._lastBuildScript) { generateBuildScript(); }
+  navigator.clipboard.writeText(window._lastBuildScript).then(() => {
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  });
+}
+
+function downloadBuildScript() {
+  if (!window._lastBuildScript) { generateBuildScript(); }
+  const blob = new Blob([window._lastBuildScript], { type: 'text/x-shellscript' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'build_equitrac_pkg.sh';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
