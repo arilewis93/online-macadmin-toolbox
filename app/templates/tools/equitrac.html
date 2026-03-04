@@ -43,14 +43,14 @@
       <span class="nav-dot"></span> Feature Selection
     </a>
 
-    <div class="nav-section-label">Output</div>
-    <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
-      <span class="nav-dot"></span> Deploy
-    </a>
-
     <div class="nav-section-label">Build</div>
     <a href="#" data-section="s-build" onclick="navigate('s-build',this)">
       <span class="nav-dot"></span> Build Package
+    </a>
+
+    <div class="nav-section-label">Output</div>
+    <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
+      <span class="nav-dot"></span> Deploy
     </a>
   </nav>
 
@@ -183,7 +183,7 @@
         <div class="field-grid single">
           <div class="field">
             <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
-            <input type="text" id="installerPkgName" value="Equitrac_MacOSX_6_4_3_59.pkg" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
+            <input type="text" id="installerPkgName" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
             <span class="field-error" id="err-installerPkgName">Required</span>
           </div>
         </div>
@@ -257,16 +257,44 @@
 
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="navigate('s-drivers', navLink('s-drivers'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-generate', navLink('s-generate')); generateProfile()">
-          Deploy →
+        <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()">
+          Build Package →
         </button>
       </div>
     </div><!-- end #s-features -->
 
-    <!-- ══════════════════════════ GENERATE ══════════════════════════ -->
+    <!-- ══════════════════════════ BUILD PACKAGE ══════════════════════════ -->
+    <div class="section" id="s-build">
+      <div class="section-header">
+        <div class="section-tag">06 / Build</div>
+        <div class="section-title">Build Payload Package</div>
+        <div class="section-desc">Download and run this script on your admin Mac. It opens a folder for you to drag in the Equitrac installer and driver .pkgs, then bundles them into a single deployment package.</div>
+      </div>
+
+      <div class="generate-card">
+        <div class="generate-header">
+          <div class="generate-title">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+            <span>build_equitrac_pkg.sh</span>
+          </div>
+          <div class="generate-actions">
+            <button class="btn btn-ghost" onclick="copyBuildScript()">Copy Script</button>
+            <button class="btn btn-success" onclick="downloadBuildScript()">↓ Download</button>
+          </div>
+        </div>
+        <div class="xml-preview" id="buildScriptPreview" style="white-space:pre;font-family:var(--mono);font-size:0.82rem;line-height:1.5"><!-- generated --></div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
+        <button class="btn btn-primary" onclick="navigate('s-generate', navLink('s-generate')); generateProfile()">Deploy →</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ DEPLOY ══════════════════════════ -->
     <div class="section" id="s-generate">
       <div class="section-header">
-        <div class="section-tag">06 / Export</div>
+        <div class="section-tag">07 / Deploy</div>
         <div class="section-title">Deploy</div>
         <div class="section-desc">Three items to deploy via Intune or Jamf. Download all three below.</div>
       </div>
@@ -303,45 +331,17 @@
         </div>
       </div>
 
-      <!-- ── 3. Payload Mega-PKG ── -->
+      <!-- ── 3. Payload Package ── -->
       <div class="card">
         <div class="card-title">3 &mdash; Payload Package</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
-          <span style="color:var(--text-secondary);font-size:0.85rem">Run the build script to package your Equitrac installer and driver .pkgs.</span>
-          <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()" style="white-space:nowrap">Build Package →</button>
+          <span style="color:var(--text-secondary);font-size:0.85rem">Built in the previous step using the build script.</span>
+          <button class="btn btn-ghost" onclick="navigate('s-build', navLink('s-build'))" style="white-space:nowrap">← Back to Build</button>
         </div>
       </div>
 
       <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
-        <span></span>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════ BUILD PACKAGE ══════════════════════════ -->
-    <div class="section" id="s-build">
-      <div class="section-header">
-        <div class="section-tag">07 / Build</div>
-        <div class="section-title">Build Payload Package</div>
-        <div class="section-desc">Download and run this script on your admin Mac. It opens a folder for you to drag in the Equitrac installer and driver .pkgs, then bundles them into a single deployment package.</div>
-      </div>
-
-      <div class="generate-card">
-        <div class="generate-header">
-          <div class="generate-title">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h7l3 3v7H2V2z" stroke="currentColor" stroke-width="1.2"/><path d="M9 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
-            <span>build_equitrac_pkg.sh</span>
-          </div>
-          <div class="generate-actions">
-            <button class="btn btn-ghost" onclick="copyBuildScript()">Copy Script</button>
-            <button class="btn btn-success" onclick="downloadBuildScript()">↓ Download</button>
-          </div>
-        </div>
-        <div class="xml-preview" id="buildScriptPreview" style="white-space:pre;font-family:var(--mono);font-size:0.82rem;line-height:1.5"><!-- generated --></div>
-      </div>
-
-      <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-generate', navLink('s-generate'))">← Back</button>
+        <button class="btn btn-ghost" onclick="navigate('s-build', navLink('s-build'))">← Back</button>
         <span></span>
       </div>
     </div>
@@ -364,24 +364,17 @@ const FEATURE_BITS = {
   releaseKey: 32
 };
 
-let printers = [
-  { name: 'Printer-Queue-1',  ppd: 'generic' },
-  { name: 'Printer-Queue-2',  ppd: 'generic' },
-  { name: 'Printer-Queue-3',  ppd: 'generic' },
-  { name: 'Printer-Queue-4',  ppd: '/private/var/tmp/.eqpayload/your-ppd-file' }
-];
+let printers = [];
 
-let installerPkgName = 'Equitrac_MacOSX_6_4_3_59.pkg';
+let installerPkgName = '';
 
-let drivers = [
-  'your-driver-package.pkg'
-];
+let drivers = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-generate','s-build'];
+const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-build','s-generate'];
 
 function navLink(id) {
   return document.querySelector(`[data-section="${id}"]`);
@@ -813,6 +806,8 @@ function copyToClipboard() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildScriptContent() {
+  const installerPkg = document.getElementById('installerPkgName').value.trim() || 'Equitrac_MacOSX_6_4_3_59.pkg';
+
   const liveDrivers = [...document.querySelectorAll('.driver-item')].map(row =>
     row.querySelector('input').value.trim()
   ).filter(Boolean);
@@ -820,7 +815,6 @@ function buildScriptContent() {
   const hasDrivers = liveDrivers.length > 0;
   const driverList = liveDrivers.map(p => `  "${p}"`).join('\n');
 
-  // Build the DRIVER_PKGS array declaration only if there are drivers
   const driverArrayBlock = hasDrivers
     ? `\nDRIVER_PKGS=(\n${driverList}\n)`
     : `\nDRIVER_PKGS=()`;
@@ -839,6 +833,7 @@ PKG_ID="com.istorebusiness.equitrac.megapkg"
 PKG_VERSION="1.0"
 OUTPUT_PKG="${'$'}{HOME}/Desktop/Equitrac_Payload.pkg"
 
+INSTALLER_PKG_NAME="${installerPkg}"
 ${driverArrayBlock}
 
 STAGING_DIR=$(mktemp -d "${'$'}{TMPDIR:-/tmp}/equitrac_build.XXXXXX")
@@ -851,22 +846,15 @@ echo "  ================================"
 echo ""
 
 # ── Batch 1: Equitrac installer pkg ─────────────────────────────────────────
-echo "  Drag the Equitrac installer .pkg into the Finder window."
+echo "  Drag the Equitrac installer into the Finder window:"
+echo "    - $INSTALLER_PKG_NAME"
 echo ""
 open "$PAYLOAD_ROOT"
 echo "Press ENTER when done..."
 read -r
 
-INSTALLER_PKG_NAME=$(ls "$PAYLOAD_ROOT"/*.pkg 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
-if [[ -z "$INSTALLER_PKG_NAME" ]]; then
-  echo "  ERROR: No .pkg file found in the folder."
-  rm -rf "$STAGING_DIR"
-  exit 1
-fi
-PKG_COUNT=$(ls "$PAYLOAD_ROOT"/*.pkg 2>/dev/null | wc -l | tr -d ' ')
-if [[ "$PKG_COUNT" -ne 1 ]]; then
-  echo "  ERROR: Expected exactly 1 .pkg file, found $PKG_COUNT."
-  echo "  Please start again with only the Equitrac installer."
+if [[ ! -f "${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}" ]]; then
+  echo "  ✗ $INSTALLER_PKG_NAME  (missing)"
   rm -rf "$STAGING_DIR"
   exit 1
 fi
@@ -913,10 +901,6 @@ pkgbuild \\
 echo ""
 echo "  ✓ Package saved to: $OUTPUT_PKG"
 echo ""
-echo "  INSTALLER_PKG filename:  $INSTALLER_PKG_NAME"
-echo "  Use this value in your config profile."
-echo ""
-
 rm -rf "$STAGING_DIR"
 `;
 }
