@@ -6,7 +6,6 @@ main = Blueprint("main", __name__)
 
 # Tool names that have their own page (dashboard links direct to these)
 TOOL_NAMES = {
-    "toolbox",
     "equitrac",
     "santa",
     "swiftsetup",
@@ -16,6 +15,7 @@ TOOL_NAMES = {
     "patchy",
     "compliance_fixer",
     "auto_configurator",
+    "sentinelone_token",
 }
 
 

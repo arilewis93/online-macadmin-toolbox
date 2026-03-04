@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}SentinelOne Token{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">Toolbox</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">SentinelOne Token</span>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-token">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">SentinelOne Token</div>
+        <div class="section-desc">Paste a base64 registration token below. The download is a <code>.mobileconfig</code> with a single <code>com.sentinelone.registration-token</code> payload ready to deploy via MDM.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Token</div>
+        <div class="field">
+          <label>BASE64 TOKEN <span class="required">*</span></label>
+          <input type="text" id="tokenInput" placeholder="Paste base64 token here" autocomplete="off" oninput="tokenProfileUpdateButton()">
+        </div>
+        <div class="card-actions" style="margin-top:12px;">
+          <button class="btn btn-primary" id="tokenDownloadBtn" disabled onclick="tokenProfileDownload()">↓ Download .mobileconfig</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  function xmlEsc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16).toUpperCase();
+    });
+  }
+
+  window.tokenProfileUpdateButton = function() {
+    const input = document.getElementById('tokenInput');
+    const btn = document.getElementById('tokenDownloadBtn');
+    btn.disabled = !input || !input.value.trim();
+  };
+
+  window.tokenProfileDownload = function() {
+    const input = document.getElementById('tokenInput');
+    const raw = input ? input.value.trim() : '';
+    if (!raw) return;
+
+    const payloadUuid = generateUUID();
+    const profileUuid = generateUUID();
+    const payloadId = 'com.sentinelone.registration-token.' + payloadUuid;
+    const profileId = 'com.toolbox.registration-token.' + profileUuid;
+    const displayName = 'SentinelOne Token';
+    const tokenEsc = xmlEsc(raw);
+
+    const xml =
+'<?xml version="1.0" encoding="UTF-8"?>\n' +
+'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+'<plist version="1.0">\n' +
+'<dict>\n' +
+'\t<key>PayloadContent</key>\n' +
+'\t<array>\n' +
+'\t\t<dict>\n' +
+'\t\t\t<key>PayloadDisplayName</key>\n' +
+'\t\t\t<string>' + xmlEsc(displayName) + '</string>\n' +
+'\t\t\t<key>PayloadIdentifier</key>\n' +
+'\t\t\t<string>' + xmlEsc(payloadId) + '</string>\n' +
+'\t\t\t<key>PayloadOrganization</key>\n' +
+'\t\t\t<string></string>\n' +
+'\t\t\t<key>PayloadType</key>\n' +
+'\t\t\t<string>com.sentinelone.registration-token</string>\n' +
+'\t\t\t<key>PayloadUUID</key>\n' +
+'\t\t\t<string>' + payloadUuid + '</string>\n' +
+'\t\t\t<key>PayloadVersion</key>\n' +
+'\t\t\t<integer>1</integer>\n' +
+'\t\t\t<key>S1InstallRegistrationToken</key>\n' +
+'\t\t\t<string>' + tokenEsc + '</string>\n' +
+'\t\t</dict>\n' +
+'\t</array>\n' +
+'\t<key>PayloadDisplayName</key>\n' +
+'\t<string>' + xmlEsc(displayName) + '</string>\n' +
+'\t<key>PayloadIdentifier</key>\n' +
+'\t<string>' + xmlEsc(profileId) + '</string>\n' +
+'\t<key>PayloadOrganization</key>\n' +
+'\t<string></string>\n' +
+'\t<key>PayloadRemovalDisallowed</key>\n' +
+'\t<false/>\n' +
+'\t<key>PayloadScope</key>\n' +
+'\t<string>System</string>\n' +
+'\t<key>PayloadType</key>\n' +
+'\t<string>Configuration</string>\n' +
+'\t<key>PayloadUUID</key>\n' +
+'\t<string>' + profileUuid + '</string>\n' +
+'\t<key>PayloadVersion</key>\n' +
+'\t<integer>1</integer>\n' +
+'</dict>\n' +
+'</plist>\n';
+
+    const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sentinelone_token.mobileconfig';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+})();
+</script>
+{% endblock %}

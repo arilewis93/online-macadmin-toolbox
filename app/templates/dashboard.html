@@ -20,11 +20,25 @@
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
+      <a href="{{ url_for('main.toolbox', tool_name='sentinelone_token') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">SentinelOne Token</div>
+          <div class="tool-card-desc">Paste a base64 token and download a .mobileconfig with a single SentinelOne registration-token payload.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='bookmarks') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Favourite Bookie</div>
+          <div class="tool-card-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined .mobileconfig.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
     </div>
   </div>
 
   <div class="dashboard-tools">
-    <h2 class="tool-group-title">General tools</h2>
+    <h2 class="tool-group-title">Internal tools</h2>
     <p class="tool-group-desc">Config profiles, profile tools, and scripts.</p>
     <div class="tool-card-grid">
       <a href="{{ url_for('main.toolbox', tool_name='swiftsetup') }}" class="tool-card">
@@ -38,13 +52,6 @@
         <div class="tool-card-left">
           <div class="tool-card-title">SmartBranding</div>
           <div class="tool-card-desc">Generate SmartWallpaper and SmartScreensaver .mobileconfig profiles.</div>
-        </div>
-        <span class="btn btn-primary">Open →</span>
-      </a>
-      <a href="{{ url_for('main.toolbox', tool_name='bookmarks') }}" class="tool-card">
-        <div class="tool-card-left">
-          <div class="tool-card-title">Favourite Bookie</div>
-          <div class="tool-card-desc">Build a managed bookmarks profile for Chrome and Edge. Generates a combined .mobileconfig.</div>
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
