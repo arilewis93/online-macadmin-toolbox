@@ -3,7 +3,7 @@
 {% block main_class %}tool-layout{% endblock %}
 {% block header_class %}tool-bar{% endblock %}
 {% block header_left %}
-  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
   <div class="logo-badge">
     <div class="logo-icon">
       <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
@@ -20,94 +20,596 @@
       <div class="section-header">
         <div class="section-tag">Script</div>
         <div class="section-title">Netskope Preinstall Script</div>
-        <div class="section-desc">Enter your domain and tenant. The tool generates a bash script that writes <code>nsidpconfig.json</code> to <code>/Library/Application Support/Netskope/STAgent</code>. <strong>Deploy this script as a preinstall script</strong> (e.g. in your Netskope app packaging or MDM) so the configuration is in place before the Netskope client runs.</div>
+        <div class="section-desc">Configure options for your Netskope Client deployment. The tool generates a lean bash script that only includes the logic needed for your selected mode. <strong>Deploy as a preinstall script</strong> in your MDM or packaging workflow.</div>
       </div>
 
+      <!-- Mode Selection -->
       <div class="card">
-        <div class="card-title">Netskope Settings</div>
+        <div class="card-title">Deployment Mode</div>
+        <div class="field">
+          <label>MODE <span class="required">*</span></label>
+          <select id="nsMode" onchange="nsModeChanged()">
+            <option value="idp">IdP (Identity Provider)</option>
+            <option value="email">Email (Active Directory)</option>
+            <option value="upn">UPN (User Principal Name)</option>
+            <option value="peruser">Per-User Config</option>
+            <option value="prefemail">Preference Email (from plist)</option>
+            <option value="cli">CLI Mode (adquery)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- IdP Settings -->
+      <div class="card ns-mode-card" id="card-idp">
+        <div class="card-title">IdP Settings</div>
         <div class="field-grid">
           <div class="field">
             <label>DOMAIN <span class="required">*</span></label>
-            <input type="text" id="idpDomain" placeholder="your-idp-domain" autocomplete="off" oninput="netskopeUpdateButton()">
+            <input type="text" id="idpDomain" placeholder="your-idp-domain" autocomplete="off" oninput="nsUpdate()">
           </div>
           <div class="field">
             <label>TENANT <span class="required">*</span></label>
-            <input type="text" id="idpTenant" placeholder="your-tenant" autocomplete="off" oninput="netskopeUpdateButton()">
+            <input type="text" id="idpTenant" placeholder="your-tenant" autocomplete="off" oninput="nsUpdate()">
           </div>
         </div>
-        <div id="netskopeError" class="field-error" style="display:none; margin-top:8px;"></div>
-        <div class="card-actions" style="margin-top:12px;">
-          <button class="btn btn-primary" id="netskopeDownloadBtn" disabled onclick="netskopeDownload()">↓ Download script</button>
+        <div class="field-grid thirds" style="margin-top:12px;">
+          <div class="field">
+            <label>BROWSER MODE</label>
+            <select id="idpBrowserMode" onchange="nsUpdate()">
+              <option value="">Default</option>
+              <option value="e">External browser (e)</option>
+              <option value="s">System browser (s)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>PREFER EPHEMERAL</label>
+            <select id="idpPreferEphemeral" onchange="nsUpdate()">
+              <option value="">Not set</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>HTTP METHOD</label>
+            <select id="idpHttpMethod" onchange="nsUpdate()">
+              <option value="">Default</option>
+              <option value="p">POST (p)</option>
+              <option value="g">GET (g)</option>
+            </select>
+          </div>
+        </div>
+        <label class="toggle-row" style="margin-top:12px;" onclick="nsToggle(this)">
+          <input type="checkbox" id="idpRequestEmail">
+          <div class="toggle-info">
+            <div class="toggle-label">Request email from user</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+      </div>
+
+      <!-- Email (AD) Settings -->
+      <div class="card ns-mode-card" id="card-email" style="display:none;">
+        <div class="card-title">Email (Active Directory) Settings</div>
+        <div class="field-grid thirds">
+          <div class="field">
+            <label>TENANT URL <span class="required">*</span></label>
+            <input type="text" id="emailTenantUrl" placeholder="tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>AD DOMAIN NAME <span class="required">*</span></label>
+            <input type="text" id="emailDomainName" placeholder="YOURDOMAIN" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>ORG KEY <span class="required">*</span></label>
+            <input type="text" id="emailOrgKey" placeholder="your-org-key" autocomplete="off" oninput="nsUpdate()">
+          </div>
         </div>
       </div>
+
+      <!-- UPN Settings -->
+      <div class="card ns-mode-card" id="card-upn" style="display:none;">
+        <div class="card-title">UPN Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>ADDON URL <span class="required">*</span></label>
+            <input type="text" id="upnAddonUrl" placeholder="addon-tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>ORG KEY <span class="required">*</span></label>
+            <input type="text" id="upnOrgKey" placeholder="your-org-key" autocomplete="off" oninput="nsUpdate()">
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>UPN SOURCE</label>
+          <select id="upnSource" onchange="nsUpdate()">
+            <option value="ad">Active Directory lookup</option>
+            <option value="pref">Preference file (plist)</option>
+          </select>
+        </div>
+        <div class="field" id="upnPrefFileField" style="display:none; margin-top:12px;">
+          <label>PREF FILE NAME <span class="required">*</span></label>
+          <input type="text" id="upnPrefFile" placeholder="com.company.netskope.plist" autocomplete="off" oninput="nsUpdate()">
+          <span class="field-hint">File in /Library/Managed Preferences/</span>
+        </div>
+      </div>
+
+      <!-- Per-User Config Settings -->
+      <div class="card ns-mode-card" id="card-peruser" style="display:none;">
+        <div class="card-title">Per-User Config Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>ADDON URL <span class="required">*</span></label>
+            <input type="text" id="peruserAddonUrl" placeholder="addon-tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>ORG KEY <span class="required">*</span></label>
+            <input type="text" id="peruserOrgKey" placeholder="your-org-key" autocomplete="off" oninput="nsUpdate()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Preference Email Settings -->
+      <div class="card ns-mode-card" id="card-prefemail" style="display:none;">
+        <div class="card-title">Preference Email Settings</div>
+        <div class="field-grid thirds">
+          <div class="field">
+            <label>TENANT URL <span class="required">*</span></label>
+            <input type="text" id="prefemailTenantUrl" placeholder="tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>ORG KEY <span class="required">*</span></label>
+            <input type="text" id="prefemailOrgKey" placeholder="your-org-key" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>PREF FILE NAME <span class="required">*</span></label>
+            <input type="text" id="prefemailPrefFile" placeholder="com.company.netskope.plist" autocomplete="off" oninput="nsUpdate()">
+            <span class="field-hint">File in /Library/Managed Preferences/</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLI Mode Settings -->
+      <div class="card ns-mode-card" id="card-cli" style="display:none;">
+        <div class="card-title">CLI Mode Settings</div>
+        <div class="field-grid">
+          <div class="field">
+            <label>TENANT URL <span class="required">*</span></label>
+            <input type="text" id="cliTenantUrl" placeholder="tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+          </div>
+          <div class="field">
+            <label>ORG KEY <span class="required">*</span></label>
+            <input type="text" id="cliOrgKey" placeholder="your-org-key" autocomplete="off" oninput="nsUpdate()">
+          </div>
+        </div>
+      </div>
+
+      <!-- IdP Per-User / Enforce Enrollment (only for IdP mode) -->
+      <div class="card" id="card-idp-peruser" style="display:none;">
+        <div class="card-title">IdP Per-User Config &amp; Enforce Enrollment</div>
+        <label class="toggle-row" onclick="nsToggle(this)">
+          <input type="checkbox" id="idpPerUser">
+          <div class="toggle-info">
+            <div class="toggle-label">Enable per-user config</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <div id="idpPerUserFields" style="display:none; margin-top:12px;">
+          <div class="field-grid">
+            <div class="field">
+              <label>HOST <span class="required">*</span></label>
+              <input type="text" id="idpHost" placeholder="addon-tenant.goskope.com" autocomplete="off" oninput="nsUpdate()">
+            </div>
+            <div class="field">
+              <label>TOKEN <span class="required">*</span></label>
+              <input type="text" id="idpToken" placeholder="org-key-token" autocomplete="off" oninput="nsUpdate()">
+            </div>
+          </div>
+        </div>
+        <label class="toggle-row" style="margin-top:12px;" onclick="nsToggle(this)">
+          <input type="checkbox" id="idpEnforceEnroll">
+          <div class="toggle-info">
+            <div class="toggle-label">Enable enforce enrollment</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <div id="idpEnforceFields" style="display:none; margin-top:12px;">
+          <div class="field-grid">
+            <div class="field">
+              <label>STEERING PROFILE ID <span class="required">*</span></label>
+              <input type="text" id="idpSteeringId" placeholder="profile-id" autocomplete="off" oninput="nsUpdate()">
+            </div>
+            <div class="field">
+              <label>FREQUENCY (minutes, 1-1440)</label>
+              <input type="number" id="idpFrequency" value="5" min="1" max="1440" oninput="nsUpdate()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fail-Close Options (all modes except CLI) -->
+      <div class="card" id="card-failclose">
+        <div class="card-title">Fail-Close Options</div>
+        <div class="field">
+          <select id="failCloseMode" onchange="nsUpdate()">
+            <option value="none">Disabled</option>
+            <option value="disable">Fail-Close (disable network on failure)</option>
+            <option value="no-npa">Fail-Close + Exclude NPA</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Silent Mode & Enrollment Tokens -->
+      <div class="card" id="card-options">
+        <div class="card-title">Additional Options</div>
+        <label class="toggle-row" onclick="nsToggle(this)">
+          <input type="checkbox" id="optSilent">
+          <div class="toggle-info">
+            <div class="toggle-label">Silent mode</div>
+            <div class="toggle-desc">Suppress user-facing prompts during enrollment</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <label class="toggle-row" onclick="nsToggle(this)">
+          <input type="checkbox" id="optAuthToken">
+          <div class="toggle-info">
+            <div class="toggle-label">Enroll auth token</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <div class="field" id="authTokenField" style="display:none; margin-top:4px; margin-left:24px;">
+          <input type="text" id="optAuthTokenVal" placeholder="auth-token-value" autocomplete="off" oninput="nsUpdate()">
+        </div>
+        <label class="toggle-row" onclick="nsToggle(this)">
+          <input type="checkbox" id="optEncToken">
+          <div class="toggle-info">
+            <div class="toggle-label">Enroll encryption token</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <div class="field" id="encTokenField" style="display:none; margin-top:4px; margin-left:24px;">
+          <input type="text" id="optEncTokenVal" placeholder="encryption-token-value" autocomplete="off" oninput="nsUpdate()">
+        </div>
+      </div>
+
+      <!-- Download -->
+      <div id="netskopeError" class="field-error" style="display:none; margin-top:8px;"></div>
+      <div class="card-actions" style="margin-top:12px;">
+        <button class="btn btn-primary" id="netskopeDownloadBtn" disabled onclick="netskopeDownload()">&darr; Download script</button>
+      </div>
+
     </div>
   </main>
 </div>
 
 <script>
+{% raw %}
 (function() {
   'use strict';
 
-  /** Escape for safe use inside double-quoted bash string (escape " and \). */
-  function bashEsc(s) {
+  var modeCards = {
+    idp: ['card-idp', 'card-idp-peruser'],
+    email: ['card-email'],
+    upn: ['card-upn'],
+    peruser: ['card-peruser'],
+    prefemail: ['card-prefemail'],
+    cli: ['card-cli']
+  };
+
+  /** Escape for safe use inside double-quoted bash string. */
+  function esc(s) {
     if (s == null) return '';
-    return String(s)
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"');
+    return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
   }
 
-  function buildScript(idpDomain, idpTenant) {
-    var domainEsc = bashEsc(idpDomain);
-    var tenantEsc = bashEsc(idpTenant);
-    return '#!/bin/bash\n' +
-      '# Netskope preinstall script — deploy as preinstall script\n' +
-      '# Define Static Values\n' +
-      'IDP_DOMAIN="' + domainEsc + '"\n' +
-      'IDP_TENANT="' + tenantEsc + '"\n' +
-      '\n' +
-      '# Define Paths\n' +
-      'NSIDPCONFIG_DIR="/Library/Application Support/Netskope/STAgent"\n' +
-      'NSIDPCONFIG_FILE="$NSIDPCONFIG_DIR/nsidpconfig.json"\n' +
-      '\n' +
-      '# Ensure Directory Exists\n' +
-      'mkdir -p "$NSIDPCONFIG_DIR"\n' +
-      '\n' +
-      '# Write configuration\n' +
-      'echo "{\\"serviceProvider\\": {\\"domain\\": \\"$IDP_DOMAIN\\", \\"tenant\\": \\"$IDP_TENANT\\"}}" > "$NSIDPCONFIG_FILE"\n' +
-      '\n' +
-      'exit 0\n';
+  function val(id) {
+    var el = document.getElementById(id);
+    return el ? el.value.trim() : '';
   }
 
-  window.netskopeUpdateButton = function() {
-    var domain = document.getElementById('idpDomain');
-    var tenant = document.getElementById('idpTenant');
-    var btn = document.getElementById('netskopeDownloadBtn');
-    var errEl = document.getElementById('netskopeError');
-    var d = domain && domain.value ? domain.value.trim() : '';
-    var t = tenant && tenant.value ? tenant.value.trim() : '';
-    if (!d || !t) {
-      errEl.style.display = 'none';
-      btn.disabled = true;
-    } else {
-      errEl.style.display = 'none';
-      btn.disabled = false;
+  function checked(id) {
+    var el = document.getElementById(id);
+    return el ? el.checked : false;
+  }
+
+  function show(id, visible) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = visible ? '' : 'none';
+  }
+
+  window.nsToggle = function(row) {
+    var cb = row.querySelector('input[type="checkbox"]');
+    cb.checked = !cb.checked;
+    row.classList.toggle('enabled', cb.checked);
+    nsUpdate();
+  };
+
+  window.nsModeChanged = function() {
+    var mode = val('nsMode');
+    // Hide all mode-specific cards
+    document.querySelectorAll('.ns-mode-card').forEach(function(el) { el.style.display = 'none'; });
+    document.getElementById('card-idp-peruser').style.display = 'none';
+    // Show cards for selected mode
+    (modeCards[mode] || []).forEach(function(id) { show(id, true); });
+    // Fail-close available for all modes except cli
+    show('card-failclose', mode !== 'cli');
+    // Auth/enc tokens not available for cli
+    show('card-options', mode !== 'cli');
+    nsUpdate();
+  };
+
+  window.nsUpdate = function() {
+    var mode = val('nsMode');
+
+    // Toggle conditional sub-fields
+    show('upnPrefFileField', val('upnSource') === 'pref');
+    show('idpPerUserFields', checked('idpPerUser') || checked('idpEnforceEnroll'));
+    show('idpEnforceFields', checked('idpEnforceEnroll'));
+    show('authTokenField', checked('optAuthToken'));
+    show('encTokenField', checked('optEncToken'));
+
+    // Validate
+    var valid = false;
+    if (mode === 'idp') {
+      valid = !!val('idpDomain') && !!val('idpTenant');
+      if (checked('idpPerUser') || checked('idpEnforceEnroll')) {
+        valid = valid && !!val('idpHost') && !!val('idpToken');
+      }
+      if (checked('idpEnforceEnroll')) {
+        valid = valid && !!val('idpSteeringId');
+      }
+    } else if (mode === 'email') {
+      valid = !!val('emailTenantUrl') && !!val('emailDomainName') && !!val('emailOrgKey');
+    } else if (mode === 'upn') {
+      valid = !!val('upnAddonUrl') && !!val('upnOrgKey');
+      if (val('upnSource') === 'pref') valid = valid && !!val('upnPrefFile');
+    } else if (mode === 'peruser') {
+      valid = !!val('peruserAddonUrl') && !!val('peruserOrgKey');
+    } else if (mode === 'prefemail') {
+      valid = !!val('prefemailTenantUrl') && !!val('prefemailOrgKey') && !!val('prefemailPrefFile');
+    } else if (mode === 'cli') {
+      valid = !!val('cliTenantUrl') && !!val('cliOrgKey');
     }
+    if (checked('optAuthToken') && !val('optAuthTokenVal')) valid = false;
+    if (checked('optEncToken') && !val('optEncTokenVal')) valid = false;
+
+    document.getElementById('netskopeDownloadBtn').disabled = !valid;
+    document.getElementById('netskopeError').style.display = 'none';
+  };
+
+  // --- Shared script fragments ---
+
+  function buildHeader() {
+    return '#!/bin/bash\n# Netskope preinstall script -- deploy as preinstall in MDM/packaging\n\n';
+  }
+
+  function buildPaths() {
+    return 'TEMP_BRANDING_DIR="/tmp/nsbranding"\n' +
+      'NSINSTPARAM_JSON="$TEMP_BRANDING_DIR/nsinstparams.json"\n' +
+      'SILENT_FILE="$TEMP_BRANDING_DIR/silent.conf"\n' +
+      'ENROLL_FILE="$TEMP_BRANDING_DIR/enroll.conf"\n' +
+      'STAGENT_DIR="/Library/Application Support/Netskope/STAgent"\n' +
+      'NSUSERCONFIG_JSON="$STAGENT_DIR/nsuserconfig.json"\n' +
+      'NSIDPCONFIG_JSON="$STAGENT_DIR/nsidpconfig.json"\n\n';
+  }
+
+  function buildSetup() {
+    return 'rm -rf "$TEMP_BRANDING_DIR"\nmkdir -p "$TEMP_BRANDING_DIR"\nmkdir -p "$STAGENT_DIR"\n\n';
+  }
+
+  function buildUserDetect() {
+    return 'userName=$(stat -f \'%Su\' /dev/console)\n\n';
+  }
+
+  function buildSilent() {
+    if (!checked('optSilent')) return '';
+    return '# Silent mode\necho "1" > "$SILENT_FILE"\n\n';
+  }
+
+  function buildEnrollTokens() {
+    var hasAuth = checked('optAuthToken');
+    var hasEnc = checked('optEncToken');
+    if (!hasAuth && !hasEnc) return 'echo "" > "$ENROLL_FILE"\nchmod 700 "$ENROLL_FILE"\n\n';
+
+    var lines = '# Enrollment tokens\ncat > "$ENROLL_FILE" << \'ENROLL_EOF\'\n{';
+    var parts = [];
+    if (hasAuth) parts.push('"enrollauthtoken": "' + esc(val('optAuthTokenVal')) + '"');
+    if (hasEnc) parts.push('"enrollencryptiontoken": "' + esc(val('optEncTokenVal')) + '"');
+    lines += parts.join(', ');
+    lines += '}\nENROLL_EOF\nchmod 700 "$ENROLL_FILE"\n\n';
+    return lines;
+  }
+
+  function buildFailClose() {
+    var fc = val('failCloseMode');
+    if (fc === 'none') return '';
+    var excludeNpa = fc === 'no-npa' ? 'true' : 'false';
+    return ',"failClose": {"fail_close": "true","exclude_npa": "' + excludeNpa + '"}';
+  }
+
+  // --- Mode-specific script builders ---
+
+  function buildIdpScript() {
+    var domain = esc(val('idpDomain'));
+    var tenant = esc(val('idpTenant'));
+    var s = buildHeader() + buildPaths() + buildSetup() + buildSilent() + buildEnrollTokens();
+
+    // Build nsidpconfig.json
+    var spObj = '"domain": "' + domain + '", "tenant": "' + tenant + '"';
+    var browserMode = val('idpBrowserMode');
+    if (browserMode) spObj += ', "mode": "' + esc(browserMode) + '"';
+    var ephemeral = val('idpPreferEphemeral');
+    if (ephemeral) spObj += ', "preferEphemeral": ' + ephemeral;
+    var httpMethod = val('idpHttpMethod');
+    if (httpMethod) spObj += ', "httpMethod": "' + esc(httpMethod) + '"';
+
+    var requestEmail = checked('idpRequestEmail') ? ', "requestEmail": "true" ' : '';
+
+    s += '# Write IdP configuration\n';
+    s += 'cat > "$NSIDPCONFIG_JSON" << \'IDPEOF\'\n';
+    s += '{"serviceProvider": {' + spObj + '}' + requestEmail + '}\n';
+    s += 'IDPEOF\n\n';
+
+    // Per-user config / enforce enrollment
+    if (checked('idpPerUser') || checked('idpEnforceEnroll')) {
+      var host = esc(val('idpHost'));
+      var token = esc(val('idpToken'));
+      var perUserEnabled = checked('idpPerUser') ? 'true' : 'false';
+      var fc = buildFailClose();
+
+      s += '# Write per-user / enforce enrollment config\n';
+      s += 'cat > "$NSUSERCONFIG_JSON" << \'UCEOF\'\n';
+      var json = '{"nsUserConfig":{"enablePerUserConfig": ' + perUserEnabled;
+      json += ', "configLocation": "~/Library/Application Support/Netskope/STAgent"';
+      json += ', "host": "' + host + '"';
+      json += ', "token": "' + token + '"';
+      if (checked('idpEnforceEnroll')) {
+        var steeringId = esc(val('idpSteeringId'));
+        var freq = val('idpFrequency') || '5';
+        json += ', "enforceEnrollment": {"steeringProfileID": "' + steeringId + '", "frequency": "' + esc(freq) + '"}';
+      }
+      json += ', "autoupdate": "true"' + fc + '}}';
+      s += json + '\n';
+      s += 'UCEOF\n\n';
+    }
+
+    s += 'echo "Netskope IdP configuration complete."\nexit 0\n';
+    return s;
+  }
+
+  function buildEmailScript() {
+    var tenantUrl = esc(val('emailTenantUrl'));
+    var domainName = esc(val('emailDomainName'));
+    var orgKey = esc(val('emailOrgKey'));
+
+    var s = buildHeader() + buildPaths() + buildSetup() + buildUserDetect() + buildSilent() + buildEnrollTokens();
+
+    s += '# Look up email from Active Directory\n';
+    s += 'counter=0\n';
+    s += 'while true; do\n';
+    s += '    emailidAttr=$(dscl "/Active Directory/' + domainName + '/All Domains" -read "/Users/$userName" mail)\n';
+    s += '    ret=$?\n';
+    s += '    if [ $ret -eq 0 ]; then break; fi\n';
+    s += '    counter=$((counter+1))\n';
+    s += '    if [ $counter -eq 5 ]; then echo "Failed to fetch email after 5 attempts, error $ret"; exit 1; fi\n';
+    s += '    sleep 5\n';
+    s += 'done\n';
+    s += 'emailId=${emailidAttr:23}\n\n';
+
+    s += '# Write install params\n';
+    s += 'echo "{\\"TenantHostName\\":\\"' + tenantUrl + '\\", \\"Email\\":\\"$emailId\\", \\"OrgKey\\":\\"' + orgKey + '\\"}" > "$NSINSTPARAM_JSON"\n';
+    s += 'echo "NS Client install param copied to $NSINSTPARAM_JSON."\nexit 0\n';
+    return s;
+  }
+
+  function buildUpnScript() {
+    var addonUrl = esc(val('upnAddonUrl'));
+    var orgKey = esc(val('upnOrgKey'));
+    var source = val('upnSource');
+
+    var s = buildHeader() + buildPaths() + buildSetup() + buildUserDetect() + buildSilent() + buildEnrollTokens();
+
+    if (source === 'pref') {
+      var prefFile = esc(val('upnPrefFile'));
+      s += '# Read UPN from preference file\n';
+      s += 'emailPrefFile="/Library/Managed Preferences/' + prefFile + '"\n';
+      s += 'if [ ! -f "$emailPrefFile" ]; then echo "$emailPrefFile not found, exiting"; exit 1; fi\n';
+      s += 'upn=$(defaults read "$emailPrefFile" email)\n';
+      s += 'if [ $? -ne 0 ]; then echo "Failed to read email from preference file"; exit 1; fi\n\n';
+    } else {
+      s += '# Look up UPN from Active Directory\n';
+      s += 'domainName=$(echo show com.apple.opendirectoryd.ActiveDirectory | scutil | grep DomainNameFlat | awk \'{print $3}\')\n';
+      s += 'if [ $? -ne 0 ]; then echo "Failed to get domain name"; exit 1; fi\n\n';
+      s += 'counter=0\n';
+      s += 'while true; do\n';
+      s += '    upnAttr=$(dscl "/Active Directory/$domainName/All Domains" -read "/Users/$userName" userPrincipalName)\n';
+      s += '    ret=$?\n';
+      s += '    if [ $ret -eq 0 ]; then break; fi\n';
+      s += '    counter=$((counter+1))\n';
+      s += '    if [ $counter -eq 5 ]; then echo "Failed to fetch UPN after 5 attempts, error $ret"; exit 1; fi\n';
+      s += '    sleep 5\n';
+      s += 'done\n';
+      s += 'upn=${upnAttr:36}\n\n';
+    }
+
+    s += '# Write install params\n';
+    s += 'echo "{\\"AddonHostName\\":\\"' + addonUrl + '\\", \\"Upn\\":\\"$upn\\", \\"OrgKey\\":\\"' + orgKey + '\\"}" > "$NSINSTPARAM_JSON"\n';
+    s += 'echo "NS Client install param copied to $NSINSTPARAM_JSON."\nexit 0\n';
+    return s;
+  }
+
+  function buildPeruserScript() {
+    var addonUrl = esc(val('peruserAddonUrl'));
+    var orgKey = esc(val('peruserOrgKey'));
+    var fc = buildFailClose();
+
+    var s = buildHeader() + buildPaths() + buildSetup() + buildSilent() + buildEnrollTokens();
+
+    s += '# Write per-user config\n';
+    s += 'cat > "$NSUSERCONFIG_JSON" << \'UCEOF\'\n';
+    s += '{"nsUserConfig":{"enablePerUserConfig": "true", "configLocation": "~/Library/Application Support/Netskope/STAgent", "token": "' + orgKey + '", "host": "' + addonUrl + '","autoupdate": "true"' + fc + '}}\n';
+    s += 'UCEOF\n\n';
+
+    s += 'echo "Netskope per-user configuration complete."\nexit 0\n';
+    return s;
+  }
+
+  function buildPrefemailScript() {
+    var tenantUrl = esc(val('prefemailTenantUrl'));
+    var orgKey = esc(val('prefemailOrgKey'));
+    var prefFile = esc(val('prefemailPrefFile'));
+
+    var s = buildHeader() + buildPaths() + buildSetup() + buildSilent() + buildEnrollTokens();
+
+    s += '# Read email from managed preference file\n';
+    s += 'emailPrefFile="/Library/Managed Preferences/' + prefFile + '"\n';
+    s += 'if [ ! -f "$emailPrefFile" ]; then echo "$emailPrefFile not found, exiting"; exit 1; fi\n\n';
+    s += 'emailAddress=$(defaults read "$emailPrefFile" email)\n';
+    s += 'if [ $? -ne 0 ]; then echo "Failed to read email from preference file"; exit 1; fi\n\n';
+
+    s += 'IFS=\'@\' read -ra splitEmail <<< "$emailAddress"\n';
+    s += 'if [ ${#splitEmail[@]} -ne 2 ]; then echo "Invalid email address, exiting"; exit 1; fi\n\n';
+
+    s += '# Write install params\n';
+    s += 'echo "{\\"TenantHostName\\":\\"' + tenantUrl + '\\", \\"Email\\":\\"$emailAddress\\", \\"OrgKey\\":\\"' + orgKey + '\\"}" > "$NSINSTPARAM_JSON"\n';
+    s += 'echo "$NSINSTPARAM_JSON created"\nexit 0\n';
+    return s;
+  }
+
+  function buildCliScript() {
+    var tenantUrl = esc(val('cliTenantUrl'));
+    var orgKey = esc(val('cliOrgKey'));
+
+    var s = buildHeader() + buildPaths() + buildSetup();
+    s += 'loggedinusername=$(stat -f \'%Su\' /dev/console)\n\n';
+
+    if (checked('optSilent')) {
+      s += '# Silent mode\necho "1" > "$SILENT_FILE"\n\n';
+    }
+
+    s += '# Read email from adquery\n';
+    s += 'emailAddress=$(adquery user "$loggedinusername" -P)\n';
+    s += 'if [ $? -ne 0 ]; then echo "Failed to read email from CLI, exiting error $?"; exit 1; fi\n\n';
+
+    s += '# Write install params\n';
+    s += 'echo "{\\"TenantHostName\\":\\"' + tenantUrl + '\\", \\"Email\\":\\"$emailAddress\\", \\"OrgKey\\":\\"' + orgKey + '\\"}" > "$NSINSTPARAM_JSON"\n';
+    s += 'echo "$NSINSTPARAM_JSON created"\nexit 0\n';
+    return s;
+  }
+
+  var builders = {
+    idp: buildIdpScript,
+    email: buildEmailScript,
+    upn: buildUpnScript,
+    peruser: buildPeruserScript,
+    prefemail: buildPrefemailScript,
+    cli: buildCliScript
   };
 
   window.netskopeDownload = function() {
-    var domainEl = document.getElementById('idpDomain');
-    var tenantEl = document.getElementById('idpTenant');
-    var d = domainEl && domainEl.value ? domainEl.value.trim() : '';
-    var t = tenantEl && tenantEl.value ? tenantEl.value.trim() : '';
-    if (!d || !t) {
-      var errEl = document.getElementById('netskopeError');
-      if (errEl) {
-        errEl.textContent = 'Please enter both IDP_DOMAIN and IDP_TENANT.';
-        errEl.style.display = 'block';
-      }
-      return;
-    }
-    var script = buildScript(d, t);
+    var mode = val('nsMode');
+    var builder = builders[mode];
+    if (!builder) return;
+    var script = builder();
     var blob = new Blob([script], { type: 'text/plain' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -116,6 +618,10 @@
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Init on load
+  nsModeChanged();
 })();
+{% endraw %}
 </script>
 {% endblock %}
