@@ -17,6 +17,7 @@ TOOL_NAMES = {
     "compliance_fixer",
     "auto_configurator",
     "sentinelone_token",
+    "intune_base_build",
 }
 
 
@@ -66,6 +67,6 @@ def dashboard():
 def toolbox(tool_name):
     if tool_name not in TOOL_NAMES:
         abort(404)
-    if tool_name == "auto_configurator" and not _is_mac_user_agent():
+    if tool_name in ("auto_configurator", "intune_base_build") and not _is_mac_user_agent():
         abort(404)
     return render_template(f"tools/{tool_name}.html")

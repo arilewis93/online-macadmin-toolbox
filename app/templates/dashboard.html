@@ -84,6 +84,15 @@
         <span class="btn btn-primary">Open →</span>
       </a>
       {% if show_auto_config %}
+      <a href="{{ url_for('main.toolbox', tool_name='intune_base_build') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Intune Base Build</div>
+          <div class="tool-card-desc">Deploy shell scripts, configuration profiles, and policies to a client Intune tenant.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      {% endif %}
+      {% if show_auto_config %}
       <a href="{{ url_for('main.toolbox', tool_name='auto_configurator') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Auto Configurator</div>
