@@ -750,8 +750,10 @@ func installGraphModuleIfNeeded() -> (success: Bool, message: String) {
         "Microsoft.Graph.DeviceManagement",
         "Microsoft.Graph.Devices.CorporateManagement",
         "Microsoft.Graph.Beta.DeviceManagement",
+        "Microsoft.Graph.Beta.DeviceManagement.Administration",
         "Microsoft.Graph.Beta.DeviceManagement.Enrollment",
         "Microsoft.Graph.Beta.Devices.CorporateManagement",
+        "Microsoft.Graph.Identity.DirectoryManagement",
     ]
     let psCommand = """
     $missing = @()
@@ -799,11 +801,24 @@ func startPowerShellSession(modulePath: String) -> Process? {
     proc.standardError = stderrPipe
     do {
         try proc.run()
-        // Import the module
-        let importCmd = "Import-Module '\(modulePath)'\nWrite-Output '---COMMAND-COMPLETE---'\n"
+        // Import Graph modules and the custom module
+        let graphModules = [
+            "Microsoft.Graph.Authentication",
+            "Microsoft.Graph.Groups",
+            "Microsoft.Graph.Users",
+            "Microsoft.Graph.DeviceManagement",
+            "Microsoft.Graph.Devices.CorporateManagement",
+            "Microsoft.Graph.Beta.DeviceManagement",
+            "Microsoft.Graph.Beta.DeviceManagement.Administration",
+            "Microsoft.Graph.Beta.DeviceManagement.Enrollment",
+            "Microsoft.Graph.Beta.Devices.CorporateManagement",
+            "Microsoft.Graph.Identity.DirectoryManagement",
+        ]
+        let importLines = graphModules.map { "Import-Module '\($0)' -ErrorAction SilentlyContinue" }.joined(separator: "\n")
+        let importCmd = "\(importLines)\nImport-Module '\(modulePath)'\nWrite-Output '---COMMAND-COMPLETE---'\n"
         stdinPipe.fileHandleForWriting.write(importCmd.data(using: .utf8)!)
         // Read until marker
-        let _ = readUntilMarker(handle: stdoutPipe.fileHandleForReading, timeout: 30)
+        let _ = readUntilMarker(handle: stdoutPipe.fileHandleForReading, timeout: 60)
         return proc
     } catch {
         return nil
@@ -972,7 +987,8 @@ func handleConnect(encoder: JSONEncoder) {
         }
 
         // Step 3: Start PS session and connect
-        let modPath = stateQueue.sync { intuneState.modulePath }
+        let modPath = findModulePath() ?? ""
+        stateQueue.sync { intuneState.modulePath = modPath }
         guard let proc = startPowerShellSession(modulePath: modPath) else {
             stateQueue.sync {
                 intuneState.items[2] = ProgressItem(name: "Connect to Microsoft Graph", status: .fail, message: "Failed to start PowerShell session")
@@ -991,7 +1007,18 @@ func handleConnect(encoder: JSONEncoder) {
         if (Test-Path $msalCache) { Remove-Item -Force $msalCache -ErrorAction SilentlyContinue }
         """, timeout: 10)
 
-        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes 'DeviceManagementConfiguration.ReadWrite.All','DeviceManagementApps.ReadWrite.All','Group.ReadWrite.All','DeviceManagementManagedDevices.ReadWrite.All','DeviceManagementServiceConfig.ReadWrite.All' -NoWelcome", timeout: 120)
+        let scopes = [
+            "DeviceManagementConfiguration.ReadWrite.All",
+            "DeviceManagementApps.ReadWrite.All",
+            "DeviceManagementManagedDevices.ReadWrite.All",
+            "DeviceManagementServiceConfig.ReadWrite.All",
+            "Group.ReadWrite.All",
+            "GroupMember.ReadWrite.All",
+            "Organization.Read.All",
+            "User.Read.All",
+            "Directory.ReadWrite.All",
+        ].map { "'\($0)'" }.joined(separator: ",")
+        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes \(scopes) -NoWelcome", timeout: 120)
 
         if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
             stateQueue.sync {
@@ -1062,19 +1089,24 @@ func handlePrerequisites(body: Data, encoder: JSONEncoder) {
             }
         }
 
+        func isCleanResult(_ output: String) -> Bool {
+            let lower = output.lowercased()
+            return !output.isEmpty && !lower.contains("error") && !lower.contains("exception") && !lower.contains("not recognized")
+        }
+
         // APNs Certificate
-        let apns = runPSCommand(proc, command: "Get-MgBetaDeviceManagementApplePushNotificationCertificate | Select-Object -ExpandProperty ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
-        updateItem(0, name: "APNs Certificate", status: apns.isEmpty ? .fail : .success, message: apns.isEmpty ? "Not found" : apns)
+        let apns = runPSCommand(proc, command: "try { $r = Get-MgBetaDeviceManagementApplePushNotificationCertificate; if ($r) { 'OK:' + ($r.ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd') } else { 'FAIL:Not found' } } catch { 'FAIL:' + $_.Exception.Message }", timeout: 30)
+        updateItem(0, name: "APNs Certificate", status: apns.hasPrefix("OK:") ? .success : .fail, message: String(apns.dropFirst(apns.hasPrefix("OK:") ? 3 : (apns.hasPrefix("FAIL:") ? 5 : 0))))
         setNextProcessing(1)
 
         // ABM Token
-        let abm = runPSCommand(proc, command: "Get-MgBetaDeviceManagementDepOnboardingSetting | Select-Object -ExpandProperty TokenExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
-        updateItem(1, name: "ABM Token", status: abm.isEmpty ? .fail : .success, message: abm.isEmpty ? "Not found" : abm)
+        let abm = runPSCommand(proc, command: "try { $r = Get-MgBetaDeviceManagementDepOnboardingSetting; if ($r) { 'OK:' + ($r.TokenExpirationDateTime | Get-Date -Format 'yyyy-MM-dd') } else { 'FAIL:Not found' } } catch { 'FAIL:' + $_.Exception.Message }", timeout: 30)
+        updateItem(1, name: "ABM Token", status: abm.hasPrefix("OK:") ? .success : .fail, message: String(abm.dropFirst(abm.hasPrefix("OK:") ? 3 : (abm.hasPrefix("FAIL:") ? 5 : 0))))
         setNextProcessing(2)
 
         // VPP Token
-        let vpp = runPSCommand(proc, command: "Get-MgDeviceAppManagementVppToken | Select-Object -ExpandProperty ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
-        updateItem(2, name: "VPP Token", status: vpp.isEmpty ? .fail : .success, message: vpp.isEmpty ? "Not found" : vpp)
+        let vpp = runPSCommand(proc, command: "try { $r = Get-MgDeviceAppManagementVppToken; if ($r) { 'OK:' + ($r.ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd') } else { 'FAIL:Not found' } } catch { 'FAIL:' + $_.Exception.Message }", timeout: 30)
+        updateItem(2, name: "VPP Token", status: vpp.hasPrefix("OK:") ? .success : .fail, message: String(vpp.dropFirst(vpp.hasPrefix("OK:") ? 3 : (vpp.hasPrefix("FAIL:") ? 5 : 0))))
         setNextProcessing(3)
 
         // Test Group
