@@ -21,6 +21,9 @@ mkdir -p "$APP_NAME/Contents/MacOS"
 mkdir -p "$APP_NAME/Contents/Resources"
 cp "$BIN" "$APP_NAME/Contents/MacOS/"
 
+# Copy bundled resources (e.g. IntuneBaseBuild.psm1)
+cp -R Resources/ "$APP_NAME/Contents/Resources/" 2>/dev/null || true
+
 # App icon: build AppIcon.icns from Online Toolbox.png
 ICON_SRC="Online Toolbox.png"
 if [ -f "$ICON_SRC" ] && command -v iconutil >/dev/null 2>&1; then
