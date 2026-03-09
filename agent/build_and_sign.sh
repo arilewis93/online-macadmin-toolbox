@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 BUNDLE_ID="cloud.swiftsetup.mac_toolbox"
 DEVELOPER_ID="Developer ID Application: CORE PERIPHERALS (PTY) LTD (4WTK96D2J8)"
 APP_NAME="Mac Admin Toolbox.app"
-BIN=".build/release/AutoConfigAgent"
+BIN=".build/release/MacAdminToolbox"
 
 echo "Building Mac Admin Toolbox..."
 swift build -c release

@@ -96,6 +96,47 @@
   margin-left: auto;
 }
 
+/* ── STATUS ICONS ── */
+.intune-status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.intune-icon-pending {
+  border: 2px solid var(--border);
+}
+.intune-icon-processing {
+  border: 2px solid var(--accent, #4f8eff);
+  border-top-color: transparent;
+  animation: intune-spin 0.7s linear infinite;
+}
+.intune-icon-success {
+  background: var(--green, #34c759);
+}
+.intune-icon-success::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+.intune-icon-fail {
+  background: var(--red, #ff453a);
+}
+.intune-icon-fail::after {
+  content: '\00d7';
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+@keyframes intune-spin { to { transform: rotate(360deg); } }
+
 /* ── FILE LIST ── */
 .intune-file-list {
   max-height: 400px;
@@ -234,6 +275,21 @@
   padding-top: 0;
 }
 
+.autoconfig-companion-steps {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim, #999);
+}
+.autoconfig-companion-steps li { margin-bottom: 6px; }
+.autoconfig-companion-steps code {
+  font-size: 12px;
+  background: var(--bg, #111);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 /* ── MISC ── */
 .intune-summary {
   font-size: 15px;
@@ -345,13 +401,13 @@
       <div class="card" id="intune-prereq-results" style="display:none;">
         <div class="card-title">Checklist</div>
         <div id="intune-prereq-items">
-          <div class="intune-check-row" data-check="apns"><span>&#9203;</span><span>APNs Certificate</span></div>
-          <div class="intune-check-row" data-check="abm"><span>&#9203;</span><span>ABM Token</span></div>
-          <div class="intune-check-row" data-check="vpp"><span>&#9203;</span><span>VPP Token</span></div>
-          <div class="intune-check-row" data-check="testgroup"><span>&#9203;</span><span>Test Group</span></div>
-          <div class="intune-check-row" data-check="userassignment"><span>&#9203;</span><span>User Assignment</span></div>
-          <div class="intune-check-row" data-check="filevault"><span>&#9203;</span><span>FileVault</span></div>
-          <div class="intune-check-row" data-check="enrollment"><span>&#9203;</span><span>Enrollment Profile</span></div>
+          <div class="intune-check-row" data-check="apns"><span class="intune-status-icon intune-icon-pending"></span><span>APNs Certificate</span></div>
+          <div class="intune-check-row" data-check="abm"><span class="intune-status-icon intune-icon-pending"></span><span>ABM Token</span></div>
+          <div class="intune-check-row" data-check="vpp"><span class="intune-status-icon intune-icon-pending"></span><span>VPP Token</span></div>
+          <div class="intune-check-row" data-check="testgroup"><span class="intune-status-icon intune-icon-pending"></span><span>Test Group</span></div>
+          <div class="intune-check-row" data-check="userassignment"><span class="intune-status-icon intune-icon-pending"></span><span>User Assignment</span></div>
+          <div class="intune-check-row" data-check="filevault"><span class="intune-status-icon intune-icon-pending"></span><span>FileVault</span></div>
+          <div class="intune-check-row" data-check="enrollment"><span class="intune-status-icon intune-icon-pending"></span><span>Enrollment Profile</span></div>
         </div>
       </div>
 
@@ -536,6 +592,7 @@
 
   window.intuneConnect = function() {
     document.getElementById('intune-connect-btn').disabled = true;
+    document.getElementById('intune-connect-btn').style.display = 'none';
     document.getElementById('intune-connect-status').style.display = 'block';
     document.getElementById('intune-connect-status-msg').textContent = 'Launching companion app\u2026';
     window.open('macadmin-toolbox://intune-base-build', '_blank');
@@ -556,6 +613,7 @@
         updateConnectStatus(data);
         if (data.connected) {
           clearInterval(poll);
+          document.getElementById('intune-connect-status').style.display = 'none';
           document.getElementById('intune-tenant-info').style.display = 'block';
           document.getElementById('intune-tenant-name').textContent = data.tenantName || 'Unknown';
           document.getElementById('intune-user-email').textContent = data.userEmail || 'Unknown';
@@ -565,20 +623,27 @@
           updateStepIndicator(1, 'complete');
         }
       }).catch(function() { /* agent not ready yet */ });
-    }, 1500);
+    }, 750);
+  }
+
+  function statusIcon(status) {
+    return '<span class="intune-status-icon intune-icon-' + (status || 'pending') + '"></span>';
+  }
+
+  function renderCheckRows(items) {
+    var html = '';
+    items.forEach(function(item) {
+      html += '<div class="intune-check-row">' + statusIcon(item.status) + '<span>' + escXml(item.name) + '</span>';
+      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+      html += '</div>';
+    });
+    return html;
   }
 
   function updateConnectStatus(data) {
     var el = document.getElementById('intune-connect-items');
     if (!data.items || !data.items.length) return;
-    var html = '';
-    data.items.forEach(function(item) {
-      var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
-      html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
-      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
-      html += '</div>';
-    });
-    el.innerHTML = html;
+    el.innerHTML = renderCheckRows(data.items);
   }
 
   /* ── STEP 2: PREREQUISITES ── */
@@ -611,21 +676,14 @@
     var poll = setInterval(function() {
       intuneRequest('GET', '/progress').then(function(data) {
         if (data.items && data.items.length) {
-          var html = '';
-          data.items.forEach(function(item) {
-            var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
-            html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
-            if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
-            html += '</div>';
-          });
-          el.innerHTML = html;
+          el.innerHTML = renderCheckRows(data.items);
         }
         if (data.operation === 'idle' && data.items && data.items.length > 0) {
           clearInterval(poll);
           if (onComplete) onComplete();
         }
       }).catch(function() { /* retry */ });
-    }, 1000);
+    }, 750);
   }
 
   window.skipPrerequisites = function() {
@@ -641,12 +699,13 @@
     var statusEl = document.getElementById('intune-load-status');
     statusEl.style.display = 'block';
     statusEl.textContent = 'Loading file list\u2026';
-    fetch('https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/file_list.txt')
-      .then(function(r) { return r.text(); })
-      .then(function(text) {
-        var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
-        s3Files = lines.map(function(name) {
-          return { name: name.trim(), url: 'https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/' + encodeURIComponent(name.trim()), type: detectFileType(name.trim()), selected: true };
+    fetch('/api/intune-file-list')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) throw new Error(data.error);
+        var baseUrl = data.base_url || '';
+        s3Files = data.files.map(function(name) {
+          return { name: name, url: baseUrl + encodeURIComponent(name), type: detectFileType(name), selected: true };
         });
         statusEl.textContent = 'Loaded ' + s3Files.length + ' file' + (s3Files.length !== 1 ? 's' : '') + '.';
         renderFileList();
@@ -796,7 +855,7 @@
     var el = document.getElementById('intune-progress-items');
     var html = '';
     selected.forEach(function(f) {
-      html += '<div class="intune-check-row"><span>\u23F3</span><span>' + escXml(f.name) + '</span></div>';
+      html += '<div class="intune-check-row">' + statusIcon('pending') + '<span>' + escXml(f.name) + '</span></div>';
     });
     el.innerHTML = html;
     intuneRequest('POST', '/upload', { files: selected });
@@ -812,14 +871,7 @@
     var poll = setInterval(function() {
       intuneRequest('GET', '/progress').then(function(data) {
         if (data.items && data.items.length) {
-          var html = '';
-          data.items.forEach(function(item) {
-            var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
-            html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
-            if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
-            html += '</div>';
-          });
-          el.innerHTML = html;
+          el.innerHTML = renderCheckRows(data.items);
         }
         if (data.log) {
           logEl.textContent = data.log;
@@ -830,7 +882,7 @@
           if (onComplete) onComplete();
         }
       }).catch(function() { /* retry */ });
-    }, 1000);
+    }, 750);
   }
 
 })();

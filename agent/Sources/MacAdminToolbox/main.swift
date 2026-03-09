@@ -766,11 +766,20 @@ func runPSCommand(_ process: Process, command: String, timeout: TimeInterval = 6
 }
 
 func cleanANSI(_ input: String) -> String {
-    // Strip ANSI escape sequences
-    guard let regex = try? NSRegularExpression(pattern: "\\x1B\\[[0-9;]*[A-Za-z]", options: []) else {
-        return input
+    // Strip ANSI/VT100 escape sequences (ESC[ and bare CSI variants)
+    var result = input
+    let patterns = [
+        "\\x1B\\[\\??[0-9;]*[A-Za-z]",   // ESC [ sequences
+        "\\x1B\\].*?\\x07",                // OSC sequences (ESC ] ... BEL)
+        "\\x1B[>=]",                        // ESC = / ESC >
+        "\\[\\?[0-9;]*[A-Za-z]",           // bare [?1h / [?1l without ESC
+    ]
+    for pat in patterns {
+        if let regex = try? NSRegularExpression(pattern: pat, options: []) {
+            result = regex.stringByReplacingMatches(in: result, options: [], range: NSRange(result.startIndex..., in: result), withTemplate: "")
+        }
     }
-    return regex.stringByReplacingMatches(in: input, options: [], range: NSRange(input.startIndex..., in: input), withTemplate: "")
+    return result.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 // MARK: - HTTP server infrastructure
@@ -847,7 +856,13 @@ func corsPreflightResponse() -> Data {
 // MARK: - Endpoint handlers
 
 func handleConnect(encoder: JSONEncoder) {
+    // Tear down any existing session first
+    if let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning {
+        let _ = runPSCommand(proc, command: "Disconnect-MgGraph", timeout: 10)
+        proc.terminate()
+    }
     stateQueue.sync {
+        intuneState = IntuneState()
         intuneState.operation = .connecting
         intuneState.items = [
             ProgressItem(name: "Install PowerShell", status: .processing, message: "Checking..."),

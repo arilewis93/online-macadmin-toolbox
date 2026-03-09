@@ -1,5 +1,7 @@
 """Main routes: index, dashboard."""
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+import requests as http_requests
+
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required, current_user
 
 main = Blueprint("main", __name__)
@@ -60,6 +62,22 @@ def dashboard():
         user=current_user,
         show_auto_config=_is_mac_user_agent(),
     )
+
+
+_S3_BASE = "https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/"
+
+
+@main.route("/api/intune-file-list")
+@login_required
+def intune_file_list():
+    """Proxy the S3 file list to avoid CORS issues."""
+    try:
+        resp = http_requests.get(_S3_BASE + "file_list.txt", timeout=10)
+        resp.raise_for_status()
+        files = [l.strip() for l in resp.text.splitlines() if l.strip()]
+        return jsonify({"files": files, "base_url": _S3_BASE})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 502
 
 
 @main.route("/<tool_name>")

@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>AutoConfigAgent</string>
+    <string>MacAdminToolbox</string>
     <key>CFBundleIdentifier</key>
     <string>cloud.swiftsetup.mac_toolbox</string>
     <key>CFBundleInfoDictionaryVersion</key>
