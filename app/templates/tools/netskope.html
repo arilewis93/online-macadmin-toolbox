@@ -456,10 +456,11 @@
       var perUserEnabled = checked('idpPerUser') ? 'true' : 'false';
       var fc = buildFailClose();
 
+      s += buildUserDetect();
       s += '# Write per-user / enforce enrollment config\n';
-      s += 'cat > "$NSUSERCONFIG_JSON" << \'UCEOF\'\n';
+      s += 'cat > "$NSUSERCONFIG_JSON" << UCEOF\n';
       var json = '{"nsUserConfig":{"enablePerUserConfig": ' + perUserEnabled;
-      json += ', "configLocation": "~/Library/Application Support/Netskope/STAgent"';
+      json += ', "configLocation": "/Users/$userName/Library/Application Support/Netskope/STAgent"';
       json += ', "host": "' + host + '"';
       json += ', "token": "' + token + '"';
       if (checked('idpEnforceEnroll')) {
@@ -542,11 +543,11 @@
     var orgKey = esc(val('peruserOrgKey'));
     var fc = buildFailClose();
 
-    var s = buildHeader() + buildPaths() + buildSetup() + buildSilent() + buildEnrollTokens();
+    var s = buildHeader() + buildPaths() + buildSetup() + buildUserDetect() + buildSilent() + buildEnrollTokens();
 
     s += '# Write per-user config\n';
-    s += 'cat > "$NSUSERCONFIG_JSON" << \'UCEOF\'\n';
-    s += '{"nsUserConfig":{"enablePerUserConfig": "true", "configLocation": "~/Library/Application Support/Netskope/STAgent", "token": "' + orgKey + '", "host": "' + addonUrl + '","autoupdate": "true"' + fc + '}}\n';
+    s += 'cat > "$NSUSERCONFIG_JSON" << UCEOF\n';
+    s += '{"nsUserConfig":{"enablePerUserConfig": "true", "configLocation": "/Users/$userName/Library/Application Support/Netskope/STAgent", "token": "' + orgKey + '", "host": "' + addonUrl + '","autoupdate": "true"' + fc + '}}\n';
     s += 'UCEOF\n\n';
 
     s += 'echo "Netskope per-user configuration complete."\nexit 0\n';

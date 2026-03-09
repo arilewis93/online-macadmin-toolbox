@@ -6,8 +6,19 @@ A Flask web app for Mac admins: **Microsoft Entra ID** (Azure AD) sign-in plus a
 
 - **Microsoft Entra ID (OIDC)** sign-in with session-based auth (Flask-Login)
 - **Dashboard** — signed-in home with quick links to each tool
-- **iStore Business Toolbox** — SwiftSetup, SmartBranding, Favourite Bookie, Santa Config, Profile Fusion, Patchy Installer, Compliance Fixer
+- **iStore Business Toolbox** — 11 tools:
+  - **SwiftSetup** — configuration interface for SwiftSetup.cloud deployment parameters
+  - **SmartBranding** — wallpaper and screensaver branding configuration
+  - **Favourite Bookie** — managed bookmark configuration (Safari/Chrome)
+  - **Santa's Claw** — Google Santa application allowlist/blocklist with lockdown mode
+  - **Profile Fusion** — merge multiple .mobileconfig files into one
+  - **Patchy Installer** — patch management configuration generator
+  - **Compliance Fixer** — macOS compliance remediation script generator
+  - **SentinelOne Token** — SentinelOne agent token deployment helper
+  - **Netskope** — Netskope client configuration profile generator
+  - **Auto Configurator** — automated Mac setup configuration generator
 - **Equitrac** — config profile generator for Equitrac Mac Client (security, servers, printers, drivers, feature flags)
+- **Agent System** — backend automation framework with 11 tools in `agent/` directory for automated Mac admin tasks
 - **Shared layout** — one header, one stylesheet (`tools.css`), tool pages inject their own left-side branding
 
 ## Quick start
@@ -95,8 +106,18 @@ online-macadmin-toolbox/
         ├── auth/
         │   └── login.html
         └── tools/
-            ├── toolbox.html
-            └── equitrac.html
+            ├── _shared_utils.html
+            ├── auto_configurator.html
+            ├── bookmarks.html
+            ├── compliance_fixer.html
+            ├── equitrac.html
+            ├── fusion.html
+            ├── netskope.html
+            ├── patchy.html
+            ├── santa.html
+            ├── sentinelone_token.html
+            ├── smartbranding.html
+            └── swiftsetup.html
 ```
 
 ## Routes
@@ -114,8 +135,19 @@ online-macadmin-toolbox/
 
 ## Tools
 
-- **Toolbox** (`/toolbox`) — SwiftSetup (.mobileconfig), SmartBranding (wallpaper/screensaver), Favourite Bookie (Chrome/Edge bookmarks), Santa Config, Profile Fusion (merge .mobileconfig), Patchy Installer (Installomator labels), Compliance Fixer (script patching). Apps to install support drag-and-drop reorder and, for Installomator, a label picklist from [Installomator Labels.txt](https://github.com/Installomator/Installomator/blob/main/Labels.txt).
+- **Toolbox** (`/toolbox`) — 11 Mac admin tools:
+  - **SwiftSetup** — SwiftSetup.cloud deployment configuration
+  - **SmartBranding** — wallpaper/screensaver branding (S3-backed)
+  - **Favourite Bookie** — Chrome/Edge/Safari managed bookmarks
+  - **Santa's Claw** — Google Santa allowlist/blocklist with lockdown mode
+  - **Profile Fusion** — merge multiple .mobileconfig files
+  - **Patchy Installer** — Installomator-based patch management (with label picklist from [Installomator Labels.txt](https://github.com/Installomator/Installomator/blob/main/Labels.txt))
+  - **Compliance Fixer** — macOS compliance remediation scripts
+  - **SentinelOne Token** — agent token deployment helper
+  - **Netskope** — client configuration profile generator
+  - **Auto Configurator** — automated Mac setup configuration
 - **Equitrac** (`/equitrac`) — Multi-step form to build an Apple Configuration Profile for Equitrac Mac Client (security, CAS/DRE servers, printers, drivers, feature flags), then generate and download the `.mobileconfig`.
+- **Agent** (`/agent`) — Backend automation framework with 11 agent tools for automated Mac admin tasks, including API integrations and task scheduling.
 
 ## License
 
