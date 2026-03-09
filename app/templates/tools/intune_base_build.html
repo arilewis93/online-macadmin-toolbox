@@ -209,6 +209,31 @@
   letter-spacing: 0.02em;
 }
 
+/* ── COLLAPSIBLE CARD ── */
+.card-collapsible .card-collapse-trigger {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-collapsible .card-collapse-trigger:hover { opacity: 0.9; }
+.card-collapsible .card-collapse-icon {
+  font-size: 10px;
+  opacity: 0.8;
+  transition: transform 0.2s ease;
+}
+.card-collapsible .card-collapse-body {
+  margin-top: 12px;
+  padding-top: 0;
+}
+
 /* ── MISC ── */
 .intune-summary {
   font-size: 15px;
@@ -268,10 +293,11 @@
         </button>
         <div class="card-collapse-body" id="intune-companion-body" style="display:none;">
           <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac. The companion app communicates with Intune on your behalf.</p>
-          <ol style="margin:0 0 12px 20px;font-size:13px;color:var(--text-dim);line-height:1.8;">
-            <li><strong>Download</strong> the companion app using the button below.</li>
-            <li><strong>Unzip</strong> and move <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong>.</li>
-            <li><strong>Open</strong> the app. macOS may block it the first time &mdash; go to <strong>System Settings &rarr; Privacy &amp; Security</strong> and click <strong>Open Anyway</strong>.</li>
+          <ol class="autoconfig-companion-steps">
+            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+            <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You'll get <code>Mac Admin Toolbox.app</code>.</li>
+            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
+            <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
           </ol>
           <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
         </div>
@@ -516,9 +542,17 @@
     setTimeout(startPollingConnect, 2000);
   };
 
+  var connectTriggered = false;
+
   function startPollingConnect() {
     var poll = setInterval(function() {
       intuneRequest('GET', '/status').then(function(data) {
+        // Agent is alive — trigger /connect if we haven't yet
+        if (!connectTriggered) {
+          connectTriggered = true;
+          document.getElementById('intune-connect-status-msg').textContent = 'Getting things ready\u2026';
+          intuneRequest('POST', '/connect', {}).catch(function() {});
+        }
         updateConnectStatus(data);
         if (data.connected) {
           clearInterval(poll);
