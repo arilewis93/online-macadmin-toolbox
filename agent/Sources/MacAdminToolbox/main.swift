@@ -926,17 +926,15 @@ func handleConnect(encoder: JSONEncoder) {
 }
 
 func handlePrerequisites(body: Data, encoder: JSONEncoder) {
-    let bodyDict = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
-    let orgName = bodyDict["org_name"] as? String ?? ""
-
     stateQueue.sync {
         intuneState.operation = .prerequisites
         intuneState.items = [
-            ProgressItem(name: "Check APNs Certificate", status: .processing, message: ""),
-            ProgressItem(name: "Check ABM Token", status: .pending, message: ""),
-            ProgressItem(name: "Check VPP Token", status: .pending, message: ""),
-            ProgressItem(name: "Create/Find Group", status: .pending, message: ""),
-            ProgressItem(name: "FileVault Recovery", status: .pending, message: ""),
+            ProgressItem(name: "APNs Certificate", status: .processing, message: ""),
+            ProgressItem(name: "ABM Token", status: .pending, message: ""),
+            ProgressItem(name: "VPP Token", status: .pending, message: ""),
+            ProgressItem(name: "Test Group", status: .pending, message: ""),
+            ProgressItem(name: "User Assignment", status: .pending, message: ""),
+            ProgressItem(name: "FileVault", status: .pending, message: ""),
             ProgressItem(name: "Enrollment Profile", status: .pending, message: "")
         ]
     }
@@ -944,61 +942,79 @@ func handlePrerequisites(body: Data, encoder: JSONEncoder) {
     intuneWorkQueue.async {
         guard let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning else {
             stateQueue.sync {
-                intuneState.items[0] = ProgressItem(name: "Check APNs Certificate", status: .fail, message: "No PowerShell session")
+                intuneState.items[0] = ProgressItem(name: "APNs Certificate", status: .fail, message: "No PowerShell session")
                 intuneState.operation = .idle
             }
             return
         }
 
-        // APNs
-        let apnsOutput = runPSCommand(proc, command: "Get-MgDeviceManagementApplePushNotificationCertificate | Select-Object -ExpandProperty ExpirationDateTime", timeout: 30)
-        stateQueue.sync {
-            let status: ItemStatus = apnsOutput.lowercased().contains("error") ? .fail : .success
-            intuneState.items[0] = ProgressItem(name: "Check APNs Certificate", status: status, message: apnsOutput.isEmpty ? "Not found" : apnsOutput)
-            intuneState.items[1] = ProgressItem(name: "Check ABM Token", status: .processing, message: "")
+        func updateItem(_ index: Int, name: String, status: ItemStatus, message: String = "") {
+            stateQueue.sync {
+                intuneState.items[index] = ProgressItem(name: name, status: status, message: message)
+            }
         }
 
-        // ABM
-        let abmOutput = runPSCommand(proc, command: "Get-MgDeviceManagementDepOnboardingSetting | Select-Object -ExpandProperty TokenName", timeout: 30)
-        stateQueue.sync {
-            intuneState.items[1] = ProgressItem(name: "Check ABM Token", status: abmOutput.isEmpty ? .fail : .success, message: abmOutput.isEmpty ? "Not found" : abmOutput)
-            intuneState.items[2] = ProgressItem(name: "Check VPP Token", status: .processing, message: "")
+        func setNextProcessing(_ index: Int) {
+            if index < 7 {
+                stateQueue.sync {
+                    intuneState.items[index] = ProgressItem(name: intuneState.items[index].name, status: .processing, message: "")
+                }
+            }
         }
 
-        // VPP
-        let vppOutput = runPSCommand(proc, command: "Get-MgDeviceAppManagementVppToken | Select-Object -ExpandProperty AppleId", timeout: 30)
-        stateQueue.sync {
-            intuneState.items[2] = ProgressItem(name: "Check VPP Token", status: vppOutput.isEmpty ? .fail : .success, message: vppOutput.isEmpty ? "Not found" : vppOutput)
-            intuneState.items[3] = ProgressItem(name: "Create/Find Group", status: .processing, message: "")
+        // APNs Certificate
+        let apns = runPSCommand(proc, command: "Get-MgBetaDeviceManagementApplePushNotificationCertificate | Select-Object -ExpandProperty ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
+        updateItem(0, name: "APNs Certificate", status: apns.isEmpty ? .fail : .success, message: apns.isEmpty ? "Not found" : apns)
+        setNextProcessing(1)
+
+        // ABM Token
+        let abm = runPSCommand(proc, command: "Get-MgBetaDeviceManagementDepOnboardingSetting | Select-Object -ExpandProperty TokenExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
+        updateItem(1, name: "ABM Token", status: abm.isEmpty ? .fail : .success, message: abm.isEmpty ? "Not found" : abm)
+        setNextProcessing(2)
+
+        // VPP Token
+        let vpp = runPSCommand(proc, command: "Get-MgDeviceAppManagementVppToken | Select-Object -ExpandProperty ExpirationDateTime | Get-Date -Format 'yyyy-MM-dd'", timeout: 30)
+        updateItem(2, name: "VPP Token", status: vpp.isEmpty ? .fail : .success, message: vpp.isEmpty ? "Not found" : vpp)
+        setNextProcessing(3)
+
+        // Test Group
+        let groupOutput = runPSCommand(proc, command: "New-IntuneStaticGroup -DisplayName 'iStore Business PoC Group'", timeout: 30)
+        var groupId: String?
+        for line in groupOutput.split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.count > 30 && !trimmed.contains(" ") {
+                groupId = trimmed
+            }
+        }
+        if let gid = groupId {
+            stateQueue.sync { intuneState.groupId = gid }
+            updateItem(3, name: "Test Group", status: .success, message: gid)
+            setNextProcessing(4)
+
+            // User Assignment
+            let assignOutput = runPSCommand(proc, command: "Assign-CurrentUserToGroup -GroupId '\(gid)'", timeout: 30)
+            let assignSuccess = assignOutput.lowercased().contains("successfully") || assignOutput.lowercased().contains("already")
+            updateItem(4, name: "User Assignment", status: assignSuccess ? .success : .fail, message: assignOutput.isEmpty ? "" :assignOutput)
+            setNextProcessing(5)
+
+            // FileVault
+            let fvOutput = runPSCommand(proc, command: "New-FileVault -GroupId '\(gid)'", timeout: 60)
+            let fvSuccess = fvOutput.uppercased().contains("SUCCESS")
+            updateItem(5, name: "FileVault", status: fvSuccess ? .success : .fail, message: fvOutput.isEmpty ? "" :fvOutput)
+            setNextProcessing(6)
+        } else {
+            updateItem(3, name: "Test Group", status: .fail, message: "Could not extract group ID")
+            updateItem(4, name: "User Assignment", status: .fail, message: "No group")
+            updateItem(5, name: "FileVault", status: .fail, message: "No group")
+            setNextProcessing(6)
         }
 
-        // Group
-        let groupName = orgName.isEmpty ? "Mac Admin Toolbox Devices" : "\(orgName) - Mac Admin Toolbox Devices"
-        let groupCmd = """
-        $g = Get-MgGroup -Filter "displayName eq '\(groupName)'"
-        if ($g) { $g.Id } else { $ng = New-MgGroup -DisplayName '\(groupName)' -MailEnabled:$false -MailNickname 'matdevices' -SecurityEnabled:$true -GroupTypes @(); $ng.Id }
-        """
-        let groupOutput = runPSCommand(proc, command: groupCmd, timeout: 30)
-        let gid = groupOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        stateQueue.sync {
-            intuneState.groupId = gid
-            intuneState.items[3] = ProgressItem(name: "Create/Find Group", status: gid.isEmpty ? .fail : .success, message: gid.isEmpty ? "Failed" : gid)
-            intuneState.items[4] = ProgressItem(name: "FileVault Recovery", status: .processing, message: "")
-        }
+        // Enrollment Profile
+        let epOutput = runPSCommand(proc, command: "New-EnrollmentProfile", timeout: 30)
+        let epSuccess = epOutput.lowercased().contains("successfully") || epOutput.uppercased().contains("SUCCESS") || epOutput.lowercased().contains("already exists")
+        updateItem(6, name: "Enrollment Profile", status: epSuccess ? .success : .fail, message: epOutput.isEmpty ? "" :epOutput)
 
-        // FileVault
-        let fvOutput = runPSCommand(proc, command: "Invoke-IntuneFileVaultSetup", timeout: 30)
-        stateQueue.sync {
-            intuneState.items[4] = ProgressItem(name: "FileVault Recovery", status: fvOutput.lowercased().contains("error") ? .fail : .success, message: fvOutput)
-            intuneState.items[5] = ProgressItem(name: "Enrollment Profile", status: .processing, message: "")
-        }
-
-        // Enrollment profile
-        let enrollOutput = runPSCommand(proc, command: "Invoke-IntuneEnrollmentProfile -GroupId '\(gid)'", timeout: 30)
-        stateQueue.sync {
-            intuneState.items[5] = ProgressItem(name: "Enrollment Profile", status: enrollOutput.lowercased().contains("error") ? .fail : .success, message: enrollOutput)
-            intuneState.operation = .idle
-        }
+        stateQueue.sync { intuneState.operation = .idle }
     }
 }
 
@@ -1057,8 +1073,8 @@ func handleUpload(body: Data, encoder: JSONEncoder) {
                 continue
             }
 
-            // Apply template replacements
-            if fileType == "script" || fileType == "mobileconfig" {
+            // Apply template replacements to all text-based files
+            if fileType != "pkg" {
                 if var content = try? String(contentsOfFile: filePath, encoding: .utf8) {
                     content = content.replacingOccurrences(of: "{tenant_id}", with: tenantId)
                     content = content.replacingOccurrences(of: "{org_name}", with: orgName)
@@ -1070,20 +1086,31 @@ func handleUpload(body: Data, encoder: JSONEncoder) {
                 intuneState.items[index] = ProgressItem(name: name, status: .processing, message: "Uploading to Intune...")
             }
 
-            // Upload based on type
+            // Upload based on type using IntuneBaseBuild.psm1 cmdlets
+            let groupId = stateQueue.sync { intuneState.groupId }
+            let escapedPath = filePath.replacingOccurrences(of: "'", with: "''")
             let uploadCmd: String
             switch fileType {
             case "pkg":
                 let pkgInfo = extractPackageId(path: filePath)
                 let pkgId = pkgInfo?.identifier ?? name
                 let pkgVersion = pkgInfo?.version ?? "1.0"
-                uploadCmd = "Invoke-IntunePkgUpload -FilePath '\(filePath)' -PackageId '\(pkgId)' -Version '\(pkgVersion)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+                uploadCmd = "New-SinglePKG -FilePath '\(escapedPath)' -PackageId '\(pkgId)' -PackageVersion '\(pkgVersion)' -GroupId '\(groupId)'"
             case "mobileconfig":
-                uploadCmd = "Invoke-IntuneMobileconfigUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
-            case "script":
-                uploadCmd = "Invoke-IntuneScriptUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+                uploadCmd = "New-SingleMobileConfig -FilePath '\(escapedPath)' -GroupId '\(groupId)'"
+            case "ios_mobileconfig":
+                uploadCmd = "New-SingleiOSMobileConfig -FilePath '\(escapedPath)' -GroupId '\(groupId)'"
+            case "sh":
+                uploadCmd = "New-SingleShellScript -FilePath '\(escapedPath)' -GroupId '\(groupId)'"
+            case "json":
+                uploadCmd = "New-SingleJSON -FilePath '\(escapedPath)' -GroupId '\(groupId)'"
+            case "cash":
+                uploadCmd = "New-SingleCustomAttributeScript -FilePath '\(escapedPath)' -GroupId '\(groupId)'"
             default:
-                uploadCmd = "Invoke-IntuneFileUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+                stateQueue.sync {
+                    intuneState.items[index] = ProgressItem(name: name, status: .fail, message: "Unknown file type: \(fileType)")
+                }
+                continue
             }
 
             let output = runPSCommand(proc, command: uploadCmd, timeout: 300)
@@ -1205,7 +1232,7 @@ func handleIntuneRequest(method: String, path: String, body: Data) -> Data {
         handleUpload(body: body, encoder: encoder)
         return jsonResponse(["status": "uploading"])
 
-    case "/file-upload":
+    case "/upload-file":
         guard method == "POST" else {
             return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
         }
