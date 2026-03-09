@@ -641,53 +641,128 @@ private let intuneWorkQueue = DispatchQueue(label: "com.macadmin.intuneWork", qo
 
 // MARK: - PowerShell session helpers
 
+private let localModuleDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/intune-base-build").path
+
 func findModulePath() -> String? {
+    let fm = FileManager.default
+
+    // 1. Check app bundle Resources
     if let resourcePath = Bundle.main.resourcePath {
         let candidate = (resourcePath as NSString).appendingPathComponent("IntuneBaseBuild.psm1")
-        if FileManager.default.fileExists(atPath: candidate) {
-            return candidate
-        }
+        if fm.fileExists(atPath: candidate) { return candidate }
     }
-    // Also check relative to the agent binary
-    let fm = FileManager.default
     let bundleResources = Bundle.main.bundlePath + "/Contents/Resources"
     let candidate2 = (bundleResources as NSString).appendingPathComponent("IntuneBaseBuild.psm1")
-    if fm.fileExists(atPath: candidate2) {
-        return candidate2
+    if fm.fileExists(atPath: candidate2) { return candidate2 }
+
+    // 2. Check user-local download location
+    let localPsm1 = (localModuleDir as NSString).appendingPathComponent("IntuneBaseBuild.psm1")
+    if fm.fileExists(atPath: localPsm1) { return localPsm1 }
+
+    // 3. Download from S3
+    if downloadModuleFiles() {
+        return localPsm1
     }
     return nil
 }
 
+func downloadModuleFiles() -> Bool {
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: localModuleDir, withIntermediateDirectories: true)
+    let files = [
+        ("IntuneBaseBuild.psm1", "https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/IntuneBaseBuild.psm1"),
+        ("IntuneBaseBuild.psd1", "https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/IntuneBaseBuild.psd1"),
+    ]
+    for (name, urlStr) in files {
+        let dest = (localModuleDir as NSString).appendingPathComponent(name)
+        if fm.fileExists(atPath: dest) { continue }
+        guard let url = URL(string: urlStr),
+              let data = try? Data(contentsOf: url) else {
+            NSLog("Failed to download \(name) from \(urlStr)")
+            return false
+        }
+        do {
+            try data.write(to: URL(fileURLWithPath: dest))
+        } catch {
+            NSLog("Failed to write \(name): \(error)")
+            return false
+        }
+    }
+    return true
+}
+
+private let localPwshDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/powershell").path
+private let localPwshBin = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/powershell/pwsh").path
+
 func installPowerShellIfNeeded() -> (success: Bool, message: String) {
-    if FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/pwsh") {
+    // Check all known locations
+    let knownPaths = ["/usr/local/bin/pwsh", "/opt/homebrew/bin/pwsh", localPwshBin]
+    if knownPaths.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
         return (true, "PowerShell already installed")
     }
+
+    // Download official tar.gz (no admin required)
+    #if arch(arm64)
+    let arch = "arm64"
+    #else
+    let arch = "x64"
+    #endif
+    let version = "7.5.4"
+    let url = "https://github.com/PowerShell/PowerShell/releases/download/v\(version)/powershell-\(version)-osx-\(arch).tar.gz"
+
+    let script = """
+    set -e
+    mkdir -p '\(localPwshDir)'
+    curl -fSL -o /tmp/powershell.tar.gz '\(url)'
+    tar zxf /tmp/powershell.tar.gz -C '\(localPwshDir)'
+    chmod +x '\(localPwshBin)'
+    xattr -rd com.apple.quarantine '\(localPwshDir)' 2>/dev/null || true
+    rm -f /tmp/powershell.tar.gz
+    '\(localPwshBin)' --version
+    """
+
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    proc.arguments = ["-c", "command -v brew && brew install powershell/tap/powershell"]
+    proc.arguments = ["-c", script]
     let pipe = Pipe()
     proc.standardOutput = pipe
     proc.standardError = pipe
     do {
         try proc.run()
         proc.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let out = String(data: data, encoding: .utf8) ?? ""
         if proc.terminationStatus == 0 {
-            return (true, "PowerShell installed via Homebrew")
-        } else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let out = String(data: data, encoding: .utf8) ?? ""
-            return (false, "Failed to install PowerShell: \(out)")
+            return (true, "PowerShell \(version) installed")
         }
+        return (false, "Failed to install PowerShell: \(cleanANSI(out).suffix(200))")
     } catch {
         return (false, "Failed to install PowerShell: \(error.localizedDescription)")
     }
 }
 
 func installGraphModuleIfNeeded() -> (success: Bool, message: String) {
-    let pwshPath = FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") ? "/usr/local/bin/pwsh" : "/opt/homebrew/bin/pwsh"
+    let pwshPath = pwshExecutablePath()
+    let modules = [
+        "Microsoft.Graph.Authentication",
+        "Microsoft.Graph.Groups",
+        "Microsoft.Graph.Users",
+        "Microsoft.Graph.DeviceManagement",
+        "Microsoft.Graph.Devices.CorporateManagement",
+        "Microsoft.Graph.Beta.DeviceManagement",
+        "Microsoft.Graph.Beta.DeviceManagement.Enrollment",
+        "Microsoft.Graph.Beta.Devices.CorporateManagement",
+    ]
+    let psCommand = """
+    $missing = @()
+    \(modules.map { "if (!(Get-Module -ListAvailable -Name '\($0)')) { $missing += '\($0)' }" }.joined(separator: "\n"))
+    if ($missing.Count -eq 0) { Write-Output 'INSTALLED'; exit 0 }
+    foreach ($m in $missing) { Install-Module $m -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop }
+    Write-Output 'INSTALLED'
+    """
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: pwshPath)
-    proc.arguments = ["-Command", "if (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication) { Write-Output 'INSTALLED' } else { Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force -AllowClobber; Write-Output 'INSTALLED' }"]
+    proc.arguments = ["-Command", psCommand]
     let pipe = Pipe()
     proc.standardOutput = pipe
     proc.standardError = pipe
@@ -697,17 +772,18 @@ func installGraphModuleIfNeeded() -> (success: Bool, message: String) {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let out = String(data: data, encoding: .utf8) ?? ""
         if out.contains("INSTALLED") {
-            return (true, "Microsoft.Graph.Authentication module ready")
+            return (true, "Microsoft Graph modules ready")
         }
-        return (false, "Graph module install issue: \(out)")
+        return (false, "Graph module install issue: \(cleanANSI(out).suffix(200))")
     } catch {
-        return (false, "Failed to install Graph module: \(error.localizedDescription)")
+        return (false, "Failed to install Graph modules: \(error.localizedDescription)")
     }
 }
 
 func pwshExecutablePath() -> String {
     if FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") { return "/usr/local/bin/pwsh" }
     if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/pwsh") { return "/opt/homebrew/bin/pwsh" }
+    if FileManager.default.fileExists(atPath: localPwshBin) { return localPwshBin }
     return "pwsh"
 }
 
@@ -906,7 +982,16 @@ func handleConnect(encoder: JSONEncoder) {
         }
         stateQueue.sync { intuneState.psProcess = proc }
 
-        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes 'DeviceManagementConfiguration.ReadWrite.All','DeviceManagementApps.ReadWrite.All','Group.ReadWrite.All','DeviceManagementManagedDevices.ReadWrite.All','DeviceManagementServiceConfig.ReadWrite.All'", timeout: 120)
+        // Clear any cached tokens so the user always gets a fresh login prompt
+        let _ = runPSCommand(proc, command: "Disconnect-MgGraph -ErrorAction SilentlyContinue", timeout: 10)
+        let _ = runPSCommand(proc, command: """
+        $cachePath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.graph-cache'
+        if (Test-Path $cachePath) { Remove-Item -Recurse -Force $cachePath -ErrorAction SilentlyContinue }
+        $msalCache = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.msal_token_cache'
+        if (Test-Path $msalCache) { Remove-Item -Force $msalCache -ErrorAction SilentlyContinue }
+        """, timeout: 10)
+
+        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes 'DeviceManagementConfiguration.ReadWrite.All','DeviceManagementApps.ReadWrite.All','Group.ReadWrite.All','DeviceManagementManagedDevices.ReadWrite.All','DeviceManagementServiceConfig.ReadWrite.All' -NoWelcome", timeout: 120)
 
         if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
             stateQueue.sync {

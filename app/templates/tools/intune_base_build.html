@@ -595,21 +595,32 @@
     document.getElementById('intune-connect-btn').style.display = 'none';
     document.getElementById('intune-connect-status').style.display = 'block';
     document.getElementById('intune-connect-status-msg').textContent = 'Launching companion app\u2026';
-    window.open('macadmin-toolbox://intune-base-build', '_blank');
+    // Use hidden iframe to trigger URL scheme (works in Safari + Chrome/Edge)
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'macadmin-toolbox://intune-base-build';
+    document.body.appendChild(iframe);
+    setTimeout(function() { iframe.remove(); }, 3000);
     setTimeout(startPollingConnect, 2000);
   };
 
   var connectTriggered = false;
 
   function startPollingConnect() {
+    var connectSent = false;
     var poll = setInterval(function() {
       intuneRequest('GET', '/status').then(function(data) {
         // Agent is alive — trigger /connect if we haven't yet
         if (!connectTriggered) {
           connectTriggered = true;
+          connectSent = false; // reset — wait for /connect to take effect
           document.getElementById('intune-connect-status-msg').textContent = 'Getting things ready\u2026';
-          intuneRequest('POST', '/connect', {}).catch(function() {});
+          intuneRequest('POST', '/connect', {}).then(function() {
+            connectSent = true; // /connect acknowledged
+          }).catch(function() {});
+          return; // skip this tick — state is stale
         }
+        if (!connectSent) return; // still waiting for /connect to be acknowledged
         updateConnectStatus(data);
         if (data.connected) {
           clearInterval(poll);
