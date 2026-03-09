@@ -716,7 +716,8 @@
         if (data.error) throw new Error(data.error);
         var baseUrl = data.base_url || '';
         s3Files = data.files.map(function(name) {
-          return { name: name, url: baseUrl + encodeURIComponent(name), type: detectFileType(name), selected: true };
+          var displayName = name.replace(/\+/g, ' ');
+          return { name: displayName, url: baseUrl + encodeURIComponent(name), type: detectFileType(name), selected: true };
         });
         statusEl.textContent = 'Loaded ' + s3Files.length + ' file' + (s3Files.length !== 1 ? 's' : '') + '.';
         renderFileList();
