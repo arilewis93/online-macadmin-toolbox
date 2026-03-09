@@ -546,6 +546,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if host == "intune-base-build" {
+            handledURL = true
+            startIntuneServer()
+            return
+        }
+
         guard host == "fetch-tcc" else { return }
         let query = url.query ?? ""
         let search = query
@@ -583,6 +589,682 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+}
+
+// MARK: - Intune Base Build
+
+enum IntuneOperation: String, Encodable {
+    case idle, connecting, prerequisites, uploading
+}
+
+enum ItemStatus: String, Encodable {
+    case pending, processing, success, fail
+}
+
+struct ProgressItem: Encodable {
+    let name: String
+    let status: ItemStatus
+    let message: String
+}
+
+struct IntuneState {
+    var operation: IntuneOperation = .idle
+    var connected: Bool = false
+    var tenantId: String = ""
+    var tenantName: String = ""
+    var userEmail: String = ""
+    var groupId: String = ""
+    var items: [ProgressItem] = []
+    var psProcess: Process? = nil
+    var modulePath: String = ""
+
+    var statusResponse: [String: Any] {
+        var dict: [String: Any] = [
+            "operation": operation.rawValue,
+            "connected": connected,
+            "tenantId": tenantId,
+            "tenantName": tenantName,
+            "userEmail": userEmail,
+            "groupId": groupId
+        ]
+        let itemDicts = items.map { item -> [String: String] in
+            ["name": item.name, "status": item.status.rawValue, "message": item.message]
+        }
+        dict["items"] = itemDicts
+        return dict
+    }
+}
+
+private var intuneState = IntuneState()
+private let stateQueue = DispatchQueue(label: "com.macadmin.intuneState")
+private let intuneWorkQueue = DispatchQueue(label: "com.macadmin.intuneWork", qos: .userInitiated)
+
+// MARK: - PowerShell session helpers
+
+func findModulePath() -> String? {
+    if let resourcePath = Bundle.main.resourcePath {
+        let candidate = (resourcePath as NSString).appendingPathComponent("IntuneBaseBuild.psm1")
+        if FileManager.default.fileExists(atPath: candidate) {
+            return candidate
+        }
+    }
+    // Also check relative to the agent binary
+    let fm = FileManager.default
+    let bundleResources = Bundle.main.bundlePath + "/Contents/Resources"
+    let candidate2 = (bundleResources as NSString).appendingPathComponent("IntuneBaseBuild.psm1")
+    if fm.fileExists(atPath: candidate2) {
+        return candidate2
+    }
+    return nil
+}
+
+func installPowerShellIfNeeded() -> (success: Bool, message: String) {
+    if FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/pwsh") {
+        return (true, "PowerShell already installed")
+    }
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
+    proc.arguments = ["-c", "command -v brew && brew install powershell/tap/powershell"]
+    let pipe = Pipe()
+    proc.standardOutput = pipe
+    proc.standardError = pipe
+    do {
+        try proc.run()
+        proc.waitUntilExit()
+        if proc.terminationStatus == 0 {
+            return (true, "PowerShell installed via Homebrew")
+        } else {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let out = String(data: data, encoding: .utf8) ?? ""
+            return (false, "Failed to install PowerShell: \(out)")
+        }
+    } catch {
+        return (false, "Failed to install PowerShell: \(error.localizedDescription)")
+    }
+}
+
+func installGraphModuleIfNeeded() -> (success: Bool, message: String) {
+    let pwshPath = FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") ? "/usr/local/bin/pwsh" : "/opt/homebrew/bin/pwsh"
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: pwshPath)
+    proc.arguments = ["-Command", "if (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication) { Write-Output 'INSTALLED' } else { Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force -AllowClobber; Write-Output 'INSTALLED' }"]
+    let pipe = Pipe()
+    proc.standardOutput = pipe
+    proc.standardError = pipe
+    do {
+        try proc.run()
+        proc.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let out = String(data: data, encoding: .utf8) ?? ""
+        if out.contains("INSTALLED") {
+            return (true, "Microsoft.Graph.Authentication module ready")
+        }
+        return (false, "Graph module install issue: \(out)")
+    } catch {
+        return (false, "Failed to install Graph module: \(error.localizedDescription)")
+    }
+}
+
+func pwshExecutablePath() -> String {
+    if FileManager.default.fileExists(atPath: "/usr/local/bin/pwsh") { return "/usr/local/bin/pwsh" }
+    if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/pwsh") { return "/opt/homebrew/bin/pwsh" }
+    return "pwsh"
+}
+
+func startPowerShellSession(modulePath: String) -> Process? {
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: pwshExecutablePath())
+    proc.arguments = ["-NoExit", "-Command", "-"]
+    let stdinPipe = Pipe()
+    let stdoutPipe = Pipe()
+    let stderrPipe = Pipe()
+    proc.standardInput = stdinPipe
+    proc.standardOutput = stdoutPipe
+    proc.standardError = stderrPipe
+    do {
+        try proc.run()
+        // Import the module
+        let importCmd = "Import-Module '\(modulePath)'\nWrite-Output '---COMMAND-COMPLETE---'\n"
+        stdinPipe.fileHandleForWriting.write(importCmd.data(using: .utf8)!)
+        // Read until marker
+        let _ = readUntilMarker(handle: stdoutPipe.fileHandleForReading, timeout: 30)
+        return proc
+    } catch {
+        return nil
+    }
+}
+
+func readUntilMarker(handle: FileHandle, timeout: TimeInterval) -> String {
+    let marker = "---COMMAND-COMPLETE---"
+    var accumulated = ""
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        let data = handle.availableData
+        if data.isEmpty {
+            Thread.sleep(forTimeInterval: 0.1)
+            continue
+        }
+        accumulated += String(data: data, encoding: .utf8) ?? ""
+        if accumulated.contains(marker) {
+            // Remove marker from output
+            let parts = accumulated.components(separatedBy: marker)
+            return parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+    return accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+func runPSCommand(_ process: Process, command: String, timeout: TimeInterval = 60) -> String {
+    guard let stdinPipe = process.standardInput as? Pipe,
+          let stdoutPipe = process.standardOutput as? Pipe else {
+        return ""
+    }
+    let fullCmd = "\(command)\nWrite-Output '---COMMAND-COMPLETE---'\n"
+    stdinPipe.fileHandleForWriting.write(fullCmd.data(using: .utf8)!)
+    let result = readUntilMarker(handle: stdoutPipe.fileHandleForReading, timeout: timeout)
+    return cleanANSI(result)
+}
+
+func cleanANSI(_ input: String) -> String {
+    // Strip ANSI escape sequences
+    guard let regex = try? NSRegularExpression(pattern: "\\x1B\\[[0-9;]*[A-Za-z]", options: []) else {
+        return input
+    }
+    return regex.stringByReplacingMatches(in: input, options: [], range: NSRange(input.startIndex..., in: input), withTemplate: "")
+}
+
+// MARK: - HTTP server infrastructure
+
+struct HTTPRequest {
+    let method: String
+    let path: String
+    let body: Data
+}
+
+func parseHTTPRequest(_ data: Data) -> HTTPRequest? {
+    guard let str = String(data: data, encoding: .utf8) else { return nil }
+    let lines = str.components(separatedBy: "\r\n")
+    guard let requestLine = lines.first else { return nil }
+    let parts = requestLine.split(separator: " ", maxSplits: 2)
+    guard parts.count >= 2 else { return nil }
+    let method = String(parts[0])
+    let path = String(parts[1])
+
+    // Find body after empty line
+    var body = Data()
+    if let range = str.range(of: "\r\n\r\n") {
+        let bodyStr = String(str[range.upperBound...])
+        body = bodyStr.data(using: .utf8) ?? Data()
+    }
+    return HTTPRequest(method: method, path: path, body: body)
+}
+
+func jsonResponse(_ dict: [String: Any], status: String = "200 OK") -> Data {
+    let body = (try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys])) ?? Data()
+    let header = [
+        "HTTP/1.1 \(status)",
+        "Content-Type: application/json",
+        "Content-Length: \(body.count)",
+        "Access-Control-Allow-Origin: *",
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers: Content-Type",
+        "Connection: close",
+        "",
+        ""
+    ].joined(separator: "\r\n")
+    return header.data(using: .utf8)! + body
+}
+
+func jsonResponseFromData(_ body: Data, status: String = "200 OK") -> Data {
+    let header = [
+        "HTTP/1.1 \(status)",
+        "Content-Type: application/json",
+        "Content-Length: \(body.count)",
+        "Access-Control-Allow-Origin: *",
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers: Content-Type",
+        "Connection: close",
+        "",
+        ""
+    ].joined(separator: "\r\n")
+    return header.data(using: .utf8)! + body
+}
+
+func corsPreflightResponse() -> Data {
+    let header = [
+        "HTTP/1.1 204 No Content",
+        "Access-Control-Allow-Origin: *",
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers: Content-Type",
+        "Content-Length: 0",
+        "Connection: close",
+        "",
+        ""
+    ].joined(separator: "\r\n")
+    return header.data(using: .utf8)!
+}
+
+// MARK: - Endpoint handlers
+
+func handleConnect(encoder: JSONEncoder) {
+    stateQueue.sync {
+        intuneState.operation = .connecting
+        intuneState.items = [
+            ProgressItem(name: "Install PowerShell", status: .processing, message: "Checking..."),
+            ProgressItem(name: "Install Graph Module", status: .pending, message: ""),
+            ProgressItem(name: "Connect to Microsoft Graph", status: .pending, message: ""),
+            ProgressItem(name: "Get Tenant Info", status: .pending, message: "")
+        ]
+    }
+
+    intuneWorkQueue.async {
+        // Step 1: Install PowerShell
+        let psResult = installPowerShellIfNeeded()
+        stateQueue.sync {
+            intuneState.items[0] = ProgressItem(name: "Install PowerShell", status: psResult.success ? .success : .fail, message: psResult.message)
+            if psResult.success { intuneState.items[1] = ProgressItem(name: "Install Graph Module", status: .processing, message: "Checking...") }
+        }
+        guard psResult.success else {
+            stateQueue.sync { intuneState.operation = .idle }
+            return
+        }
+
+        // Step 2: Install Graph Module
+        let graphResult = installGraphModuleIfNeeded()
+        stateQueue.sync {
+            intuneState.items[1] = ProgressItem(name: "Install Graph Module", status: graphResult.success ? .success : .fail, message: graphResult.message)
+            if graphResult.success { intuneState.items[2] = ProgressItem(name: "Connect to Microsoft Graph", status: .processing, message: "Launching browser...") }
+        }
+        guard graphResult.success else {
+            stateQueue.sync { intuneState.operation = .idle }
+            return
+        }
+
+        // Step 3: Start PS session and connect
+        let modPath = stateQueue.sync { intuneState.modulePath }
+        guard let proc = startPowerShellSession(modulePath: modPath) else {
+            stateQueue.sync {
+                intuneState.items[2] = ProgressItem(name: "Connect to Microsoft Graph", status: .fail, message: "Failed to start PowerShell session")
+                intuneState.operation = .idle
+            }
+            return
+        }
+        stateQueue.sync { intuneState.psProcess = proc }
+
+        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes 'DeviceManagementConfiguration.ReadWrite.All','DeviceManagementApps.ReadWrite.All','Group.ReadWrite.All','DeviceManagementManagedDevices.ReadWrite.All','DeviceManagementServiceConfig.ReadWrite.All'", timeout: 120)
+
+        if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
+            stateQueue.sync {
+                intuneState.items[2] = ProgressItem(name: "Connect to Microsoft Graph", status: .fail, message: connectOutput)
+                intuneState.operation = .idle
+            }
+            return
+        }
+        stateQueue.sync {
+            intuneState.items[2] = ProgressItem(name: "Connect to Microsoft Graph", status: .success, message: "Connected")
+            intuneState.items[3] = ProgressItem(name: "Get Tenant Info", status: .processing, message: "Fetching...")
+        }
+
+        // Step 4: Get tenant info
+        let contextOutput = runPSCommand(proc, command: "$ctx = Get-MgContext; $ctx.TenantId; '|'; $ctx.Account", timeout: 30)
+        let contextParts = contextOutput.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let tenantId = contextParts.count > 0 ? contextParts[0] : ""
+        let email = contextParts.count > 1 ? contextParts[1] : ""
+
+        let orgOutput = runPSCommand(proc, command: "(Get-MgOrganization).DisplayName", timeout: 30)
+        let tenantName = orgOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        stateQueue.sync {
+            intuneState.tenantId = tenantId
+            intuneState.tenantName = tenantName
+            intuneState.userEmail = email
+            intuneState.connected = true
+            intuneState.items[3] = ProgressItem(name: "Get Tenant Info", status: .success, message: "\(tenantName) (\(tenantId))")
+            intuneState.operation = .idle
+        }
+    }
+}
+
+func handlePrerequisites(body: Data, encoder: JSONEncoder) {
+    let bodyDict = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+    let orgName = bodyDict["org_name"] as? String ?? ""
+
+    stateQueue.sync {
+        intuneState.operation = .prerequisites
+        intuneState.items = [
+            ProgressItem(name: "Check APNs Certificate", status: .processing, message: ""),
+            ProgressItem(name: "Check ABM Token", status: .pending, message: ""),
+            ProgressItem(name: "Check VPP Token", status: .pending, message: ""),
+            ProgressItem(name: "Create/Find Group", status: .pending, message: ""),
+            ProgressItem(name: "FileVault Recovery", status: .pending, message: ""),
+            ProgressItem(name: "Enrollment Profile", status: .pending, message: "")
+        ]
+    }
+
+    intuneWorkQueue.async {
+        guard let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning else {
+            stateQueue.sync {
+                intuneState.items[0] = ProgressItem(name: "Check APNs Certificate", status: .fail, message: "No PowerShell session")
+                intuneState.operation = .idle
+            }
+            return
+        }
+
+        // APNs
+        let apnsOutput = runPSCommand(proc, command: "Get-MgDeviceManagementApplePushNotificationCertificate | Select-Object -ExpandProperty ExpirationDateTime", timeout: 30)
+        stateQueue.sync {
+            let status: ItemStatus = apnsOutput.lowercased().contains("error") ? .fail : .success
+            intuneState.items[0] = ProgressItem(name: "Check APNs Certificate", status: status, message: apnsOutput.isEmpty ? "Not found" : apnsOutput)
+            intuneState.items[1] = ProgressItem(name: "Check ABM Token", status: .processing, message: "")
+        }
+
+        // ABM
+        let abmOutput = runPSCommand(proc, command: "Get-MgDeviceManagementDepOnboardingSetting | Select-Object -ExpandProperty TokenName", timeout: 30)
+        stateQueue.sync {
+            intuneState.items[1] = ProgressItem(name: "Check ABM Token", status: abmOutput.isEmpty ? .fail : .success, message: abmOutput.isEmpty ? "Not found" : abmOutput)
+            intuneState.items[2] = ProgressItem(name: "Check VPP Token", status: .processing, message: "")
+        }
+
+        // VPP
+        let vppOutput = runPSCommand(proc, command: "Get-MgDeviceAppManagementVppToken | Select-Object -ExpandProperty AppleId", timeout: 30)
+        stateQueue.sync {
+            intuneState.items[2] = ProgressItem(name: "Check VPP Token", status: vppOutput.isEmpty ? .fail : .success, message: vppOutput.isEmpty ? "Not found" : vppOutput)
+            intuneState.items[3] = ProgressItem(name: "Create/Find Group", status: .processing, message: "")
+        }
+
+        // Group
+        let groupName = orgName.isEmpty ? "Mac Admin Toolbox Devices" : "\(orgName) - Mac Admin Toolbox Devices"
+        let groupCmd = """
+        $g = Get-MgGroup -Filter "displayName eq '\(groupName)'"
+        if ($g) { $g.Id } else { $ng = New-MgGroup -DisplayName '\(groupName)' -MailEnabled:$false -MailNickname 'matdevices' -SecurityEnabled:$true -GroupTypes @(); $ng.Id }
+        """
+        let groupOutput = runPSCommand(proc, command: groupCmd, timeout: 30)
+        let gid = groupOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+        stateQueue.sync {
+            intuneState.groupId = gid
+            intuneState.items[3] = ProgressItem(name: "Create/Find Group", status: gid.isEmpty ? .fail : .success, message: gid.isEmpty ? "Failed" : gid)
+            intuneState.items[4] = ProgressItem(name: "FileVault Recovery", status: .processing, message: "")
+        }
+
+        // FileVault
+        let fvOutput = runPSCommand(proc, command: "Invoke-IntuneFileVaultSetup", timeout: 30)
+        stateQueue.sync {
+            intuneState.items[4] = ProgressItem(name: "FileVault Recovery", status: fvOutput.lowercased().contains("error") ? .fail : .success, message: fvOutput)
+            intuneState.items[5] = ProgressItem(name: "Enrollment Profile", status: .processing, message: "")
+        }
+
+        // Enrollment profile
+        let enrollOutput = runPSCommand(proc, command: "Invoke-IntuneEnrollmentProfile -GroupId '\(gid)'", timeout: 30)
+        stateQueue.sync {
+            intuneState.items[5] = ProgressItem(name: "Enrollment Profile", status: enrollOutput.lowercased().contains("error") ? .fail : .success, message: enrollOutput)
+            intuneState.operation = .idle
+        }
+    }
+}
+
+func handleUpload(body: Data, encoder: JSONEncoder) {
+    let bodyDict = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+    let files = bodyDict["files"] as? [[String: Any]] ?? []
+    let tenantId = stateQueue.sync { intuneState.tenantId }
+    let orgName = bodyDict["org_name"] as? String ?? ""
+
+    let progressItems: [ProgressItem] = files.map { f in
+        ProgressItem(name: f["name"] as? String ?? "Unknown", status: .pending, message: "")
+    }
+
+    stateQueue.sync {
+        intuneState.operation = .uploading
+        intuneState.items = progressItems
+    }
+
+    intuneWorkQueue.async {
+        guard let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning else {
+            stateQueue.sync { intuneState.operation = .idle }
+            return
+        }
+
+        for (index, file) in files.enumerated() {
+            let name = file["name"] as? String ?? "Unknown"
+            let urlStr = file["url"] as? String ?? ""
+            let localPath = file["local_path"] as? String ?? ""
+            let fileType = file["type"] as? String ?? "script"
+
+            stateQueue.sync {
+                intuneState.items[index] = ProgressItem(name: name, status: .processing, message: "Downloading...")
+            }
+
+            var filePath = localPath
+            if filePath.isEmpty && !urlStr.isEmpty {
+                // Download from URL
+                let tmpDir = NSTemporaryDirectory()
+                let destPath = (tmpDir as NSString).appendingPathComponent(name)
+                let downloadProc = Process()
+                downloadProc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+                downloadProc.arguments = ["-sL", "-o", destPath, urlStr]
+                do {
+                    try downloadProc.run()
+                    downloadProc.waitUntilExit()
+                    if downloadProc.terminationStatus == 0 {
+                        filePath = destPath
+                    }
+                } catch { }
+            }
+
+            guard !filePath.isEmpty && FileManager.default.fileExists(atPath: filePath) else {
+                stateQueue.sync {
+                    intuneState.items[index] = ProgressItem(name: name, status: .fail, message: "File not found or download failed")
+                }
+                continue
+            }
+
+            // Apply template replacements
+            if fileType == "script" || fileType == "mobileconfig" {
+                if var content = try? String(contentsOfFile: filePath, encoding: .utf8) {
+                    content = content.replacingOccurrences(of: "{tenant_id}", with: tenantId)
+                    content = content.replacingOccurrences(of: "{org_name}", with: orgName)
+                    try? content.write(toFile: filePath, atomically: true, encoding: .utf8)
+                }
+            }
+
+            stateQueue.sync {
+                intuneState.items[index] = ProgressItem(name: name, status: .processing, message: "Uploading to Intune...")
+            }
+
+            // Upload based on type
+            let uploadCmd: String
+            switch fileType {
+            case "pkg":
+                let pkgInfo = extractPackageId(path: filePath)
+                let pkgId = pkgInfo?.identifier ?? name
+                let pkgVersion = pkgInfo?.version ?? "1.0"
+                uploadCmd = "Invoke-IntunePkgUpload -FilePath '\(filePath)' -PackageId '\(pkgId)' -Version '\(pkgVersion)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+            case "mobileconfig":
+                uploadCmd = "Invoke-IntuneMobileconfigUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+            case "script":
+                uploadCmd = "Invoke-IntuneScriptUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+            default:
+                uploadCmd = "Invoke-IntuneFileUpload -FilePath '\(filePath)' -GroupId '\(stateQueue.sync { intuneState.groupId })'"
+            }
+
+            let output = runPSCommand(proc, command: uploadCmd, timeout: 300)
+            let success = !output.lowercased().contains("error") && !output.lowercased().contains("fail")
+            stateQueue.sync {
+                intuneState.items[index] = ProgressItem(name: name, status: success ? .success : .fail, message: output)
+            }
+        }
+
+        stateQueue.sync { intuneState.operation = .idle }
+    }
+}
+
+func handleFileUpload(body: Data, encoder: JSONEncoder) -> [String: Any] {
+    guard let bodyDict = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+          let fileName = bodyDict["name"] as? String,
+          let base64Content = bodyDict["content"] as? String,
+          let fileData = Data(base64Encoded: base64Content) else {
+        return ["error": "Invalid file upload request"]
+    }
+
+    let tmpDir = NSTemporaryDirectory()
+    let destPath = (tmpDir as NSString).appendingPathComponent(fileName)
+    do {
+        try fileData.write(to: URL(fileURLWithPath: destPath))
+        return ["path": destPath, "size": fileData.count]
+    } catch {
+        return ["error": "Failed to write file: \(error.localizedDescription)"]
+    }
+}
+
+func handleDisconnect(encoder: JSONEncoder) {
+    if let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning {
+        let _ = runPSCommand(proc, command: "Disconnect-MgGraph", timeout: 15)
+        proc.terminate()
+    }
+    stateQueue.sync {
+        intuneState = IntuneState()
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        NSApp.terminate(nil)
+    }
+}
+
+func extractPackageId(path: String) -> (identifier: String, version: String)? {
+    let tmpDir = NSTemporaryDirectory()
+    let expandDir = (tmpDir as NSString).appendingPathComponent("pkg_expand_\(UUID().uuidString)")
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil")
+    proc.arguments = ["--expand", path, expandDir]
+    proc.standardOutput = FileHandle.nullDevice
+    proc.standardError = FileHandle.nullDevice
+    do {
+        try proc.run()
+        proc.waitUntilExit()
+        guard proc.terminationStatus == 0 else { return nil }
+    } catch { return nil }
+    defer { try? FileManager.default.removeItem(atPath: expandDir) }
+
+    // Find PackageInfo XML
+    let fm = FileManager.default
+    guard let enumerator = fm.enumerator(atPath: expandDir) else { return nil }
+    while let file = enumerator.nextObject() as? String {
+        if file.hasSuffix("PackageInfo") {
+            let infoPath = (expandDir as NSString).appendingPathComponent(file)
+            guard let data = fm.contents(atPath: infoPath) else { continue }
+            let xmlDoc: XMLDocument
+            do {
+                xmlDoc = try XMLDocument(data: data, options: [])
+            } catch { continue }
+            guard let root = xmlDoc.rootElement() else { continue }
+            let identifier = root.attribute(forName: "identifier")?.stringValue ?? ""
+            let version = root.attribute(forName: "version")?.stringValue ?? "1.0"
+            if !identifier.isEmpty {
+                return (identifier, version)
+            }
+        }
+    }
+    return nil
+}
+
+// MARK: - Intune HTTP request routing
+
+func handleIntuneRequest(method: String, path: String, body: Data) -> Data {
+    if method == "OPTIONS" {
+        return corsPreflightResponse()
+    }
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+
+    switch path {
+    case "/status":
+        let status = stateQueue.sync { intuneState.statusResponse }
+        return jsonResponse(status)
+
+    case "/progress":
+        let status = stateQueue.sync { intuneState.statusResponse }
+        return jsonResponse(status)
+
+    case "/connect":
+        guard method == "POST" else {
+            return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
+        }
+        handleConnect(encoder: encoder)
+        return jsonResponse(["status": "connecting"])
+
+    case "/prerequisites":
+        guard method == "POST" else {
+            return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
+        }
+        handlePrerequisites(body: body, encoder: encoder)
+        return jsonResponse(["status": "prerequisites"])
+
+    case "/upload":
+        guard method == "POST" else {
+            return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
+        }
+        handleUpload(body: body, encoder: encoder)
+        return jsonResponse(["status": "uploading"])
+
+    case "/file-upload":
+        guard method == "POST" else {
+            return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
+        }
+        let result = handleFileUpload(body: body, encoder: encoder)
+        return jsonResponse(result)
+
+    case "/disconnect":
+        guard method == "POST" else {
+            return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
+        }
+        handleDisconnect(encoder: encoder)
+        return jsonResponse(["status": "disconnecting"])
+
+    default:
+        return jsonResponse(["error": "Not found"], status: "404 Not Found")
+    }
+}
+
+// MARK: - Intune server start
+
+func startIntuneServer() {
+    // Find module path
+    if let modPath = findModulePath() {
+        stateQueue.sync { intuneState.modulePath = modPath }
+    }
+
+    let queue = DispatchQueue(label: "com.macadmin.intuneServer")
+    guard let port = NWEndpoint.Port(rawValue: resultPort),
+          let listener = try? NWListener(using: .tcp, on: port) else {
+        NSLog("Failed to start Intune server on port \(resultPort)")
+        return
+    }
+
+    listener.newConnectionHandler = { connection in
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, error in
+            guard let data = data, let request = parseHTTPRequest(data) else {
+                connection.cancel()
+                return
+            }
+            let response = handleIntuneRequest(method: request.method, path: request.path, body: request.body)
+            connection.send(content: response, completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
+    }
+
+    listener.stateUpdateHandler = { state in
+        switch state {
+        case .ready:
+            NSLog("Intune server listening on port \(resultPort)")
+        case .failed(let error):
+            NSLog("Intune server failed: \(error)")
+        default:
+            break
+        }
+    }
+
+    listener.start(queue: queue)
 }
 
 // MARK: - Main
