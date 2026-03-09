@@ -1,0 +1,804 @@
+{% extends "base.html" %}
+{% block title %}Intune Base Build{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+<a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
+<div class="logo-badge">
+  <div class="logo-icon">
+    <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+  </div>
+  <span class="logo-text">INTUNE</span>
+  <span class="logo-sep">/</span>
+  <span class="logo-sub">Base Build</span>
+</div>
+<span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── STEPPER ── */
+.intune-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 32px;
+  padding: 20px 0 8px;
+}
+.intune-stepper-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  cursor: default;
+}
+.intune-stepper-item.clickable { cursor: pointer; }
+.intune-step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid var(--border-bright);
+  color: var(--text-muted);
+  background: var(--surface);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.intune-step-dot.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.intune-step-dot.complete {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-dim);
+}
+.intune-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.intune-step-label.active { color: var(--accent); }
+.intune-step-label.complete { color: var(--green); }
+.intune-step-line {
+  width: 48px;
+  height: 2px;
+  background: var(--border-bright);
+  margin: 0 12px;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.intune-step-line.complete { background: var(--green); }
+
+/* ── CHECK ROWS ── */
+.intune-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.intune-check-row:last-child { border-bottom: none; }
+.intune-check-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* ── FILE LIST ── */
+.intune-file-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  margin-bottom: 16px;
+}
+.intune-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  transition: background var(--transition);
+}
+.intune-file-row:last-child { border-bottom: none; }
+.intune-file-row:hover { background: var(--surface2); }
+.intune-file-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.intune-file-name {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.intune-type-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.intune-type-badge.sh { background: var(--green-dim); color: var(--green); }
+.intune-type-badge.mobileconfig { background: var(--accent-dim); color: var(--accent); }
+.intune-type-badge.ios_mobileconfig { background: rgba(167,139,250,0.12); color: #a78bfa; }
+.intune-type-badge.json { background: var(--amber-dim); color: var(--amber); }
+.intune-type-badge.cash { background: rgba(244,114,182,0.12); color: #f472b6; }
+.intune-type-badge.pkg { background: var(--danger-dim); color: var(--danger); }
+.intune-type-badge.unknown { background: var(--surface2); color: var(--text-muted); }
+
+/* ── SELECT BUTTONS ── */
+.intune-file-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── LOG AREA ── */
+.intune-log {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  margin-top: 16px;
+}
+
+/* ── TOGGLE SWITCH (inline) ── */
+.intune-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.intune-toggle-switch {
+  position: relative;
+  width: 38px;
+  height: 20px;
+  background: var(--border-bright);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--transition);
+  flex-shrink: 0;
+}
+.intune-toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: left var(--transition), background var(--transition);
+}
+.intune-toggle-switch.on { background: var(--accent); }
+.intune-toggle-switch.on::after { left: 20px; background: #000; }
+.intune-toggle-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+/* ── MISC ── */
+.intune-summary {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.intune-btn-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shell tool-single">
+  <main>
+
+    <!-- ══════════════════════════ STEPPER ══════════════════════════ -->
+    <div class="intune-stepper" id="intune-stepper">
+      <div class="intune-stepper-item" onclick="stepClick(1)">
+        <div class="intune-step-dot active" id="intune-dot-1">1</div>
+        <span class="intune-step-label active" id="intune-label-1">Connect</span>
+      </div>
+      <div class="intune-step-line" id="intune-line-1"></div>
+      <div class="intune-stepper-item" onclick="stepClick(2)">
+        <div class="intune-step-dot" id="intune-dot-2">2</div>
+        <span class="intune-step-label" id="intune-label-2">Prerequisites</span>
+      </div>
+      <div class="intune-step-line" id="intune-line-2"></div>
+      <div class="intune-stepper-item" onclick="stepClick(3)">
+        <div class="intune-step-dot" id="intune-dot-3">3</div>
+        <span class="intune-step-label" id="intune-label-3">Files</span>
+      </div>
+      <div class="intune-step-line" id="intune-line-3"></div>
+      <div class="intune-stepper-item" onclick="stepClick(4)">
+        <div class="intune-step-dot" id="intune-dot-4">4</div>
+        <span class="intune-step-label" id="intune-label-4">Upload</span>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 1: CONNECT ══════════════════════════ -->
+    <div class="section active" id="intune-step-1">
+      <div class="section-header">
+        <div class="section-tag">01 / Connect</div>
+        <div class="section-title">Connect to Intune</div>
+        <div class="section-desc">Authenticate with Microsoft Intune via the companion app running on your Mac.</div>
+      </div>
+
+      <div class="card card-collapsible" id="intune-companion-card">
+        <button type="button" class="card-title card-collapse-trigger" id="intune-companion-collapse-trigger"
+          onclick="intuneToggleCompanion()" aria-expanded="false">
+          <span class="card-collapse-icon" id="intune-companion-collapse-icon">&#9654;</span>
+          <span>Companion app (Mac)</span>
+        </button>
+        <div class="card-collapse-body" id="intune-companion-body" style="display:none;">
+          <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac. The companion app communicates with Intune on your behalf.</p>
+          <ol style="margin:0 0 12px 20px;font-size:13px;color:var(--text-dim);line-height:1.8;">
+            <li><strong>Download</strong> the companion app using the button below.</li>
+            <li><strong>Unzip</strong> and move <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong>.</li>
+            <li><strong>Open</strong> the app. macOS may block it the first time &mdash; go to <strong>System Settings &rarr; Privacy &amp; Security</strong> and click <strong>Open Anyway</strong>.</li>
+          </ol>
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Authentication</div>
+        <button class="btn btn-primary" id="intune-connect-btn" onclick="intuneConnect()">Connect to Intune</button>
+        <div id="intune-connect-status" style="display:none;margin-top:16px;">
+          <div class="info-box" id="intune-connect-status-msg">Launching companion app&hellip;</div>
+          <div id="intune-connect-items" style="margin-top:12px;"></div>
+        </div>
+        <div id="intune-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
+          <strong style="color:var(--green);">Connected</strong><br>
+          Tenant: <strong id="intune-tenant-name"></strong><br>
+          User: <strong id="intune-user-email"></strong>
+        </div>
+      </div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-primary" id="intune-step1-next" disabled onclick="goToStep(2)">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 2: PREREQUISITES ══════════════════════════ -->
+    <div class="section" id="intune-step-2">
+      <div class="section-header">
+        <div class="section-tag">02 / Prerequisites</div>
+        <div class="section-title">Prerequisite Checks</div>
+        <div class="section-desc">Verify your Intune environment is ready for base build deployment. You can skip this step if you already know your environment is configured.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Options</div>
+        <div class="intune-toggle-wrap">
+          <div class="intune-toggle-switch on" id="intune-prereq-toggle" onclick="togglePrereqSwitch()"></div>
+          <span class="intune-toggle-label">Run prerequisite checks</span>
+        </div>
+        <div class="intune-btn-row">
+          <button class="btn btn-primary" id="intune-run-checks-btn" onclick="runPrerequisites()">Run Checks</button>
+          <button class="btn btn-ghost" onclick="skipPrerequisites()">Skip</button>
+        </div>
+      </div>
+
+      <div class="card" id="intune-prereq-results" style="display:none;">
+        <div class="card-title">Checklist</div>
+        <div id="intune-prereq-items">
+          <div class="intune-check-row" data-check="apns"><span>&#9203;</span><span>APNs Certificate</span></div>
+          <div class="intune-check-row" data-check="abm"><span>&#9203;</span><span>ABM Token</span></div>
+          <div class="intune-check-row" data-check="vpp"><span>&#9203;</span><span>VPP Token</span></div>
+          <div class="intune-check-row" data-check="testgroup"><span>&#9203;</span><span>Test Group</span></div>
+          <div class="intune-check-row" data-check="userassignment"><span>&#9203;</span><span>User Assignment</span></div>
+          <div class="intune-check-row" data-check="filevault"><span>&#9203;</span><span>FileVault</span></div>
+          <div class="intune-check-row" data-check="enrollment"><span>&#9203;</span><span>Enrollment Profile</span></div>
+        </div>
+      </div>
+
+      <div id="intune-progress-items-step2"></div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="goToStep(1)">&larr; Back</button>
+        <button class="btn btn-primary" id="intune-step2-next" disabled onclick="goToStep(3)">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 3: FILES ══════════════════════════ -->
+    <div class="section" id="intune-step-3">
+      <div class="section-header">
+        <div class="section-tag">03 / Files</div>
+        <div class="section-title">Select Files</div>
+        <div class="section-desc">Load the standard base build files from S3, or upload your own custom files. Select which files to deploy to Intune.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Base build files</div>
+        <button class="btn btn-primary" id="intune-load-files-btn" onclick="loadFileList()">Load Base Build Files</button>
+        <div id="intune-load-status" class="info-box" style="display:none;margin-top:12px;"></div>
+      </div>
+
+      <div class="card" id="intune-files-card" style="display:none;">
+        <div class="card-title">File list</div>
+        <div class="intune-file-actions">
+          <button class="btn btn-ghost" onclick="selectAllFiles(true)">Select All</button>
+          <button class="btn btn-ghost" onclick="selectAllFiles(false)">Deselect All</button>
+          <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-muted);" id="intune-file-count"></span>
+        </div>
+        <div class="intune-file-list" id="intune-file-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Custom files</div>
+        <p class="section-desc" style="margin-bottom:12px;">Upload additional files (scripts, profiles, JSON configs) to include in the base build.</p>
+        <input type="file" id="intune-custom-file-input" multiple style="display:none;" onchange="handleCustomFiles(event)">
+        <div class="drop-zone" id="intune-drop-zone" onclick="document.getElementById('intune-custom-file-input').click()">
+          <div class="drop-zone-icon">&#11014;</div>
+          <div class="drop-zone-label">Drop files here</div>
+          <div class="drop-zone-sub">Or click to select</div>
+        </div>
+        <div id="intune-upload-file-status" class="info-box" style="display:none;margin-top:12px;"></div>
+      </div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="goToStep(2)">&larr; Back</button>
+        <button class="btn btn-primary" id="intune-step3-next" disabled onclick="goToStep(4)">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 4: UPLOAD ══════════════════════════ -->
+    <div class="section" id="intune-step-4">
+      <div class="section-header">
+        <div class="section-tag">04 / Upload</div>
+        <div class="section-title">Upload to Intune</div>
+        <div class="section-desc">Deploy the selected files to your Intune tenant.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Summary</div>
+        <div class="intune-summary" id="intune-upload-summary">0 files selected for upload</div>
+        <button class="btn btn-primary" id="intune-upload-btn" onclick="startUpload()">Upload to Intune</button>
+      </div>
+
+      <div class="card" id="intune-upload-progress-card" style="display:none;">
+        <div class="card-title">Progress</div>
+        <div id="intune-progress-items"></div>
+      </div>
+
+      <div id="intune-log-card" class="card" style="display:none;">
+        <div class="card-title">Log</div>
+        <div class="intune-log" id="intune-log"></div>
+      </div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="goToStep(3)">&larr; Back</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include 'tools/_shared_utils.html' %}
+<script>
+(function() {
+  var INTUNE_PORT = 8765;
+  var currentStep = 1;
+  var maxStep = 1;
+  var s3Files = [];
+  var uploadedFiles = [];
+  var stepStates = [null, 'active', 'pending', 'pending', 'pending']; // index 0 unused
+
+  /* ── AGENT COMMUNICATION ── */
+
+  function intuneRequest(method, path, body) {
+    var opts = { method: method, mode: 'cors', headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch('http://127.0.0.1:' + INTUNE_PORT + path, opts).then(function(r) { return r.json(); });
+  }
+
+  /* ── STEPPER ── */
+
+  function updateStepIndicators() {
+    for (var i = 1; i <= 4; i++) {
+      var dot = document.getElementById('intune-dot-' + i);
+      var label = document.getElementById('intune-label-' + i);
+      var line = document.getElementById('intune-line-' + i);
+      dot.className = 'intune-step-dot';
+      label.className = 'intune-step-label';
+      if (i < currentStep || stepStates[i] === 'complete') {
+        dot.className += ' complete';
+        dot.innerHTML = '&#10003;';
+        label.className += ' complete';
+        if (line) line.className = 'intune-step-line complete';
+      } else if (i === currentStep) {
+        dot.className += ' active';
+        dot.textContent = i;
+        label.className += ' active';
+        if (line) line.className = 'intune-step-line';
+      } else {
+        dot.textContent = i;
+        if (line) line.className = 'intune-step-line';
+      }
+      // Make items clickable if reachable
+      var item = dot.parentElement;
+      if (i <= maxStep) {
+        item.classList.add('clickable');
+      } else {
+        item.classList.remove('clickable');
+      }
+    }
+  }
+
+  function updateStepIndicator(step, state) {
+    stepStates[step] = state;
+    updateStepIndicators();
+  }
+
+  window.stepClick = function(n) {
+    if (n <= maxStep) goToStep(n);
+  };
+
+  window.goToStep = function(n) {
+    if (n > maxStep + 1 || n < 1 || n > 4) return;
+    currentStep = n;
+    if (n > maxStep) maxStep = n;
+    for (var i = 1; i <= 4; i++) {
+      var el = document.getElementById('intune-step-' + i);
+      if (i === n) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    }
+    updateStepIndicators();
+    // Step 4: update summary
+    if (n === 4) {
+      var count = getSelectedFiles().length;
+      document.getElementById('intune-upload-summary').textContent = count + ' file' + (count !== 1 ? 's' : '') + ' selected for upload';
+      document.getElementById('intune-upload-btn').disabled = count === 0;
+    }
+    // Step 3: update next button
+    if (n === 3) updateStep3Next();
+  };
+
+  /* ── STEP 1: CONNECT ── */
+
+  window.intuneToggleCompanion = function() {
+    var body = document.getElementById('intune-companion-body');
+    var icon = document.getElementById('intune-companion-collapse-icon');
+    var trigger = document.getElementById('intune-companion-collapse-trigger');
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    icon.innerHTML = open ? '&#9654;' : '&#9660;';
+    trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+  };
+
+  window.intuneConnect = function() {
+    document.getElementById('intune-connect-btn').disabled = true;
+    document.getElementById('intune-connect-status').style.display = 'block';
+    document.getElementById('intune-connect-status-msg').textContent = 'Launching companion app\u2026';
+    window.open('macadmin-toolbox://intune-base-build', '_blank');
+    setTimeout(startPollingConnect, 2000);
+  };
+
+  function startPollingConnect() {
+    var poll = setInterval(function() {
+      intuneRequest('GET', '/status').then(function(data) {
+        updateConnectStatus(data);
+        if (data.connected) {
+          clearInterval(poll);
+          document.getElementById('intune-tenant-info').style.display = 'block';
+          document.getElementById('intune-tenant-name').textContent = data.tenantName || 'Unknown';
+          document.getElementById('intune-user-email').textContent = data.userEmail || 'Unknown';
+          document.getElementById('intune-step1-next').disabled = false;
+          document.getElementById('statusPill').textContent = 'CONNECTED';
+          document.getElementById('statusPill').classList.add('ready');
+          updateStepIndicator(1, 'complete');
+        }
+      }).catch(function() { /* agent not ready yet */ });
+    }, 1500);
+  }
+
+  function updateConnectStatus(data) {
+    var el = document.getElementById('intune-connect-items');
+    if (!data.items || !data.items.length) return;
+    var html = '';
+    data.items.forEach(function(item) {
+      var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
+      html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
+      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  /* ── STEP 2: PREREQUISITES ── */
+
+  var prereqToggle = true;
+
+  window.togglePrereqSwitch = function() {
+    prereqToggle = !prereqToggle;
+    var el = document.getElementById('intune-prereq-toggle');
+    if (prereqToggle) {
+      el.classList.add('on');
+    } else {
+      el.classList.remove('on');
+    }
+  };
+
+  window.runPrerequisites = function() {
+    if (!prereqToggle) { skipPrerequisites(); return; }
+    document.getElementById('intune-run-checks-btn').disabled = true;
+    document.getElementById('intune-prereq-results').style.display = 'block';
+    intuneRequest('POST', '/prerequisites', {});
+    startPollingPrereqs(function() {
+      document.getElementById('intune-step2-next').disabled = false;
+      updateStepIndicator(2, 'complete');
+    });
+  };
+
+  function startPollingPrereqs(onComplete) {
+    var el = document.getElementById('intune-prereq-items');
+    var poll = setInterval(function() {
+      intuneRequest('GET', '/progress').then(function(data) {
+        if (data.items && data.items.length) {
+          var html = '';
+          data.items.forEach(function(item) {
+            var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
+            html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
+            if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+            html += '</div>';
+          });
+          el.innerHTML = html;
+        }
+        if (data.operation === 'idle' && data.items && data.items.length > 0) {
+          clearInterval(poll);
+          if (onComplete) onComplete();
+        }
+      }).catch(function() { /* retry */ });
+    }, 1000);
+  }
+
+  window.skipPrerequisites = function() {
+    updateStepIndicator(2, 'complete');
+    document.getElementById('intune-step2-next').disabled = false;
+    goToStep(3);
+  };
+
+  /* ── STEP 3: FILES ── */
+
+  window.loadFileList = function() {
+    document.getElementById('intune-load-files-btn').disabled = true;
+    var statusEl = document.getElementById('intune-load-status');
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Loading file list\u2026';
+    fetch('https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/file_list.txt')
+      .then(function(r) { return r.text(); })
+      .then(function(text) {
+        var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
+        s3Files = lines.map(function(name) {
+          return { name: name.trim(), url: 'https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/' + encodeURIComponent(name.trim()), type: detectFileType(name.trim()), selected: true };
+        });
+        statusEl.textContent = 'Loaded ' + s3Files.length + ' file' + (s3Files.length !== 1 ? 's' : '') + '.';
+        renderFileList();
+      })
+      .catch(function(err) {
+        statusEl.className = 'warning-box';
+        statusEl.textContent = 'Failed to load file list. Check your connection.';
+        document.getElementById('intune-load-files-btn').disabled = false;
+      });
+  };
+
+  function detectFileType(name) {
+    if (name.startsWith('ios_') && name.endsWith('.mobileconfig')) return 'ios_mobileconfig';
+    if (name.endsWith('.mobileconfig')) return 'mobileconfig';
+    if (name.endsWith('.sh')) return 'sh';
+    if (name.endsWith('.json')) return 'json';
+    if (name.endsWith('.cash')) return 'cash';
+    if (name.endsWith('.pkg')) return 'pkg';
+    return 'unknown';
+  }
+
+  function renderFileList() {
+    var container = document.getElementById('intune-file-list');
+    var html = '';
+    s3Files.forEach(function(f, i) {
+      html += '<div class="intune-file-row">';
+      html += '<input type="checkbox" ' + (f.selected ? 'checked' : '') + ' onchange="toggleFile(\'s3\',' + i + ',this.checked)">';
+      html += '<span class="intune-file-name">' + escXml(f.name) + '</span>';
+      html += '<span class="intune-type-badge ' + escXml(f.type) + '">' + escXml(f.type.replace('_', ' ')) + '</span>';
+      html += '</div>';
+    });
+    uploadedFiles.forEach(function(f, i) {
+      html += '<div class="intune-file-row">';
+      html += '<input type="checkbox" ' + (f.selected ? 'checked' : '') + ' onchange="toggleFile(\'custom\',' + i + ',this.checked)">';
+      html += '<span class="intune-file-name">' + escXml(f.name) + ' <span style="color:var(--green);font-size:10px;">(custom)</span></span>';
+      html += '<span class="intune-type-badge ' + escXml(f.type) + '">' + escXml(f.type.replace('_', ' ')) + '</span>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+    document.getElementById('intune-files-card').style.display = 'block';
+    updateFileCount();
+    updateStep3Next();
+  }
+
+  function updateFileCount() {
+    var count = getSelectedFiles().length;
+    var total = s3Files.length + uploadedFiles.length;
+    document.getElementById('intune-file-count').textContent = count + ' / ' + total + ' selected';
+  }
+
+  function updateStep3Next() {
+    var count = getSelectedFiles().length;
+    document.getElementById('intune-step3-next').disabled = count === 0;
+  }
+
+  window.toggleFile = function(source, idx, checked) {
+    if (source === 's3') s3Files[idx].selected = checked;
+    else uploadedFiles[idx].selected = checked;
+    updateFileCount();
+    updateStep3Next();
+  };
+
+  window.selectAllFiles = function(val) {
+    s3Files.forEach(function(f) { f.selected = val; });
+    uploadedFiles.forEach(function(f) { f.selected = val; });
+    renderFileList();
+  };
+
+  function getSelectedFiles() {
+    var files = [];
+    s3Files.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: f.url, type: f.type }); });
+    uploadedFiles.forEach(function(f) { if (f.selected) files.push({ name: f.name, localPath: f.localPath, type: f.type }); });
+    return files;
+  }
+
+  /* ── CUSTOM FILE UPLOAD ── */
+
+  window.handleCustomFiles = function(event) {
+    var files = event.target.files;
+    for (var i = 0; i < files.length; i++) {
+      uploadCustomFile(files[i]);
+    }
+    event.target.value = '';
+  };
+
+  function uploadCustomFile(file) {
+    var statusEl = document.getElementById('intune-upload-file-status');
+    statusEl.style.display = 'block';
+    statusEl.className = 'info-box';
+    statusEl.textContent = 'Uploading ' + file.name + '\u2026';
+    var reader = new FileReader();
+    reader.onload = function() {
+      var bytes = new Uint8Array(reader.result);
+      var binary = '';
+      for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      var b64 = btoa(binary);
+      intuneRequest('POST', '/upload-file', { name: file.name, content: b64 })
+        .then(function(resp) {
+          if (resp.path) {
+            uploadedFiles.push({ name: file.name, localPath: resp.path, type: detectFileType(file.name), selected: true });
+            statusEl.textContent = file.name + ' uploaded.';
+            renderFileList();
+          } else {
+            statusEl.className = 'warning-box';
+            statusEl.textContent = 'Failed to upload ' + file.name + '.';
+          }
+        })
+        .catch(function() {
+          statusEl.className = 'warning-box';
+          statusEl.textContent = 'Failed to upload ' + file.name + '. Is the companion app running?';
+        });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Drop zone drag/drop handlers
+  var dropZone = document.getElementById('intune-drop-zone');
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+    var files = e.dataTransfer.files;
+    for (var i = 0; i < files.length; i++) {
+      uploadCustomFile(files[i]);
+    }
+  });
+
+  /* ── STEP 4: UPLOAD ── */
+
+  window.startUpload = function() {
+    var selected = getSelectedFiles();
+    if (!selected.length) return;
+    document.getElementById('intune-upload-btn').disabled = true;
+    document.getElementById('intune-upload-progress-card').style.display = 'block';
+    document.getElementById('intune-log-card').style.display = 'block';
+    // Render initial file list as pending
+    var el = document.getElementById('intune-progress-items');
+    var html = '';
+    selected.forEach(function(f) {
+      html += '<div class="intune-check-row"><span>\u23F3</span><span>' + escXml(f.name) + '</span></div>';
+    });
+    el.innerHTML = html;
+    intuneRequest('POST', '/upload', { files: selected });
+    startPollingUpload(function() {
+      updateStepIndicator(4, 'complete');
+      document.getElementById('statusPill').textContent = 'COMPLETE';
+    });
+  };
+
+  function startPollingUpload(onComplete) {
+    var el = document.getElementById('intune-progress-items');
+    var logEl = document.getElementById('intune-log');
+    var poll = setInterval(function() {
+      intuneRequest('GET', '/progress').then(function(data) {
+        if (data.items && data.items.length) {
+          var html = '';
+          data.items.forEach(function(item) {
+            var icon = item.status === 'success' ? '\u2705' : item.status === 'fail' ? '\u274C' : item.status === 'processing' ? '\uD83D\uDD04' : '\u23F3';
+            html += '<div class="intune-check-row"><span>' + icon + '</span><span>' + escXml(item.name) + '</span>';
+            if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+            html += '</div>';
+          });
+          el.innerHTML = html;
+        }
+        if (data.log) {
+          logEl.textContent = data.log;
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        if (data.operation === 'idle' && data.items && data.items.length > 0) {
+          clearInterval(poll);
+          if (onComplete) onComplete();
+        }
+      }).catch(function() { /* retry */ });
+    }, 1000);
+  }
+
+})();
+</script>
+{% endblock %}
