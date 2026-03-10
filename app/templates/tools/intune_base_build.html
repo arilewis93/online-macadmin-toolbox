@@ -946,8 +946,11 @@ if (typeof define === 'undefined') {
           var settings = data.value || [];
           if (!settings.length) return { status: 'fail', message: 'No DEP token found' };
           return IntuneOps.findEnrollmentProfiles(settings[0].id).then(function(profiles) {
-            if (profiles.length > 0) {
-              return { status: 'success', message: 'Already exists (' + profiles[0].displayName + ')' };
+            var match = profiles.filter(function(p) {
+              return p.displayName === ENROLLMENT_PROFILE.displayName;
+            });
+            if (match.length > 0) {
+              return { status: 'success', message: 'Already exists (' + match[0].displayName + ')' };
             }
             return IntuneOps.createEnrollmentProfile(settings[0].id, ENROLLMENT_PROFILE)
               .then(function() { return { status: 'success', message: 'Created' }; });

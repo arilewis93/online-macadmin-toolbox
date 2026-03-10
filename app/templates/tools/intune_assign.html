@@ -230,29 +230,26 @@
       </div>
     </div>
 
-    <!-- DEVICE ASSIGNMENT SECTION -->
-    <div class="section hidden" id="itb-assignment-section">
-      <!-- CSV Upload card -->
-      <div class="card">
-        <div class="card-title">Device Assignment CSV</div>
-        <div class="section-desc" style="margin-bottom:12px;">Upload a CSV file with columns: <strong>SerialNumber</strong>, <strong>ProfileName</strong></div>
-        <input type="file" id="itb-assign-csv-input" accept=".csv" style="display:none;" onchange="itbParseAssignCSV(event)">
-        <button class="btn btn-ghost" onclick="document.getElementById('itb-assign-csv-input').click()">Choose CSV File</button>
-        <div id="itb-assign-csv-status" class="info-box" style="display:none;margin-top:12px;"></div>
-        <div id="itb-assign-csv-table-wrap" style="display:none;margin-top:12px;overflow-x:auto;">
-          <table class="itb-csv-table" id="itb-assign-csv-table"></table>
-        </div>
+    <!-- CSV Upload card (shown after connect) -->
+    <div class="card" id="itb-csv-card" style="display:none;">
+      <div class="card-title">Device Assignment CSV</div>
+      <div class="section-desc" style="margin-bottom:12px;">Upload a CSV file with columns: <strong>SerialNumber</strong>, <strong>ProfileName</strong></div>
+      <input type="file" id="itb-assign-csv-input" accept=".csv" style="display:none;" onchange="itbParseAssignCSV(event)">
+      <button class="btn btn-ghost" onclick="document.getElementById('itb-assign-csv-input').click()">Choose CSV File</button>
+      <div id="itb-assign-csv-status" class="info-box" style="display:none;margin-top:12px;"></div>
+      <div id="itb-assign-csv-table-wrap" style="display:none;margin-top:12px;overflow-x:auto;">
+        <table class="itb-csv-table" id="itb-assign-csv-table"></table>
       </div>
+    </div>
 
-      <!-- Assign Button card -->
-      <div class="card">
-        <div class="card-title">Assign Devices</div>
-        <div class="section-desc" style="margin-bottom:12px;">Assign each device serial to its named enrollment profile.</div>
-        <button class="btn btn-primary" id="itb-assign-btn" disabled onclick="itbAssignDevices()">Assign Devices</button>
-        <div id="itb-assign-progress" style="display:none;margin-top:16px;"></div>
-        <div id="itb-assign-log-card" style="display:none;margin-top:16px;">
-          <div class="intune-log" id="itb-assign-log"></div>
-        </div>
+    <!-- Assign Button card (shown after CSV loaded) -->
+    <div class="card" id="itb-assign-card" style="display:none;">
+      <div class="card-title">Assign Devices</div>
+      <div class="section-desc" style="margin-bottom:12px;">Assign each device serial to its named enrollment profile.</div>
+      <button class="btn btn-primary" id="itb-assign-btn" onclick="itbAssignDevices()">Assign Devices</button>
+      <div id="itb-assign-progress" style="display:none;margin-top:16px;"></div>
+      <div id="itb-assign-log-card" style="display:none;margin-top:16px;">
+        <div class="intune-log" id="itb-assign-log"></div>
       </div>
     </div>
   </main>
@@ -302,7 +299,9 @@
       }
       return fetch(url, opts).then(function(r) {
         if (r.status === 204) return null;
-        return r.json().then(function(data) {
+        return r.text().then(function(text) {
+          if (!text) return null;
+          var data = JSON.parse(text);
           if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
           return data;
         });
@@ -434,7 +433,7 @@
             document.getElementById('itb-user-email').textContent = userEmail;
             document.getElementById('statusPill').textContent = 'CONNECTED';
             document.getElementById('statusPill').classList.add('ready');
-            document.getElementById('itb-assignment-section').classList.remove('hidden');
+            document.getElementById('itb-csv-card').style.display = '';
           }).catch(function(err) {
             connectItems[2].status = 'fail';
             connectItems[2].message = 'Token error: ' + err.message;
@@ -507,8 +506,12 @@
      ═══════════════════════════════════════════════════════════ */
 
   function updateAssignBtn() {
-    var btn = document.getElementById('itb-assign-btn');
-    btn.disabled = !(connected && assignCSVRows.length > 0);
+    var card = document.getElementById('itb-assign-card');
+    if (connected && assignCSVRows.length > 0) {
+      card.style.display = '';
+    } else {
+      card.style.display = 'none';
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════

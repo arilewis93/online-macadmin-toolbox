@@ -341,10 +341,8 @@
     </div>
 
     <!-- ══════════════════════════ ProCreate Section ══════════════════════════ -->
-    <div class="section hidden" id="itb-procreate-section">
-
-      <!-- DEP Token Selection -->
-      <div class="card" id="itb-dep-tokens-card">
+    <!-- DEP Token Selection (shown after connect) -->
+      <div class="card" id="itb-dep-tokens-card" style="display:none;">
         <div class="card-title">DEP Token Selection</div>
         <div class="section-desc" style="margin-bottom:12px;">Select the Apple Business Manager tokens to create profiles under.</div>
         <div id="itb-dep-tokens-loading" class="info-box" style="display:none;">Loading DEP tokens&hellip;</div>
@@ -357,10 +355,16 @@
         <div class="intune-file-list" id="itb-dep-token-list" style="display:none;"></div>
       </div>
 
-      <!-- CSV Upload -->
-      <div class="card">
+      <!-- CSV Upload (shown after token selected) -->
+      <div class="card" id="itb-csv-card" style="display:none;">
         <div class="card-title">Profile CSV</div>
         <div class="section-desc" style="margin-bottom:12px;">Upload a CSV file with columns: <strong>ProfileName</strong>, <strong>DeviceNameTemplate</strong></div>
+        <div class="info-box" style="margin-bottom:12px;font-size:12px;line-height:1.7;">
+          <strong>Device Name Template variables:</strong><br>
+          <code>&#123;&#123;SERIAL&#125;&#125;</code> &mdash; device serial number<br>
+          <code>&#123;&#123;DEVICETYPE&#125;&#125;</code> &mdash; device type (e.g. MacBook Pro)<br>
+          <span style="color:var(--text-muted);font-size:11px;">Max 63 characters including variables. Example: <code>MAC-&#123;&#123;SERIAL&#125;&#125;</code></span>
+        </div>
         <input type="file" id="itb-profile-csv-input" accept=".csv" style="display:none;" onchange="itbParseProfileCSV(event)">
         <button class="btn btn-ghost" onclick="document.getElementById('itb-profile-csv-input').click()">Choose CSV File</button>
         <div id="itb-profile-csv-status" class="info-box" style="display:none;margin-top:12px;"></div>
@@ -369,8 +373,8 @@
         </div>
       </div>
 
-      <!-- Profile Options -->
-      <div class="card">
+      <!-- Profile Options (shown after CSV loaded) -->
+      <div class="card" id="itb-options-card" style="display:none;">
         <div class="card-title">Profile Options</div>
 
         <div class="itb-field">
@@ -456,8 +460,8 @@
         </div>
       </div>
 
-      <!-- Setup Assistant Panes to Skip -->
-      <div class="card">
+      <!-- Setup Assistant Panes to Skip (shown after CSV loaded) -->
+      <div class="card" id="itb-skip-card" style="display:none;">
         <div class="card-title">Setup Assistant Panes to Skip</div>
         <div class="section-desc" style="margin-bottom:12px;">Check the panes you want to <strong>skip</strong> during device setup.</div>
         <div class="intune-file-actions">
@@ -467,8 +471,8 @@
         <div class="skip-panes-grid" id="itb-skip-panes"></div>
       </div>
 
-      <!-- Create Button -->
-      <div class="card">
+      <!-- Create Button (shown when ready) -->
+      <div class="card" id="itb-create-card" style="display:none;">
         <div class="card-title">Create Profiles</div>
         <div class="section-desc" style="margin-bottom:12px;">Create an enrollment profile for each CSV row under each selected DEP token.</div>
         <button class="btn btn-primary" id="itb-create-btn" disabled onclick="itbCreateProfiles()">Create Profiles</button>
@@ -477,8 +481,6 @@
           <div class="intune-log" id="itb-create-log"></div>
         </div>
       </div>
-
-    </div>
 
   </main>
 </div>
@@ -529,7 +531,9 @@
       }
       return fetch(url, opts).then(function(r) {
         if (r.status === 204) return null;
-        return r.json().then(function(data) {
+        return r.text().then(function(text) {
+          if (!text) return null;
+          var data = JSON.parse(text);
           if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
           return data;
         });
@@ -668,7 +672,7 @@
             document.getElementById('itb-user-email').textContent = userEmail;
             document.getElementById('statusPill').textContent = 'CONNECTED';
             document.getElementById('statusPill').classList.add('ready');
-            document.getElementById('itb-procreate-section').classList.remove('hidden');
+            document.getElementById('itb-dep-tokens-card').style.display = '';
             loadDepTokens();
           }).catch(function(err) {
             connectItems[2].status = 'fail';
@@ -701,11 +705,11 @@
       listEl.style.display = 'block';
       var html = '';
       depTokens.forEach(function(t, idx) {
-        html += '<div class="intune-file-row">';
+        html += '<label class="toggle-row" onclick="itbToggleOpt(this)">';
         html += '<input type="checkbox" id="itb-dep-tok-' + idx + '" onchange="itbUpdateCreateBtn()">';
-        html += '<span class="intune-file-name">' + esc(t.tokenName) + '</span>';
-        html += '<span class="intune-file-sub">' + esc(t.appleIdentifier) + '</span>';
-        html += '</div>';
+        html += '<div class="toggle-info"><div class="toggle-label">' + esc(t.tokenName) + '</div><div class="toggle-desc">' + esc(t.appleIdentifier) + '</div></div>';
+        html += '<div class="toggle-switch"></div>';
+        html += '</label>';
       });
       listEl.innerHTML = html;
       updateTokenCount();
@@ -733,7 +737,11 @@
   window.itbSelectAllTokens = function(state) {
     depTokens.forEach(function(t, idx) {
       var cb = document.getElementById('itb-dep-tok-' + idx);
-      if (cb) cb.checked = state;
+      if (cb) {
+        cb.checked = state;
+        var row = cb.closest('.toggle-row');
+        if (row) row.classList.toggle('enabled', state);
+      }
     });
     updateTokenCount();
     updateCreateBtn();
@@ -922,10 +930,15 @@
      ═══════════════════════════════════════════════════════════ */
 
   function updateCreateBtn() {
-    var btn = document.getElementById('itb-create-btn');
     var hasTokens = getSelectedTokens().length > 0;
     var hasCSV = profileCSVRows.length > 0;
-    btn.disabled = !(connected && hasTokens && hasCSV);
+    // Show CSV card once tokens are selected
+    document.getElementById('itb-csv-card').style.display = hasTokens ? '' : 'none';
+    // Show options, skip panes, and create card once CSV is loaded
+    document.getElementById('itb-options-card').style.display = hasCSV ? '' : 'none';
+    document.getElementById('itb-skip-card').style.display = hasCSV ? '' : 'none';
+    document.getElementById('itb-create-card').style.display = (hasTokens && hasCSV) ? '' : 'none';
+    document.getElementById('itb-create-btn').disabled = !(connected && hasTokens && hasCSV);
     updateTokenCount();
   }
   window.itbUpdateCreateBtn = updateCreateBtn;
