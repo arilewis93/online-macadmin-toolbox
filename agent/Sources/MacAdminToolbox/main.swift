@@ -546,7 +546,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if host == "intune-base-build" {
+        if host == "intune-base-build" || host == "serial-killer" || host == "intune-toolbox" {
             handledURL = true
             startIntuneServer()
             return
@@ -856,7 +856,7 @@ func corsPreflightResponse() -> Data {
 
 // MARK: - Endpoint handlers
 
-func handleConnect(encoder: JSONEncoder) {
+func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
     // Tear down any existing session first
     if let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning {
         let _ = runPSCommand(proc, command: "Disconnect-MgGraph", timeout: 10)
@@ -907,7 +907,8 @@ func handleConnect(encoder: JSONEncoder) {
         if (Test-Path $msalCache) { Remove-Item -Force $msalCache -ErrorAction SilentlyContinue }
         """, timeout: 10)
 
-        let scopes = [
+        // Default scopes (base build)
+        let defaultScopes = [
             "DeviceManagementConfiguration.ReadWrite.All",
             "DeviceManagementApps.ReadWrite.All",
             "DeviceManagementManagedDevices.ReadWrite.All",
@@ -917,7 +918,10 @@ func handleConnect(encoder: JSONEncoder) {
             "Organization.Read.All",
             "User.Read.All",
             "Directory.ReadWrite.All",
-        ].map { "'\($0)'" }.joined(separator: ",")
+        ]
+        let scopes = requestedScopes.isEmpty
+            ? defaultScopes.map { "'\($0)'" }.joined(separator: ",")
+            : requestedScopes.map { "'\($0)'" }.joined(separator: ",")
         let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes \(scopes) -NoWelcome", timeout: 120)
 
         if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
@@ -1013,7 +1017,14 @@ func handleIntuneRequest(method: String, path: String, body: Data) -> Data {
         guard method == "POST" else {
             return jsonResponse(["error": "Method not allowed"], status: "405 Method Not Allowed")
         }
-        handleConnect(encoder: encoder)
+        // Parse requested scopes from body
+        var requestedScopes: [String] = []
+        if !body.isEmpty,
+           let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+           let scopes = json["scopes"] as? [String] {
+            requestedScopes = scopes
+        }
+        handleConnect(encoder: encoder, requestedScopes: requestedScopes)
         return jsonResponse(["status": "connecting"])
 
     case "/token":
