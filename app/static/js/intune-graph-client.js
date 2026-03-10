@@ -5,12 +5,18 @@
   var AGENT_BASE = 'http://127.0.0.1:' + AGENT_PORT;
   var GRAPH_BASE = 'https://graph.microsoft.com';
 
+  var _cachedToken = null;
+
   function getToken() {
+    if (_cachedToken) return Promise.resolve(_cachedToken);
     return fetch(AGENT_BASE + '/token', { mode: 'cors' })
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.error) throw new Error(data.error);
-        return data.token;
+        _cachedToken = data.token;
+        // Token acquired — tell agent to shut down
+        fetch(AGENT_BASE + '/disconnect', { method: 'POST', mode: 'cors' }).catch(function() {});
+        return _cachedToken;
       });
   }
 

@@ -495,12 +495,12 @@
 
 {% block scripts %}
 {% include 'tools/_shared_utils.html' %}
+<script src="{{ url_for('static', filename='js/intune-graph-client.js') }}"></script>
 <script>
 (function() {
   /* ═══════════════════════════════════════════════════════════
      STATE
      ═══════════════════════════════════════════════════════════ */
-  var INTUNE_PORT = 8765;
   var connected = false;
   var tenantName = '';
   var userEmail = '';
@@ -509,44 +509,9 @@
   var depTokens = [];       // [{id, tokenName, appleIdentifier}]
   var profileCSVRows = [];  // [{ProfileName, DeviceNameTemplate}]
 
-  /* ═══════════════════════════════════════════════════════════
-     AGENT / GRAPH HELPERS
-     ═══════════════════════════════════════════════════════════ */
-
-  function intuneRequest(method, path, body) {
-    var opts = { method: method, mode: 'cors', headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch('http://127.0.0.1:' + INTUNE_PORT + path, opts).then(function(r) { return r.json(); });
-  }
-
-  function getToken() {
-    return intuneRequest('GET', '/token').then(function(data) {
-      if (data.error) throw new Error(data.error);
-      return data.token;
-    });
-  }
-
-  function graphRequest(method, endpoint, body) {
-    return getToken().then(function(token) {
-      var url = 'https://graph.microsoft.com/beta' + endpoint;
-      var opts = {
-        method: method,
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-      };
-      if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
-        opts.body = JSON.stringify(body);
-      }
-      return fetch(url, opts).then(function(r) {
-        if (r.status === 204) return null;
-        return r.text().then(function(text) {
-          if (!text) return null;
-          var data = JSON.parse(text);
-          if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
-          return data;
-        });
-      });
-    });
-  }
+  var intuneRequest = IntuneGraph.agentRequest;
+  var getToken = IntuneGraph.getToken;
+  var graphRequest = IntuneGraph.graphRequest;
 
   /* ═══════════════════════════════════════════════════════════
      UI HELPERS

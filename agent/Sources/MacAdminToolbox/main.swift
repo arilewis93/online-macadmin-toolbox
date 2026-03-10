@@ -1189,6 +1189,7 @@ struct IntuneState {
     var error: String = ""
     var connectStep: String = ""  // sub-step detail during connecting
     var psProcess: Process? = nil
+    var cachedToken: String = ""
 
     var statusResponse: [String: Any] {
         return [
@@ -1509,46 +1510,54 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
                 intuneState.error = connectOutput
                 intuneState.operation = .idle
             }
+            proc.terminate()
             return
         }
 
-        // Auth succeeded — mark connected. Browser will fetch tenant info via Graph API.
+        // Extract bearer token immediately
+        stateQueue.sync { intuneState.connectStep = "Extracting token" }
+        let tokenOutput = runPSCommand(proc, command: "$resp = Invoke-MgGraphRequest -Method GET -Uri '/v1.0/me' -OutputType HttpResponseMessage; $resp.RequestMessage.Headers.Authorization.Parameter", timeout: 30)
+        let token = tokenOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Clean up PS session — no longer needed
+        let _ = runPSCommand(proc, command: "Disconnect-MgGraph", timeout: 10)
+        proc.terminate()
+
+        if token.isEmpty {
+            stateQueue.sync {
+                intuneState.error = "Connected but failed to extract token"
+                intuneState.operation = .idle
+            }
+            return
+        }
+
+        // Auth succeeded — cache token for browser to pick up, then schedule termination
         stateQueue.sync {
             intuneState.connected = true
+            intuneState.cachedToken = token
+            intuneState.psProcess = nil
             intuneState.operation = .connected
         }
+
+        // Browser will call /disconnect after fetching the token
     }
 }
 
 func handleToken() -> [String: Any] {
-    guard let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning else {
+    let state = stateQueue.sync { (connected: intuneState.connected, token: intuneState.cachedToken) }
+    guard state.connected, !state.token.isEmpty else {
         return ["error": "Not connected"]
     }
-    let connected = stateQueue.sync { intuneState.connected }
-    guard connected else {
-        return ["error": "Not connected"]
-    }
-
-    // Extract bearer token from Invoke-MgGraphRequest response headers
-    let tokenOutput = runPSCommand(proc, command: "$resp = Invoke-MgGraphRequest -Method GET -Uri '/v1.0/me' -OutputType HttpResponseMessage; $resp.RequestMessage.Headers.Authorization.Parameter", timeout: 30)
-
-    let token = tokenOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-    if token.isEmpty {
-        return ["error": "Could not retrieve access token"]
-    }
-
-    return ["token": token]
+    return ["token": state.token]
 }
 
 func handleDisconnect(encoder: JSONEncoder) {
+    // PS process already terminated after token extraction; just clean up and quit
     if let proc = stateQueue.sync(execute: { intuneState.psProcess }), proc.isRunning {
-        let _ = runPSCommand(proc, command: "Disconnect-MgGraph", timeout: 15)
         proc.terminate()
     }
-    stateQueue.sync {
-        intuneState = IntuneState()
-    }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+    stateQueue.sync { intuneState = IntuneState() }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
         NSApp.terminate(nil)
     }
 }
