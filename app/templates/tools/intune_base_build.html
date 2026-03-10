@@ -497,21 +497,185 @@
 {% block scripts %}
 {% include 'tools/_shared_utils.html' %}
 <script>
+// AMD shim for pkgparser vendor module
+var define;
+if (typeof define === 'undefined') {
+  define = function(deps, factory) {
+    if (typeof deps === 'function') { factory = deps; deps = []; }
+    var result = typeof factory === 'function' ? factory() : factory;
+    if (result) window._pkgparserExports = result;
+  };
+  define.amd = true;
+}
+</script>
+<script src="{{ url_for('static', filename='js/vendor/pkgparser.js') }}"></script>
+<script src="{{ url_for('static', filename='js/intune-graph-client.js') }}"></script>
+<script src="{{ url_for('static', filename='js/intune-operations.js') }}"></script>
+<script src="{{ url_for('static', filename='js/intune-pkg-upload.js') }}"></script>
+<script src="{{ url_for('static', filename='js/intune-pkg-parser.js') }}"></script>
+<script>
 (function() {
-  var INTUNE_PORT = 8765;
   var currentStep = 1;
   var maxStep = 1;
   var s3Files = [];
-  var uploadedFiles = [];
-  var stepStates = [null, 'active', 'pending', 'pending', 'pending']; // index 0 unused
+  var customFiles = [];   // {name, file, type, selected, pkgInfo}
+  var stepStates = [null, 'active', 'pending', 'pending', 'pending'];
 
-  /* ── AGENT COMMUNICATION ── */
+  // Tenant info stored after connect
+  var tenantId = '';
+  var tenantName = '';
+  var userEmail = '';
 
-  function intuneRequest(method, path, body) {
-    var opts = { method: method, mode: 'cors', headers: {'Content-Type': 'application/json'} };
-    if (body) opts.body = JSON.stringify(body);
-    return fetch('http://127.0.0.1:' + INTUNE_PORT + path, opts).then(function(r) { return r.json(); });
-  }
+  // Group ID stored after prerequisite check
+  var groupId = null;
+
+  /* ── FILEVAULT POLICY (extracted from IntuneBaseBuild.psm1) ── */
+
+  var FILEVAULT_POLICY = {
+    "name": "FileVault",
+    "description": "",
+    "platforms": "macOS",
+    "roleScopeTagIds": ["0"],
+    "technologies": "mdm,appleRemoteManagement",
+    "templateReference": { "templateId": "" },
+    "settings": [
+      {
+        "settingInstance": {
+          "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+          "groupSettingCollectionValue": [
+            {
+              "children": [
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_defer_true" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_defer"
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_deferdontaskatuserlogout_true" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_deferdontaskatuserlogout"
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance",
+                  "settingDefinitionId": "com.apple.mcx.filevault2_deferforceatuserloginmaxbypassattempts",
+                  "simpleSettingValue": { "@odata.type": "#microsoft.graph.deviceManagementConfigurationIntegerSettingValue", "value": 0 }
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_enable_0" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_enable"
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_forceenableinsetupassistant_true" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_forceenableinsetupassistant"
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_recoverykeyrotationinmonths_0" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_recoverykeyrotationinmonths"
+                },
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx.filevault2_showrecoverykey_false" },
+                  "settingDefinitionId": "com.apple.mcx.filevault2_showrecoverykey"
+                }
+              ]
+            }
+          ],
+          "settingDefinitionId": "com.apple.mcx.filevault2_com.apple.mcx.filevault2"
+        }
+      },
+      {
+        "settingInstance": {
+          "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+          "groupSettingCollectionValue": [
+            {
+              "children": [
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationChoiceSettingInstance",
+                  "choiceSettingValue": { "children": [], "value": "com.apple.mcx_dontallowfdedisable_true" },
+                  "settingDefinitionId": "com.apple.mcx_dontallowfdedisable"
+                }
+              ]
+            }
+          ],
+          "settingDefinitionId": "com.apple.mcx_com.apple.mcx-fdefilevaultoptions"
+        }
+      },
+      {
+        "settingInstance": {
+          "@odata.type": "#microsoft.graph.deviceManagementConfigurationGroupSettingCollectionInstance",
+          "groupSettingCollectionValue": [
+            {
+              "children": [
+                {
+                  "@odata.type": "#microsoft.graph.deviceManagementConfigurationSimpleSettingInstance",
+                  "settingDefinitionId": "com.apple.security.fderecoverykeyescrow_location",
+                  "simpleSettingValue": { "@odata.type": "#microsoft.graph.deviceManagementConfigurationStringSettingValue", "value": "Contact IT" }
+                }
+              ]
+            }
+          ],
+          "settingDefinitionId": "com.apple.security.fderecoverykeyescrow_com.apple.security.fderecoverykeyescrow"
+        }
+      }
+    ]
+  };
+
+  /* ── ENROLLMENT PROFILE (extracted from IntuneBaseBuild.psm1) ── */
+
+  var ENROLLMENT_PROFILE = {
+    "@odata.type": "#microsoft.graph.depMacOSEnrollmentProfile",
+    "displayName": "macOS Enrollment Profile",
+    "description": "iStore Business Enrollment Profile",
+    "requiresUserAuthentication": true,
+    "enableAuthenticationViaCompanyPortal": false,
+    "requireCompanyPortalOnSetupAssistantEnrolledDevices": false,
+    "waitForDeviceConfiguredConfirmation": true,
+    "supervisedModeEnabled": true,
+    "supportDepartment": "IT",
+    "isMandatory": true,
+    "locationDisabled": false,
+    "supportPhoneNumber": "011 535 9000",
+    "profileRemovalDisabled": true,
+    "restoreBlocked": true,
+    "appleIdDisabled": true,
+    "termsAndConditionsDisabled": true,
+    "touchIdDisabled": false,
+    "applePayDisabled": true,
+    "siriDisabled": true,
+    "diagnosticsDisabled": true,
+    "displayToneSetupDisabled": true,
+    "privacyPaneDisabled": true,
+    "screenTimeScreenDisabled": true,
+    "deviceNameTemplate": "",
+    "configurationWebUrl": true,
+    "enabledSkipKeys": [
+      "Restore", "AppleID", "TOS", "Payment", "Siri", "Diagnostics",
+      "Privacy", "ScreenTime", "iCloudDiagnostics", "iCloudStorage",
+      "DisplayTone", "Registration", "Accessibility", "UnlockWithWatch",
+      "TermsOfAddress", "Intelligence", "EnableLockdownMode", "Wallpaper"
+    ],
+    "registrationDisabled": true,
+    "fileVaultDisabled": false,
+    "iCloudDiagnosticsDisabled": true,
+    "passCodeDisabled": false,
+    "zoomDisabled": false,
+    "iCloudStorageDisabled": true,
+    "chooseYourLockScreenDisabled": true,
+    "accessibilityScreenDisabled": true,
+    "autoUnlockWithWatchDisabled": false,
+    "skipPrimarySetupAccountCreation": false,
+    "setPrimarySetupAccountAsRegularUser": false,
+    "dontAutoPopulatePrimaryAccountInfo": false,
+    "primaryAccountFullName": "{{username}}",
+    "primaryAccountUserName": "{{partialupn}}",
+    "enableRestrictEditing": true,
+    "hideAdminAccount": false,
+    "requestRequiresNetworkTether": false,
+    "autoAdvanceSetupEnabled": false
+  };
 
   /* ── STEPPER ── */
 
@@ -536,7 +700,6 @@
         dot.textContent = i;
         if (line) line.className = 'intune-step-line';
       }
-      // Make items clickable if reachable
       var item = dot.parentElement;
       if (i <= maxStep) {
         item.classList.add('clickable');
@@ -568,15 +731,35 @@
       }
     }
     updateStepIndicators();
-    // Step 4: update summary
     if (n === 4) {
       var count = getSelectedFiles().length;
       document.getElementById('intune-upload-summary').textContent = count + ' file' + (count !== 1 ? 's' : '') + ' selected for upload';
       document.getElementById('intune-upload-btn').disabled = count === 0;
     }
-    // Step 3: update next button
     if (n === 3) updateStep3Next();
   };
+
+  /* ── HELPERS ── */
+
+  function statusIcon(status) {
+    return '<span class="intune-status-icon intune-icon-' + (status || 'pending') + '"></span>';
+  }
+
+  function renderCheckRows(items) {
+    var html = '';
+    items.forEach(function(item) {
+      html += '<div class="intune-check-row">' + statusIcon(item.status) + '<span>' + escXml(item.name) + '</span>';
+      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+      html += '</div>';
+    });
+    return html;
+  }
+
+  function logAppend(msg) {
+    var logEl = document.getElementById('intune-log');
+    logEl.textContent += msg + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 
   /* ── STEP 1: CONNECT ── */
 
@@ -595,7 +778,8 @@
     document.getElementById('intune-connect-btn').style.display = 'none';
     document.getElementById('intune-connect-status').style.display = 'block';
     document.getElementById('intune-connect-status-msg').textContent = 'Launching companion app\u2026';
-    // Use hidden iframe to trigger URL scheme (works in Safari + Chrome/Edge)
+
+    // Launch via URL scheme
     var iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     iframe.src = 'macadmin-toolbox://intune-base-build';
@@ -608,56 +792,93 @@
 
   function startPollingConnect() {
     var connectSent = false;
+    var connectItems = [
+      { name: 'Install PowerShell', status: 'processing', message: '' },
+      { name: 'Connect to Graph', status: 'pending', message: '' },
+      { name: 'Get Tenant Info', status: 'pending', message: '' }
+    ];
+    var el = document.getElementById('intune-connect-items');
+    el.innerHTML = renderCheckRows(connectItems);
+
     var poll = setInterval(function() {
-      intuneRequest('GET', '/status').then(function(data) {
-        // Agent is alive — trigger /connect if we haven't yet
+      IntuneGraph.agentRequest('GET', '/status').then(function(data) {
+        // Agent is alive -- trigger /connect if we haven't yet
         if (!connectTriggered) {
           connectTriggered = true;
-          connectSent = false; // reset — wait for /connect to take effect
+          connectSent = false;
+          connectItems[0].status = 'success';
+          connectItems[0].message = 'Agent running';
+          connectItems[1].status = 'processing';
+          el.innerHTML = renderCheckRows(connectItems);
           document.getElementById('intune-connect-status-msg').textContent = 'Getting things ready\u2026';
-          intuneRequest('POST', '/connect', {}).then(function() {
-            connectSent = true; // /connect acknowledged
+          IntuneGraph.agentRequest('POST', '/connect', {}).then(function() {
+            connectSent = true;
           }).catch(function() {});
-          return; // skip this tick — state is stale
+          return;
         }
-        if (!connectSent) return; // still waiting for /connect to be acknowledged
-        updateConnectStatus(data);
+        if (!connectSent) return;
+
+        // Update status from agent items if available, otherwise use our simplified list
+        if (data.items && data.items.length) {
+          // Map agent items to our simplified 3-step view
+          var allDone = true;
+          var anyFail = false;
+          data.items.forEach(function(item) {
+            if (item.status === 'fail') anyFail = true;
+            if (item.status !== 'success') allDone = false;
+          });
+          if (allDone || data.connected) {
+            connectItems[1].status = 'success';
+            connectItems[1].message = 'Authenticated';
+            connectItems[2].status = 'processing';
+          } else if (anyFail) {
+            connectItems[1].status = 'fail';
+            connectItems[1].message = 'Connection failed';
+          } else {
+            connectItems[1].status = 'processing';
+            connectItems[1].message = 'Authenticating\u2026';
+          }
+        }
+        el.innerHTML = renderCheckRows(connectItems);
+
         if (data.connected) {
+          // Store tenant info
+          tenantName = data.tenantName || 'Unknown';
+          userEmail = data.userEmail || 'Unknown';
+          tenantId = data.tenantId || '';
+
+          // Verify token works
+          connectItems[2].status = 'processing';
+          connectItems[2].message = 'Verifying token\u2026';
+          el.innerHTML = renderCheckRows(connectItems);
+
+          IntuneGraph.getToken().then(function() {
+            connectItems[2].status = 'success';
+            connectItems[2].message = 'Token valid';
+            el.innerHTML = renderCheckRows(connectItems);
+
+            clearInterval(poll);
+            document.getElementById('intune-connect-status').style.display = 'none';
+            document.getElementById('intune-tenant-info').style.display = 'block';
+            document.getElementById('intune-tenant-name').textContent = tenantName;
+            document.getElementById('intune-user-email').textContent = userEmail;
+            document.getElementById('intune-step1-next').disabled = false;
+            document.getElementById('statusPill').textContent = 'CONNECTED';
+            document.getElementById('statusPill').classList.add('ready');
+            updateStepIndicator(1, 'complete');
+          }).catch(function(err) {
+            connectItems[2].status = 'fail';
+            connectItems[2].message = 'Token error: ' + err.message;
+            el.innerHTML = renderCheckRows(connectItems);
+          });
+          // Stop the main poll -- the token check above handles completion
           clearInterval(poll);
-          document.getElementById('intune-connect-status').style.display = 'none';
-          document.getElementById('intune-tenant-info').style.display = 'block';
-          document.getElementById('intune-tenant-name').textContent = data.tenantName || 'Unknown';
-          document.getElementById('intune-user-email').textContent = data.userEmail || 'Unknown';
-          document.getElementById('intune-step1-next').disabled = false;
-          document.getElementById('statusPill').textContent = 'CONNECTED';
-          document.getElementById('statusPill').classList.add('ready');
-          updateStepIndicator(1, 'complete');
         }
       }).catch(function() { /* agent not ready yet */ });
     }, 750);
   }
 
-  function statusIcon(status) {
-    return '<span class="intune-status-icon intune-icon-' + (status || 'pending') + '"></span>';
-  }
-
-  function renderCheckRows(items) {
-    var html = '';
-    items.forEach(function(item) {
-      html += '<div class="intune-check-row">' + statusIcon(item.status) + '<span>' + escXml(item.name) + '</span>';
-      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
-      html += '</div>';
-    });
-    return html;
-  }
-
-  function updateConnectStatus(data) {
-    var el = document.getElementById('intune-connect-items');
-    if (!data.items || !data.items.length) return;
-    el.innerHTML = renderCheckRows(data.items);
-  }
-
-  /* ── STEP 2: PREREQUISITES ── */
+  /* ── STEP 2: PREREQUISITES (browser-side Graph API calls) ── */
 
   var prereqToggle = true;
 
@@ -675,26 +896,99 @@
     if (!prereqToggle) { skipPrerequisites(); return; }
     document.getElementById('intune-run-checks-btn').disabled = true;
     document.getElementById('intune-prereq-results').style.display = 'block';
-    intuneRequest('POST', '/prerequisites', {});
-    startPollingPrereqs(function() {
-      document.getElementById('intune-step2-next').disabled = false;
-      updateStepIndicator(2, 'complete');
-    });
+
+    var checks = [
+      { id: 'apns', label: 'APNs Certificate', fn: function() {
+        return IntuneOps.checkAPNs().then(function(r) {
+          return { status: r.status ? 'success' : 'fail', message: r.message };
+        });
+      }},
+      { id: 'abm', label: 'ABM Token', fn: function() {
+        return IntuneOps.checkABM().then(function(r) {
+          return { status: r.status ? 'success' : 'fail', message: r.message };
+        });
+      }},
+      { id: 'vpp', label: 'VPP Token', fn: function() {
+        return IntuneOps.checkVPP().then(function(r) {
+          return { status: r.status ? 'success' : 'fail', message: r.message };
+        });
+      }},
+      { id: 'testgroup', label: 'Test Group', fn: function() {
+        return IntuneOps.ensureGroup('iStore Business PoC')
+          .then(function(g) {
+            groupId = g.id;
+            return { status: 'success', message: 'Group: ' + g.displayName };
+          })
+          .catch(function(e) { return { status: 'fail', message: e.message }; });
+      }},
+      { id: 'userassignment', label: 'User Assignment', fn: function() {
+        return IntuneOps.findUser(userEmail).then(function(u) {
+          if (!u) return { status: 'fail', message: 'User not found: ' + userEmail };
+          return IntuneOps.addGroupMember(groupId, u.id)
+            .then(function() { return { status: 'success', message: 'User assigned to group' }; });
+        }).catch(function(e) { return { status: 'fail', message: e.message }; });
+      }},
+      { id: 'filevault', label: 'FileVault', fn: function() {
+        return IntuneOps.createFileVault(FILEVAULT_POLICY)
+          .then(function(p) {
+            if (groupId) {
+              IntuneOps.assignSettingsCatalog(p.id, groupId).catch(function() {});
+            }
+            return { status: 'success', message: 'FileVault configured' };
+          })
+          .catch(function(e) { return { status: 'fail', message: e.message }; });
+      }},
+      { id: 'enrollment', label: 'Enrollment Profile', fn: function() {
+        return IntuneOps.getDepSettings().then(function(data) {
+          var settings = data.value || [];
+          if (!settings.length) return { status: 'fail', message: 'No DEP settings found' };
+          return IntuneOps.createEnrollmentProfile(settings[0].id, ENROLLMENT_PROFILE)
+            .then(function() { return { status: 'success', message: 'Profile created' }; });
+        }).catch(function(e) { return { status: 'fail', message: e.message }; });
+      }}
+    ];
+
+    runChecksSequentially(checks);
   };
 
-  function startPollingPrereqs(onComplete) {
+  function runChecksSequentially(checks) {
     var el = document.getElementById('intune-prereq-items');
-    var poll = setInterval(function() {
-      intuneRequest('GET', '/progress').then(function(data) {
-        if (data.items && data.items.length) {
-          el.innerHTML = renderCheckRows(data.items);
-        }
-        if (data.operation === 'idle' && data.items && data.items.length > 0) {
-          clearInterval(poll);
-          if (onComplete) onComplete();
-        }
-      }).catch(function() { /* retry */ });
-    }, 750);
+    var results = checks.map(function(c) {
+      return { name: c.label, status: 'pending', message: '' };
+    });
+
+    function renderResults() {
+      el.innerHTML = renderCheckRows(results);
+    }
+    renderResults();
+
+    var i = 0;
+    function next() {
+      if (i >= checks.length) {
+        document.getElementById('intune-step2-next').disabled = false;
+        updateStepIndicator(2, 'complete');
+        return;
+      }
+      var idx = i;
+      results[idx].status = 'processing';
+      results[idx].message = '';
+      renderResults();
+
+      checks[idx].fn().then(function(result) {
+        results[idx].status = result.status;
+        results[idx].message = result.message || '';
+        renderResults();
+        i++;
+        next();
+      }).catch(function(err) {
+        results[idx].status = 'fail';
+        results[idx].message = err.message || 'Unknown error';
+        renderResults();
+        i++;
+        next();
+      });
+    }
+    next();
   }
 
   window.skipPrerequisites = function() {
@@ -749,7 +1043,7 @@
       html += '<span class="intune-type-badge ' + escXml(f.type) + '">' + escXml(f.type.replace('_', ' ')) + '</span>';
       html += '</div>';
     });
-    uploadedFiles.forEach(function(f, i) {
+    customFiles.forEach(function(f, i) {
       html += '<div class="intune-file-row">';
       html += '<input type="checkbox" ' + (f.selected ? 'checked' : '') + ' onchange="toggleFile(\'custom\',' + i + ',this.checked)">';
       html += '<span class="intune-file-name">' + escXml(f.name) + ' <span style="color:var(--green);font-size:10px;">(custom)</span></span>';
@@ -764,7 +1058,7 @@
 
   function updateFileCount() {
     var count = getSelectedFiles().length;
-    var total = s3Files.length + uploadedFiles.length;
+    var total = s3Files.length + customFiles.length;
     document.getElementById('intune-file-count').textContent = count + ' / ' + total + ' selected';
   }
 
@@ -775,62 +1069,71 @@
 
   window.toggleFile = function(source, idx, checked) {
     if (source === 's3') s3Files[idx].selected = checked;
-    else uploadedFiles[idx].selected = checked;
+    else customFiles[idx].selected = checked;
     updateFileCount();
     updateStep3Next();
   };
 
   window.selectAllFiles = function(val) {
     s3Files.forEach(function(f) { f.selected = val; });
-    uploadedFiles.forEach(function(f) { f.selected = val; });
+    customFiles.forEach(function(f) { f.selected = val; });
     renderFileList();
   };
 
   function getSelectedFiles() {
     var files = [];
-    s3Files.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: f.url, type: f.type }); });
-    uploadedFiles.forEach(function(f) { if (f.selected) files.push({ name: f.name, localPath: f.localPath, type: f.type }); });
+    s3Files.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: f.url, type: f.type, file: null, pkgInfo: null }); });
+    customFiles.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: null, type: f.type, file: f.file, pkgInfo: f.pkgInfo || null }); });
     return files;
   }
 
-  /* ── CUSTOM FILE UPLOAD ── */
+  /* ── CUSTOM FILE HANDLING (browser memory) ── */
 
   window.handleCustomFiles = function(event) {
     var files = event.target.files;
+    var statusEl = document.getElementById('intune-upload-file-status');
+    var pending = files.length;
+
     for (var i = 0; i < files.length; i++) {
-      uploadCustomFile(files[i]);
+      addCustomFile(files[i], statusEl, function() {
+        pending--;
+        if (pending <= 0) renderFileList();
+      });
     }
     event.target.value = '';
   };
 
-  function uploadCustomFile(file) {
-    var statusEl = document.getElementById('intune-upload-file-status');
+  function addCustomFile(file, statusEl, onDone) {
     statusEl.style.display = 'block';
     statusEl.className = 'info-box';
-    statusEl.textContent = 'Uploading ' + file.name + '\u2026';
-    var reader = new FileReader();
-    reader.onload = function() {
-      var bytes = new Uint8Array(reader.result);
-      var binary = '';
-      for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      var b64 = btoa(binary);
-      intuneRequest('POST', '/upload-file', { name: file.name, content: b64 })
-        .then(function(resp) {
-          if (resp.path) {
-            uploadedFiles.push({ name: file.name, localPath: resp.path, type: detectFileType(file.name), selected: true });
-            statusEl.textContent = file.name + ' uploaded.';
-            renderFileList();
-          } else {
-            statusEl.className = 'warning-box';
-            statusEl.textContent = 'Failed to upload ' + file.name + '.';
-          }
-        })
-        .catch(function() {
-          statusEl.className = 'warning-box';
-          statusEl.textContent = 'Failed to upload ' + file.name + '. Is the companion app running?';
-        });
-    };
-    reader.readAsArrayBuffer(file);
+    var ftype = detectFileType(file.name);
+
+    if (ftype === 'pkg') {
+      statusEl.textContent = 'Parsing ' + file.name + '\u2026';
+      file.arrayBuffer().then(function(buf) {
+        return IntunePkgParser.parsePkg(buf);
+      }).then(function(pkgInfoArr) {
+        var info = (pkgInfoArr && pkgInfoArr.length > 0) ? pkgInfoArr[0] : null;
+        var pkgInfo = info ? {
+          displayName: info.name || file.name.replace('.pkg', ''),
+          primaryBundleId: info.bundleId || info.name || 'com.unknown',
+          primaryBundleVersion: info.version || '1.0',
+          includedApps: [{ bundleId: info.bundleId || info.name || 'com.unknown', bundleVersion: info.version || '1.0' }]
+        } : null;
+        customFiles.push({ name: file.name, file: file, type: ftype, selected: true, pkgInfo: pkgInfo });
+        statusEl.textContent = file.name + ' added' + (pkgInfo ? ' (' + pkgInfo.primaryBundleId + ' v' + pkgInfo.primaryBundleVersion + ')' : '') + '.';
+        if (onDone) onDone();
+      }).catch(function() {
+        // Parsing failed -- still add the file with no pkgInfo
+        customFiles.push({ name: file.name, file: file, type: ftype, selected: true, pkgInfo: null });
+        statusEl.textContent = file.name + ' added (could not parse bundle info).';
+        if (onDone) onDone();
+      });
+    } else {
+      customFiles.push({ name: file.name, file: file, type: ftype, selected: true, pkgInfo: null });
+      statusEl.textContent = file.name + ' added.';
+      if (onDone) onDone();
+    }
   }
 
   // Drop zone drag/drop handlers
@@ -850,12 +1153,17 @@
     e.stopPropagation();
     dropZone.classList.remove('drag-over');
     var files = e.dataTransfer.files;
+    var statusEl = document.getElementById('intune-upload-file-status');
+    var pending = files.length;
     for (var i = 0; i < files.length; i++) {
-      uploadCustomFile(files[i]);
+      addCustomFile(files[i], statusEl, function() {
+        pending--;
+        if (pending <= 0) renderFileList();
+      });
     }
   });
 
-  /* ── STEP 4: UPLOAD ── */
+  /* ── STEP 4: UPLOAD (browser-side processing) ── */
 
   window.startUpload = function() {
     var selected = getSelectedFiles();
@@ -863,38 +1171,175 @@
     document.getElementById('intune-upload-btn').disabled = true;
     document.getElementById('intune-upload-progress-card').style.display = 'block';
     document.getElementById('intune-log-card').style.display = 'block';
+
     // Render initial file list as pending
     var el = document.getElementById('intune-progress-items');
     var html = '';
     selected.forEach(function(f) {
-      html += '<div class="intune-check-row">' + statusIcon('pending') + '<span>' + escXml(f.name) + '</span></div>';
+      html += '<div class="intune-check-row" data-file="' + escXml(f.name) + '">' + statusIcon('pending') + '<span>' + escXml(f.name) + '</span></div>';
     });
     el.innerHTML = html;
-    intuneRequest('POST', '/upload', { files: selected });
-    startPollingUpload(function() {
-      updateStepIndicator(4, 'complete');
-      document.getElementById('statusPill').textContent = 'COMPLETE';
-    });
+
+    var i = 0;
+
+    function uploadNext() {
+      if (i >= selected.length) {
+        onUploadComplete();
+        return;
+      }
+      var f = selected[i++];
+      setFileStatus(f.name, 'processing', '');
+      logAppend('[' + f.name + '] Processing...');
+
+      processFile(f).then(function(result) {
+        if (groupId && result && result.id) {
+          logAppend('[' + f.name + '] Assigning to group...');
+          return assignToGroup(f.type, result.id, groupId);
+        }
+      }).then(function() {
+        setFileStatus(f.name, 'success', '');
+        logAppend('[' + f.name + '] Done.');
+        uploadNext();
+      }).catch(function(e) {
+        setFileStatus(f.name, 'fail', e.message || 'Unknown error');
+        logAppend('[' + f.name + '] FAILED: ' + (e.message || 'Unknown error'));
+        uploadNext();
+      });
+    }
+
+    uploadNext();
   };
 
-  function startPollingUpload(onComplete) {
+  function setFileStatus(fileName, status, message) {
     var el = document.getElementById('intune-progress-items');
-    var logEl = document.getElementById('intune-log');
-    var poll = setInterval(function() {
-      intuneRequest('GET', '/progress').then(function(data) {
-        if (data.items && data.items.length) {
-          el.innerHTML = renderCheckRows(data.items);
+    var rows = el.querySelectorAll('.intune-check-row');
+    for (var j = 0; j < rows.length; j++) {
+      if (rows[j].getAttribute('data-file') === fileName) {
+        var iconEl = rows[j].querySelector('.intune-status-icon');
+        if (iconEl) {
+          iconEl.className = 'intune-status-icon intune-icon-' + status;
         }
-        if (data.log) {
-          logEl.textContent = data.log;
-          logEl.scrollTop = logEl.scrollHeight;
+        // Update or add message span
+        var msgEl = rows[j].querySelector('.intune-check-msg');
+        if (message) {
+          if (!msgEl) {
+            msgEl = document.createElement('span');
+            msgEl.className = 'intune-check-msg';
+            rows[j].appendChild(msgEl);
+          }
+          msgEl.textContent = message;
+        } else if (msgEl) {
+          msgEl.textContent = '';
         }
-        if (data.operation === 'idle' && data.items && data.items.length > 0) {
-          clearInterval(poll);
-          if (onComplete) onComplete();
-        }
-      }).catch(function() { /* retry */ });
-    }, 750);
+        break;
+      }
+    }
+  }
+
+  function onUploadComplete() {
+    updateStepIndicator(4, 'complete');
+    document.getElementById('statusPill').textContent = 'COMPLETE';
+    logAppend('\nAll files processed.');
+  }
+
+  function processFile(f) {
+    return getFileContent(f).then(function(content) {
+      // Template replacement for text content
+      if (typeof content === 'string') {
+        content = content.replace(/\{tenant_id\}/g, tenantId);
+        content = content.replace(/\{org_name\}/g, tenantName);
+      }
+
+      switch (f.type) {
+        case 'pkg':
+          return handlePkgUpload(f, content);
+        case 'mobileconfig':
+          var mcName = f.name.replace('.mobileconfig', '');
+          return IntuneOps.createMobileConfig(mcName, f.name, btoa(content), 'macOS');
+        case 'ios_mobileconfig':
+          var iosName = f.name.replace('.mobileconfig', '').replace(/^ios_/, '');
+          return IntuneOps.createMobileConfig(iosName, f.name, btoa(content), 'iOS');
+        case 'sh':
+          var shName = f.name.replace('.sh', '');
+          return IntuneOps.createShellScript(shName, f.name, btoa(content));
+        case 'json':
+          var parsed = JSON.parse(content);
+          return IntuneOps.createSettingsCatalog(parsed);
+        case 'cash':
+          var cashName = f.name.replace('.cash', '');
+          return IntuneOps.createCustomAttribute(cashName, '', f.name.replace('.cash', '.sh'), btoa(content));
+        default:
+          return Promise.reject(new Error('Unknown file type: ' + f.type));
+      }
+    });
+  }
+
+  function handlePkgUpload(f, content) {
+    // For pkg files, we need the File object (or fetch it from URL)
+    var filePromise;
+    if (f.file) {
+      filePromise = Promise.resolve(f.file);
+    } else if (f.url) {
+      filePromise = fetch(f.url).then(function(r) { return r.blob(); }).then(function(blob) {
+        return new File([blob], f.name, { type: 'application/octet-stream' });
+      });
+    } else {
+      return Promise.reject(new Error('No file source for pkg'));
+    }
+
+    return filePromise.then(function(file) {
+      // Get pkgInfo: from custom file metadata, or parse from fetched file, or use defaults
+      var infoPromise;
+      if (f.pkgInfo) {
+        infoPromise = Promise.resolve(f.pkgInfo);
+      } else {
+        infoPromise = file.arrayBuffer().then(function(buf) {
+          return IntunePkgParser.parsePkg(buf);
+        }).then(function(pkgInfoArr) {
+          var info = (pkgInfoArr && pkgInfoArr.length > 0) ? pkgInfoArr[0] : null;
+          if (info) {
+            return {
+              displayName: info.name || f.name.replace('.pkg', ''),
+              primaryBundleId: info.bundleId || info.name || 'com.unknown',
+              primaryBundleVersion: info.version || '1.0',
+              includedApps: [{ bundleId: info.bundleId || info.name || 'com.unknown', bundleVersion: info.version || '1.0' }]
+            };
+          }
+          return null;
+        }).catch(function() { return null; });
+      }
+
+      return infoPromise.then(function(pkgInfo) {
+        var appInfo = pkgInfo || {
+          displayName: f.name.replace('.pkg', ''),
+          primaryBundleId: 'com.unknown.' + f.name.replace('.pkg', '').replace(/[^a-zA-Z0-9]/g, ''),
+          primaryBundleVersion: '1.0',
+          includedApps: [{ bundleId: 'com.unknown', bundleVersion: '1.0' }]
+        };
+        logAppend('[' + f.name + '] Uploading as ' + appInfo.primaryBundleId + ' v' + appInfo.primaryBundleVersion);
+        return IntunePkgUpload.uploadPkg(appInfo, file, function(stage, pct) {
+          setFileStatus(f.name, 'processing', stage + ' ' + pct + '%');
+        });
+      });
+    });
+  }
+
+  function getFileContent(f) {
+    if (f.type === 'pkg') return Promise.resolve(null);
+    if (f.file) return f.file.text();
+    return fetch(f.url).then(function(r) { return r.text(); });
+  }
+
+  function assignToGroup(type, resourceId, gid) {
+    switch (type) {
+      case 'pkg': return IntuneOps.assignApp(resourceId, gid);
+      case 'mobileconfig':
+      case 'ios_mobileconfig': return IntuneOps.assignConfig(resourceId, gid);
+      case 'sh': return IntuneOps.assignScript(resourceId, gid);
+      case 'json': return IntuneOps.assignSettingsCatalog(resourceId, gid);
+      case 'cash': return IntuneOps.assignCustomAttribute(resourceId, gid);
+      default: return Promise.resolve();
+    }
   }
 
 })();
