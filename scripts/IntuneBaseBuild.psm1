@@ -803,6 +803,11 @@ function New-EnrollmentProfile() {
                         'Intelligence'
                         'EnableLockdownMode'
                         'Wallpaper'
+                        'SoftwareUpdate'
+                        'UpdateCompleted'
+                        'OSShowcase'
+                        'AppStore'
+                        'AdditionalPrivacySettings'
                     )
                     registrationDisabled = $true
                     fileVaultDisabled = $false
@@ -822,6 +827,15 @@ function New-EnrollmentProfile() {
                     hideAdminAccount = $false
                     requestRequiresNetworkTether = $false
                     autoAdvanceSetupEnabled = $false
+                    depProfileAdminAccountPasswordRotationSetting = @{
+                        "@odata.type" = "microsoft.graph.depProfileAdminAccountPasswordRotationSetting"
+                        autoRotationPeriodInDays = 180
+                        depProfileDelayAutoRotationSetting = @{
+                            "@odata.type" = "microsoft.graph.depProfileDelayAutoRotationSetting"
+                            onRetrievalAutoRotatePasswordEnabled = $true
+                            onRetrievalDelayAutoRotatePasswordInHours = 9
+                        }
+                    }
                 }
 
                 # Make the POST request using Invoke-MgGraphRequest

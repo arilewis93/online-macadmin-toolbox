@@ -665,7 +665,9 @@ if (typeof define === 'undefined') {
       "Restore", "AppleID", "TOS", "Payment", "Siri", "Diagnostics",
       "Privacy", "ScreenTime", "iCloudDiagnostics", "iCloudStorage",
       "DisplayTone", "Registration", "Accessibility", "UnlockWithWatch",
-      "TermsOfAddress", "Intelligence", "EnableLockdownMode", "Wallpaper"
+      "TermsOfAddress", "Intelligence", "EnableLockdownMode", "Wallpaper",
+      "SoftwareUpdate", "UpdateCompleted", "OSShowcase", "AppStore",
+      "AdditionalPrivacySettings"
     ],
     "registrationDisabled": true,
     "fileVaultDisabled": false,
@@ -673,18 +675,27 @@ if (typeof define === 'undefined') {
     "passCodeDisabled": false,
     "zoomDisabled": false,
     "iCloudStorageDisabled": true,
-    "chooseYourLockScreenDisabled": true,
+    "chooseYourLockScreenDisabled": false,
     "accessibilityScreenDisabled": true,
     "autoUnlockWithWatchDisabled": false,
     "skipPrimarySetupAccountCreation": false,
     "setPrimarySetupAccountAsRegularUser": false,
     "dontAutoPopulatePrimaryAccountInfo": false,
-    "primaryAccountFullName": "{{username}}",
-    "primaryAccountUserName": "{{partialupn}}",
+    "primaryAccountFullName": "{{ '{{' }}username{{ '}}' }}",
+    "primaryAccountUserName": "{{ '{{' }}partialupn{{ '}}' }}",
     "enableRestrictEditing": true,
     "hideAdminAccount": false,
     "requestRequiresNetworkTether": false,
-    "autoAdvanceSetupEnabled": false
+    "autoAdvanceSetupEnabled": false,
+    "depProfileAdminAccountPasswordRotationSetting": {
+      "@odata.type": "microsoft.graph.depProfileAdminAccountPasswordRotationSetting",
+      "autoRotationPeriodInDays": 180,
+      "depProfileDelayAutoRotationSetting": {
+        "@odata.type": "microsoft.graph.depProfileDelayAutoRotationSetting",
+        "onRetrievalAutoRotatePasswordEnabled": true,
+        "onRetrievalDelayAutoRotatePasswordInHours": 9
+      }
+    }
   };
 
   /* ── STEPPER ── */

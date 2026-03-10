@@ -197,6 +197,11 @@
     return G.graphRequest('POST', endpoint, profileBody);
   }
 
+  function updateEnrollmentProfile(depSettingId, profileId, patchBody) {
+    var endpoint = '/deviceManagement/depOnboardingSettings/' + depSettingId + '/enrollmentProfiles/' + profileId;
+    return G.graphRequest('PATCH', endpoint, patchBody);
+  }
+
   function createFileVault(policyJson) {
     return G.graphRequest('POST', '/deviceManagement/configurationPolicies', policyJson);
   }
@@ -405,6 +410,7 @@
     getDepSettings: getDepSettings,
     findEnrollmentProfiles: findEnrollmentProfiles,
     createEnrollmentProfile: createEnrollmentProfile,
+    updateEnrollmentProfile: updateEnrollmentProfile,
     createFileVault: createFileVault,
     findFileVaultPolicies: findFileVaultPolicies,
     auditFileVaultPolicy: auditFileVaultPolicy,
