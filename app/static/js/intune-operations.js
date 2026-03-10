@@ -109,18 +109,23 @@
       });
   }
 
-  function addGroupMember(groupId, userId) {
-    var body = {
-      '@odata.id': 'https://graph.microsoft.com/v1.0/directoryObjects/' + userId
-    };
-    return G.graphRequest('POST', '/groups/' + groupId + '/members/$ref', body, 'v1.0')
-      .catch(function(err) {
-        // Ignore "already exists" errors
-        if (err.message && err.message.indexOf('already exist') !== -1) {
-          return null;
-        }
-        throw err;
+  function checkGroupMember(groupId, userId) {
+    return G.graphRequest('GET', '/groups/' + groupId + '/members', null, 'v1.0')
+      .then(function(data) {
+        var members = data.value || [];
+        return members.some(function(m) { return m.id === userId; });
       });
+  }
+
+  function addGroupMember(groupId, userId) {
+    return checkGroupMember(groupId, userId).then(function(isMember) {
+      if (isMember) return 'existing';
+      var body = {
+        '@odata.id': 'https://graph.microsoft.com/v1.0/directoryObjects/' + userId
+      };
+      return G.graphRequest('POST', '/groups/' + groupId + '/members/$ref', body, 'v1.0')
+        .then(function() { return 'added'; });
+    });
   }
 
   // ---------------------------------------------------------------------------

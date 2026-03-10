@@ -351,7 +351,7 @@
       </div>
 
       <div class="intune-btn-row" style="justify-content:flex-end;">
-        <button class="btn btn-primary" id="intune-step1-next" disabled onclick="goToStep(2)">Next &rarr;</button>
+        <button class="btn btn-primary" id="intune-step1-next" disabled style="display:none" onclick="goToStep(2)">Next &rarr;</button>
       </div>
     </div>
 
@@ -599,7 +599,9 @@
             document.getElementById('intune-tenant-info').style.display = 'block';
             document.getElementById('intune-tenant-name').textContent = tn;
             document.getElementById('intune-user-email').textContent = ue;
-            document.getElementById('intune-step1-next').disabled = false;
+            var step1Next = document.getElementById('intune-step1-next');
+            step1Next.disabled = false;
+            step1Next.style.display = '';
             document.getElementById('statusPill').textContent = 'CONNECTED';
             document.getElementById('statusPill').classList.add('ready');
             updateStepIndicator(1, 'complete');

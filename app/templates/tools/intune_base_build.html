@@ -384,7 +384,7 @@
       </div>
 
       <div class="intune-btn-row" style="justify-content:flex-end;">
-        <button class="btn btn-primary" id="intune-step1-next" disabled onclick="goToStep(2)">Next &rarr;</button>
+        <button class="btn btn-primary" id="intune-step1-next" disabled style="display:none" onclick="goToStep(2)">Next &rarr;</button>
       </div>
     </div>
 
@@ -425,7 +425,7 @@
 
       <div class="intune-btn-row" style="justify-content:flex-end;">
         <button class="btn btn-ghost" onclick="goToStep(1)">&larr; Back</button>
-        <button class="btn btn-primary" id="intune-step2-next" disabled onclick="goToStep(3)">Next &rarr;</button>
+        <button class="btn btn-primary" id="intune-step2-next" disabled style="display:none" onclick="goToStep(3)">Next &rarr;</button>
       </div>
     </div>
 
@@ -467,7 +467,7 @@
 
       <div class="intune-btn-row" style="justify-content:flex-end;">
         <button class="btn btn-ghost" onclick="goToStep(2)">&larr; Back</button>
-        <button class="btn btn-primary" id="intune-step3-next" disabled onclick="goToStep(4)">Next &rarr;</button>
+        <button class="btn btn-primary" id="intune-step3-next" disabled style="display:none" onclick="goToStep(4)">Next &rarr;</button>
       </div>
     </div>
 
@@ -873,7 +873,9 @@ if (typeof define === 'undefined') {
             document.getElementById('intune-tenant-info').style.display = 'block';
             document.getElementById('intune-tenant-name').textContent = tenantName;
             document.getElementById('intune-user-email').textContent = userEmail;
-            document.getElementById('intune-step1-next').disabled = false;
+            var step1Next = document.getElementById('intune-step1-next');
+            step1Next.disabled = false;
+            step1Next.style.display = '';
             document.getElementById('statusPill').textContent = 'CONNECTED';
             document.getElementById('statusPill').classList.add('ready');
             updateStepIndicator(1, 'complete');
@@ -932,11 +934,10 @@ if (typeof define === 'undefined') {
         return IntuneOps.findUser(userEmail).then(function(u) {
           if (!u) return { status: 'fail', message: 'User not found: ' + userEmail };
           return IntuneOps.addGroupMember(groupId, u.id)
-            .then(function() { return { status: 'success', message: 'Assigned' }; });
+            .then(function(result) {
+              return { status: 'success', message: result === 'existing' ? 'Already a member' : 'Assigned' };
+            });
         }).catch(function(e) {
-          if (e.message && e.message.indexOf('already exist') !== -1) {
-            return { status: 'success', message: 'Already a member' };
-          }
           return { status: 'fail', message: e.message };
         });
       }},
@@ -995,7 +996,9 @@ if (typeof define === 'undefined') {
     var i = 0;
     function next() {
       if (i >= checks.length) {
-        document.getElementById('intune-step2-next').disabled = false;
+        var step2Next = document.getElementById('intune-step2-next');
+        step2Next.disabled = false;
+        step2Next.style.display = '';
         document.getElementById('intune-run-checks-btn').disabled = false;
         document.getElementById('intune-run-checks-btn').textContent = 'Re-run Checks';
         updateStepIndicator(2, 'complete');
@@ -1025,7 +1028,9 @@ if (typeof define === 'undefined') {
 
   window.skipPrerequisites = function() {
     updateStepIndicator(2, 'complete');
-    document.getElementById('intune-step2-next').disabled = false;
+    var step2Next = document.getElementById('intune-step2-next');
+    step2Next.disabled = false;
+    step2Next.style.display = '';
     goToStep(3);
   };
 
@@ -1095,7 +1100,9 @@ if (typeof define === 'undefined') {
 
   function updateStep3Next() {
     var count = getSelectedFiles().length;
-    document.getElementById('intune-step3-next').disabled = count === 0;
+    var btn = document.getElementById('intune-step3-next');
+    btn.disabled = count === 0;
+    btn.style.display = count === 0 ? 'none' : '';
   }
 
   window.toggleFile = function(source, idx, checked) {
