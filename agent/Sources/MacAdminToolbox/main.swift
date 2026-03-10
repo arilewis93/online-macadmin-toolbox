@@ -1501,7 +1501,8 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
             ? defaultScopes.map { "'\($0)'" }.joined(separator: ",")
             : requestedScopes.map { "'\($0)'" }.joined(separator: ",")
         stateQueue.sync { intuneState.connectStep = "Waiting for browser auth" }
-        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes \(scopes) -NoWelcome", timeout: 120)
+        // -ContextScope Process forces fresh interactive auth instead of reusing cached tokens from the macOS Keychain
+        let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes \(scopes) -NoWelcome -ContextScope Process", timeout: 120)
 
         if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
             stateQueue.sync {
