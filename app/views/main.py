@@ -25,6 +25,7 @@ TOOL_NAMES = {
     "serial_killer",
     "intune_procreate",
     "intune_assign",
+    "dmg_packager",
 }
 
 
@@ -142,6 +143,6 @@ def azure_blob_proxy():
 def toolbox(tool_name):
     if tool_name not in TOOL_NAMES:
         abort(404)
-    if tool_name in ("auto_configurator", "intune_base_build", "serial_killer", "intune_procreate", "intune_assign") and not _is_mac_user_agent():
+    if tool_name in ("auto_configurator", "intune_base_build", "serial_killer", "intune_procreate", "intune_assign", "dmg_packager") and not _is_mac_user_agent():
         abort(404)
     return render_template(f"tools/{tool_name}.html")

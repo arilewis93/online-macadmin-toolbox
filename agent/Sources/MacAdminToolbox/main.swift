@@ -552,6 +552,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if host == "dmg-browse" {
+            handledURL = true
+            startBrowseServer()
+            return
+        }
+
+        if host == "dmg-find" {
+            handledURL = true
+            let query = url.query ?? ""
+            let name = query
+                .split(separator: "&")
+                .first(where: { $0.hasPrefix("name=") })
+                .map { $0.dropFirst(5) }
+                .map { String($0).removingPercentEncoding ?? String($0) } ?? ""
+            guard !name.isEmpty else { return }
+            startFindServer(filename: name)
+            return
+        }
+
+        if host == "dmg-packager" {
+            handledURL = true
+            let query = url.query ?? ""
+            let params = query.split(separator: "&").reduce(into: [String: String]()) { dict, pair in
+                let kv = pair.split(separator: "=", maxSplits: 1)
+                if kv.count == 2 {
+                    dict[String(kv[0])] = String(kv[1]).removingPercentEncoding ?? String(kv[1])
+                }
+            }
+            let dmgPath = params["path"] ?? ""
+            let mode = params["mode"] ?? "generic"
+            guard !dmgPath.isEmpty else { return }
+            startDMGPackagerServer(dmgPath: dmgPath, mode: mode)
+            return
+        }
+
         guard host == "fetch-tcc" else { return }
         let query = url.query ?? ""
         let search = query
@@ -588,6 +623,531 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 serveResult(jsonData: data)
             }
         }
+    }
+}
+
+// MARK: - DMG Packager
+
+struct DMGPackagerState {
+    var state: String = "idle"       // idle, running, done, error
+    var step: String = ""            // current step description
+    var log: [String] = []
+    var outputPkg: String = ""
+    var pkgSize: Int64 = 0
+    var error: String = ""
+
+    var statusResponse: [String: Any] {
+        return [
+            "state": state,
+            "step": step,
+            "log": log,
+            "output_pkg": outputPkg,
+            "pkg_size": pkgSize,
+            "error": error,
+        ]
+    }
+}
+
+private var dmgState = DMGPackagerState()
+private let dmgStateQueue = DispatchQueue(label: "com.macadmin.dmgState")
+private let dmgWorkQueue = DispatchQueue(label: "com.macadmin.dmgWork", qos: .userInitiated)
+
+// Browse state for file picker
+struct DMGBrowseResult {
+    var path: String = ""
+    var cancelled: Bool = false
+    var ready: Bool = false
+}
+
+private var browseResult = DMGBrowseResult()
+private let browseQueue = DispatchQueue(label: "com.macadmin.dmgBrowse")
+
+func openDMGFilePicker() {
+    DispatchQueue.main.async {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        let panel = NSOpenPanel()
+        panel.title = "Select a DMG"
+        panel.allowedFileTypes = ["dmg"]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.directoryURL = URL(fileURLWithPath: NSHomeDirectory() + "/Downloads")
+        let response = panel.runModal()
+        browseQueue.sync {
+            if response == .OK, let url = panel.url {
+                browseResult = DMGBrowseResult(path: url.path, cancelled: false, ready: true)
+            } else {
+                browseResult = DMGBrowseResult(path: "", cancelled: true, ready: true)
+            }
+        }
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+
+func startBrowseServer() {
+    browseQueue.sync { browseResult = DMGBrowseResult() }
+    openDMGFilePicker()
+
+    let queue = DispatchQueue(label: "com.macadmin.dmgBrowseServer")
+    guard let port = NWEndpoint.Port(rawValue: resultPort),
+          let listener = try? NWListener(using: .tcp, on: port) else { return }
+
+    listener.newConnectionHandler = { connection in
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, _ in
+            guard let data = data, let request = parseHTTPRequest(data) else {
+                connection.cancel()
+                return
+            }
+            if request.method == "OPTIONS" {
+                let resp = corsPreflightResponse()
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                return
+            }
+            if request.path == "/browse-result" {
+                let result = browseQueue.sync { browseResult }
+                if result.ready {
+                    var dict: [String: Any] = [:]
+                    if result.cancelled {
+                        dict["cancelled"] = true
+                    } else {
+                        dict["path"] = result.path
+                    }
+                    let resp = jsonResponse(dict)
+                    connection.send(content: resp, completion: .contentProcessed { _ in
+                        connection.cancel()
+                        listener.cancel()
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
+                    })
+                } else {
+                    let resp = jsonResponse(["waiting": true])
+                    connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                }
+            } else {
+                let resp = jsonResponse(["error": "Not found"], status: "404 Not Found")
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+            }
+        }
+    }
+    listener.start(queue: queue)
+
+    // Timeout after 2 minutes
+    DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+        listener.cancel()
+        NSApp.terminate(nil)
+    }
+}
+
+func findDMGByName(_ filename: String) -> String? {
+    // Search common locations first for an exact match
+    let home = NSHomeDirectory()
+    let searchDirs = [
+        home + "/Downloads",
+        home + "/Desktop",
+        home + "/Documents",
+        "/tmp",
+    ]
+    let fm = FileManager.default
+    for dir in searchDirs {
+        let candidate = (dir as NSString).appendingPathComponent(filename)
+        if fm.fileExists(atPath: candidate) { return candidate }
+    }
+    // Fallback: use mdfind for a Spotlight search
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+    proc.arguments = ["-name", filename]
+    proc.standardError = FileHandle.nullDevice
+    let pipe = Pipe()
+    proc.standardOutput = pipe
+    guard (try? proc.run()) != nil else { return nil }
+    proc.waitUntilExit()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    let output = String(data: data, encoding: .utf8) ?? ""
+    for line in output.split(separator: "\n") {
+        let path = line.trimmingCharacters(in: .whitespaces)
+        if path.hasSuffix(filename) && fm.fileExists(atPath: path) { return path }
+    }
+    return nil
+}
+
+func startFindServer(filename: String) {
+    let queue = DispatchQueue(label: "com.macadmin.dmgFindServer")
+    guard let port = NWEndpoint.Port(rawValue: resultPort),
+          let listener = try? NWListener(using: .tcp, on: port) else { return }
+
+    // Run the search on a background thread
+    var findResult: [String: Any]? = nil
+    let findQueue = DispatchQueue(label: "com.macadmin.dmgFind")
+    DispatchQueue.global(qos: .userInitiated).async {
+        if let path = findDMGByName(filename) {
+            findQueue.sync { findResult = ["path": path] }
+        } else {
+            findQueue.sync { findResult = ["error": "Could not find \(filename) on this Mac. Try clicking the drop zone to browse manually."] }
+        }
+    }
+
+    listener.newConnectionHandler = { connection in
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, _ in
+            guard let data = data, let request = parseHTTPRequest(data) else {
+                connection.cancel()
+                return
+            }
+            if request.method == "OPTIONS" {
+                let resp = corsPreflightResponse()
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                return
+            }
+            if request.path == "/find-result" {
+                let result = findQueue.sync { findResult }
+                if let result = result {
+                    let resp = jsonResponse(result)
+                    connection.send(content: resp, completion: .contentProcessed { _ in
+                        connection.cancel()
+                        listener.cancel()
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
+                    })
+                } else {
+                    // Still searching
+                    let resp = jsonResponse(["waiting": true])
+                    connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                }
+            } else {
+                let resp = jsonResponse(["error": "Not found"], status: "404 Not Found")
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+            }
+        }
+    }
+    listener.start(queue: queue)
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+        listener.cancel()
+        NSApp.terminate(nil)
+    }
+}
+
+func dmgLog(_ message: String) {
+    dmgStateQueue.sync { dmgState.log.append(message) }
+}
+
+func dmgSetStep(_ step: String) {
+    dmgStateQueue.sync { dmgState.step = step }
+    dmgLog("▶ \(step)")
+}
+
+func runShellCommand(_ args: [String], env: [String: String]? = nil) throws -> (exitCode: Int32, output: String) {
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: args[0])
+    proc.arguments = Array(args.dropFirst())
+    if let env = env { proc.environment = env }
+    let pipe = Pipe()
+    proc.standardOutput = pipe
+    proc.standardError = pipe
+    try proc.run()
+    proc.waitUntilExit()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    let output = String(data: data, encoding: .utf8) ?? ""
+    return (proc.terminationStatus, output)
+}
+
+func listVolumes() -> Set<String> {
+    let fm = FileManager.default
+    guard let items = try? fm.contentsOfDirectory(atPath: "/Volumes") else { return [] }
+    return Set(items.filter { $0 != "Macintosh HD" && $0 != ".DS_Store" })
+}
+
+func detectMountpoint(volumesBefore: Set<String>, dmgPath: String) -> String? {
+    let after = listVolumes()
+    let newVols = after.subtracting(volumesBefore)
+    for vol in newVols {
+        let path = "/Volumes/\(vol)"
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+            return path
+        }
+    }
+    // Fallback: parse hdiutil info
+    guard let result = try? runShellCommand(["/usr/bin/hdiutil", "info", "-plist"]),
+          result.exitCode == 0,
+          let plistData = result.output.data(using: .utf8),
+          let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
+          let images = plist["images"] as? [[String: Any]] else { return nil }
+    for image in images {
+        if image["image-path"] as? String == dmgPath,
+           let entities = image["system-entities"] as? [[String: Any]] {
+            for entity in entities {
+                if let mp = entity["mount-point"] as? String { return mp }
+            }
+        }
+    }
+    return nil
+}
+
+func findInstallApp(in directory: String, maxDepth: Int = 2) -> String? {
+    let fm = FileManager.default
+    let baseURL = URL(fileURLWithPath: directory)
+    guard let enumerator = fm.enumerator(at: baseURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) else { return nil }
+    while let url = enumerator.nextObject() as? URL {
+        let relPath = url.path.dropFirst(directory.count + 1)
+        let depth = relPath.split(separator: "/").count
+        if depth > maxDepth { enumerator.skipDescendants(); continue }
+        if url.lastPathComponent == "Install.app" {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                return url.path
+            }
+        }
+    }
+    return nil
+}
+
+func findPKGFiles(in directory: String) -> [String] {
+    let fm = FileManager.default
+    let baseURL = URL(fileURLWithPath: directory)
+    var pkgs: [String] = []
+    guard let enumerator = fm.enumerator(at: baseURL, includingPropertiesForKeys: nil, options: []) else { return [] }
+    while let url = enumerator.nextObject() as? URL {
+        if url.pathExtension.lowercased() == "pkg" {
+            pkgs.append(url.path)
+        }
+    }
+    return pkgs
+}
+
+func createPostinstallScript(at scriptPath: String, installBase: String) {
+    let script = """
+    #!/bin/bash
+    set -e
+    INSTALL_BASE="\(installBase)"
+    LOG_FILE="/var/log/dmg_packager_install.log"
+    log_message() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
+    log_message "Starting postinstall script..."
+    PKG_COUNT=0; INSTALLED_COUNT=0
+    while IFS= read -r -d '' pkg_file; do
+        PKG_COUNT=$((PKG_COUNT + 1))
+        log_message "Found PKG file: $pkg_file"
+        if /usr/sbin/installer -pkg "$pkg_file" -target /; then
+            INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
+            log_message "Successfully installed: $pkg_file"
+        else
+            log_message "ERROR: Failed to install $pkg_file"
+            exit 1
+        fi
+    done < <(find "$INSTALL_BASE" -name "*.pkg" -type f -print0 2>/dev/null || true)
+    if [ $PKG_COUNT -eq 0 ]; then
+        log_message "No PKG files found in DMG contents."
+    else
+        log_message "Installed $INSTALLED_COUNT of $PKG_COUNT PKG file(s)"
+    fi
+    log_message "Cleaning up: $INSTALL_BASE"
+    [ -d "$INSTALL_BASE" ] && rm -rf "$INSTALL_BASE"
+    log_message "Postinstall completed"
+    exit 0
+    """
+    try? script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
+    // Make executable
+    let _ = try? runShellCommand(["/bin/chmod", "+x", scriptPath])
+}
+
+func runDMGPackager(dmgPath: String, mode: String) {
+    let env = ["LC_ALL": "en_US.UTF-8", "LANG": "en_US.UTF-8", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+    var mountpoint: String?
+    var workdir: String?
+
+    do {
+        // Validate file exists
+        guard FileManager.default.fileExists(atPath: dmgPath) else {
+            throw NSError(domain: "DMGPackager", code: 1, userInfo: [NSLocalizedDescriptionKey: "DMG file not found: \(dmgPath)"])
+        }
+
+        // Mount
+        dmgSetStep("Mounting DMG")
+        let volumesBefore = listVolumes()
+        let mountResult = try runShellCommand(["/usr/bin/hdiutil", "attach", dmgPath, "-nobrowse"], env: env)
+        if mountResult.exitCode != 0 {
+            throw NSError(domain: "DMGPackager", code: 2, userInfo: [NSLocalizedDescriptionKey: "hdiutil attach failed: \(mountResult.output)"])
+        }
+        Thread.sleep(forTimeInterval: 1.0)
+
+        mountpoint = detectMountpoint(volumesBefore: volumesBefore, dmgPath: dmgPath)
+        guard let mp = mountpoint else {
+            throw NSError(domain: "DMGPackager", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to determine mount point"])
+        }
+        dmgLog("Mounted at: \(mp)")
+
+        // Create temp working directory
+        workdir = NSTemporaryDirectory() + "dmg_packager_\(ProcessInfo.processInfo.globallyUniqueString)"
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: workdir!, withIntermediateDirectories: true)
+
+        let payloadDir = workdir! + "/payload"
+        let outputPkg: String
+        let baseName = (dmgPath as NSString).deletingPathExtension
+        outputPkg = baseName + ".pkg"
+
+        if mode == "acronis" {
+            // Acronis mode: find Install.app, copy to /var/tmp/infosec/
+            dmgSetStep("Finding Install.app")
+            guard let installApp = findInstallApp(in: mp) else {
+                throw NSError(domain: "DMGPackager", code: 4, userInfo: [NSLocalizedDescriptionKey: "Install.app not found in DMG"])
+            }
+            dmgLog("Found Install.app at: \(installApp)")
+
+            let targetDir = payloadDir + "/private/var/tmp/infosec/Install.app"
+            try fm.createDirectory(atPath: (targetDir as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+
+            dmgSetStep("Copying Install.app")
+            let copyResult = try runShellCommand(["/usr/bin/ditto", installApp, targetDir], env: env)
+            if copyResult.exitCode != 0 {
+                throw NSError(domain: "DMGPackager", code: 5, userInfo: [NSLocalizedDescriptionKey: "ditto failed: \(copyResult.output)"])
+            }
+
+            // Remove quarantine
+            let _ = try? runShellCommand(["/usr/bin/xattr", "-dr", "com.apple.quarantine", targetDir], env: env)
+
+            // Build PKG
+            dmgSetStep("Building PKG")
+            let pkgResult = try runShellCommand([
+                "/usr/bin/pkgbuild",
+                "--root", payloadDir,
+                "--install-location", "/",
+                "--identifier", "com.infosec.installapp",
+                "--version", "1.0",
+                outputPkg
+            ], env: env)
+            if pkgResult.exitCode != 0 {
+                throw NSError(domain: "DMGPackager", code: 6, userInfo: [NSLocalizedDescriptionKey: "pkgbuild failed: \(pkgResult.output)"])
+            }
+
+        } else {
+            // Generic mode: copy all contents, create postinstall for embedded PKGs
+            let targetDir = payloadDir + "/private/var/tmp/dmg_contents"
+            try fm.createDirectory(atPath: targetDir, withIntermediateDirectories: true)
+
+            dmgSetStep("Copying DMG contents")
+            let copyResult = try runShellCommand(["/usr/bin/ditto", mp, targetDir], env: env)
+            if copyResult.exitCode != 0 {
+                throw NSError(domain: "DMGPackager", code: 5, userInfo: [NSLocalizedDescriptionKey: "ditto failed: \(copyResult.output)"])
+            }
+
+            // Remove quarantine
+            let _ = try? runShellCommand(["/usr/bin/xattr", "-dr", "com.apple.quarantine", targetDir], env: env)
+
+            // Find embedded PKGs
+            let pkgFiles = findPKGFiles(in: targetDir)
+            dmgLog("Found \(pkgFiles.count) PKG file(s) in DMG contents")
+
+            // Create postinstall script
+            let scriptsDir = workdir! + "/scripts"
+            try fm.createDirectory(atPath: scriptsDir, withIntermediateDirectories: true)
+            createPostinstallScript(at: scriptsDir + "/postinstall", installBase: "/private/var/tmp/dmg_contents")
+            dmgLog("Created postinstall script")
+
+            // Build PKG with scripts
+            dmgSetStep("Building PKG")
+            let pkgResult = try runShellCommand([
+                "/usr/bin/pkgbuild",
+                "--root", payloadDir,
+                "--scripts", scriptsDir,
+                "--install-location", "/",
+                "--identifier", "com.dmgpackager.contents",
+                "--version", "1.0",
+                outputPkg
+            ], env: env)
+            if pkgResult.exitCode != 0 {
+                throw NSError(domain: "DMGPackager", code: 6, userInfo: [NSLocalizedDescriptionKey: "pkgbuild failed: \(pkgResult.output)"])
+            }
+        }
+
+        // Verify output
+        guard fm.fileExists(atPath: outputPkg) else {
+            throw NSError(domain: "DMGPackager", code: 7, userInfo: [NSLocalizedDescriptionKey: "PKG not found after build"])
+        }
+        let attrs = try fm.attributesOfItem(atPath: outputPkg)
+        let size = (attrs[.size] as? Int64) ?? 0
+        dmgLog("PKG created: \(outputPkg) (\(size) bytes)")
+
+        dmgStateQueue.sync {
+            dmgState.outputPkg = outputPkg
+            dmgState.pkgSize = size
+            dmgState.state = "done"
+            dmgState.step = "complete"
+        }
+
+    } catch {
+        dmgLog("Error: \(error.localizedDescription)")
+        dmgStateQueue.sync {
+            dmgState.error = error.localizedDescription
+            dmgState.state = "error"
+        }
+    }
+
+    // Cleanup
+    if let mp = mountpoint {
+        let _ = try? runShellCommand(["/usr/bin/hdiutil", "detach", mp], env: env)
+        dmgLog("Detached DMG")
+    }
+    if let wd = workdir, FileManager.default.fileExists(atPath: wd) {
+        try? FileManager.default.removeItem(atPath: wd)
+        dmgLog("Cleaned up temp directory")
+    }
+}
+
+func handleDMGPackagerRequest(method: String, path: String, body: Data) -> Data {
+    if method == "OPTIONS" {
+        return corsPreflightResponse()
+    }
+
+    switch path {
+    case "/status":
+        let status = dmgStateQueue.sync { dmgState.statusResponse }
+        return jsonResponse(status)
+
+    default:
+        return jsonResponse(["error": "Not found"], status: "404 Not Found")
+    }
+}
+
+func startDMGPackagerServer(dmgPath: String, mode: String) {
+    // Reset state
+    dmgStateQueue.sync {
+        dmgState = DMGPackagerState()
+        dmgState.state = "running"
+    }
+
+    let queue = DispatchQueue(label: "com.macadmin.dmgPackagerServer")
+    guard let port = NWEndpoint.Port(rawValue: resultPort),
+          let listener = try? NWListener(using: .tcp, on: port) else {
+        NSLog("Failed to start DMG Packager server on port \(resultPort)")
+        return
+    }
+
+    listener.newConnectionHandler = { connection in
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, error in
+            guard let data = data, let request = parseHTTPRequest(data) else {
+                connection.cancel()
+                return
+            }
+            let response = handleDMGPackagerRequest(method: request.method, path: request.path, body: request.body)
+            connection.send(content: response, completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
+    }
+
+    listener.stateUpdateHandler = { state in
+        if case .ready = state {
+            NSLog("DMG Packager server listening on port \(resultPort)")
+        }
+    }
+
+    listener.start(queue: queue)
+
+    // Start packaging on work queue
+    dmgWorkQueue.async {
+        runDMGPackager(dmgPath: dmgPath, mode: mode)
     }
 }
 

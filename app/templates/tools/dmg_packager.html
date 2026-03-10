@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}DMG Packager{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">DMG Packager</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-dmg-packager">
+      <div class="section-header">
+        <div class="section-tag">Mac Agent Tool</div>
+        <div class="section-title">DMG Packager</div>
+      </div>
+
+      <div class="card">
+        <div class="drop-zone" id="dmg-drop-zone" onclick="browseDMG()">
+          <div class="drop-zone-icon">&#x2B06;</div>
+          <div class="drop-zone-label" id="dmg-drop-label">Drop .dmg here</div>
+          <div class="drop-zone-sub" id="dmg-drop-sub">Or click to browse</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="field-grid">
+          <label class="toggle-row" onclick="toggleOption(this)">
+            <input type="checkbox" id="dmg-acronis">
+            <div class="toggle-info">
+              <div class="toggle-label">Acronis DMG</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <div></div>
+        <button class="btn btn-primary" id="build-btn" onclick="startBuild()" disabled>Build PKG</button>
+      </div>
+
+      <div class="card" id="log-card" style="display:none;">
+        <div class="card-title">Build Log</div>
+        <div id="build-log" style="font-family:var(--mono);font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:400px;overflow-y:auto;color:var(--text-secondary);"></div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var AGENT_PORT = 8765;
+var pollTimer = null;
+var building = false;
+var selectedPath = '';
+
+function setStatus(text, cls) {
+  var pill = document.getElementById('statusPill');
+  pill.textContent = text;
+  pill.className = 'status-pill' + (cls ? ' ' + cls : '');
+}
+
+function appendLog(msg) {
+  var log = document.getElementById('build-log');
+  var card = document.getElementById('log-card');
+  card.style.display = '';
+  log.textContent += msg + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('build-log').textContent = '';
+}
+
+/* ── File selection ── */
+
+function setDMGPath(path) {
+  selectedPath = path;
+  var filename = path.split('/').pop();
+  document.getElementById('dmg-drop-label').textContent = filename;
+  document.getElementById('dmg-drop-sub').textContent = path;
+  document.getElementById('dmg-drop-zone').classList.add('drag-over');
+  document.getElementById('build-btn').disabled = false;
+}
+
+function resetDropZone() {
+  document.getElementById('dmg-drop-label').textContent = 'Drop .dmg here';
+  document.getElementById('dmg-drop-sub').textContent = 'Or click to browse';
+  document.getElementById('dmg-drop-zone').classList.remove('drag-over');
+  if (!selectedPath) document.getElementById('build-btn').disabled = true;
+}
+
+/* Click → native file picker via agent */
+function browseDMG() {
+  if (building) return;
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'macadmin-toolbox://dmg-browse';
+  document.body.appendChild(iframe);
+  setTimeout(function() { iframe.remove(); }, 2000);
+
+  document.getElementById('dmg-drop-label').textContent = 'Waiting for file selection\u2026';
+  document.getElementById('dmg-drop-sub').textContent = 'Choose a .dmg in the native dialog';
+
+  setTimeout(pollBrowseResult, 1500);
+}
+
+function pollBrowseResult() {
+  var attempts = 0;
+  var maxAttempts = 120;
+  var timer = setInterval(function() {
+    attempts++;
+    if (attempts > maxAttempts) { clearInterval(timer); resetDropZone(); return; }
+    fetch('http://127.0.0.1:' + AGENT_PORT + '/browse-result', { mode: 'cors' })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.path) { clearInterval(timer); setDMGPath(data.path); }
+        else if (data.cancelled) { clearInterval(timer); resetDropZone(); }
+      })
+      .catch(function() {});
+  }, 1000);
+}
+
+/* Drag-and-drop from Finder */
+var dmgZone = document.getElementById('dmg-drop-zone');
+dmgZone.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  dmgZone.classList.add('drag-over');
+});
+dmgZone.addEventListener('dragleave', function(e) {
+  e.preventDefault();
+  if (!dmgZone.contains(e.relatedTarget)) dmgZone.classList.remove('drag-over');
+});
+dmgZone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  dmgZone.classList.remove('drag-over');
+  if (building) return;
+
+  // Get filename from the dropped file
+  if (!e.dataTransfer.files.length) return;
+  var file = e.dataTransfer.files[0];
+  var name = file.name || '';
+  if (!name.toLowerCase().endsWith('.dmg')) {
+    alert('Only .dmg files are supported.');
+    return;
+  }
+
+  // Ask the agent to locate the full path by filename
+  document.getElementById('dmg-drop-label').textContent = 'Locating ' + name + '\u2026';
+  document.getElementById('dmg-drop-sub').textContent = 'Searching for file on disk';
+
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'macadmin-toolbox://dmg-find?name=' + encodeURIComponent(name);
+  document.body.appendChild(iframe);
+  setTimeout(function() { iframe.remove(); }, 2000);
+
+  setTimeout(function() { pollFindResult(name); }, 1500);
+});
+
+function pollFindResult(filename) {
+  var attempts = 0;
+  var timer = setInterval(function() {
+    attempts++;
+    if (attempts > 30) { clearInterval(timer); resetDropZone(); return; }
+    fetch('http://127.0.0.1:' + AGENT_PORT + '/find-result', { mode: 'cors' })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.path) { clearInterval(timer); setDMGPath(data.path); }
+        else if (data.error) { clearInterval(timer); alert(data.error); resetDropZone(); }
+      })
+      .catch(function() {});
+  }, 1000);
+}
+
+/* ── Build ── */
+
+function startBuild() {
+  if (!selectedPath || building) return;
+
+  var isAcronis = getToggle('dmg-acronis');
+  var mode = isAcronis ? 'acronis' : 'generic';
+
+  clearLog();
+  building = true;
+  document.getElementById('build-btn').disabled = true;
+  setStatus('BUILDING', 'status-warn');
+  appendLog('DMG: ' + selectedPath);
+  appendLog('Mode: ' + mode);
+
+  var agentUrl = 'macadmin-toolbox://dmg-packager?path=' +
+    encodeURIComponent(selectedPath) + '&mode=' + mode;
+
+  var iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = agentUrl;
+  document.body.appendChild(iframe);
+  setTimeout(function() { iframe.remove(); }, 2000);
+
+  setTimeout(startPolling, 1500);
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 1000);
+}
+
+function pollStatus() {
+  fetch('http://127.0.0.1:' + AGENT_PORT + '/status', { mode: 'cors' })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.error) {
+        appendLog('Error: ' + data.error);
+        setStatus('FAILED', 'status-danger');
+        stopPolling();
+        building = false;
+        document.getElementById('build-btn').disabled = false;
+        return;
+      }
+
+      if (data.log && Array.isArray(data.log)) {
+        var logEl = document.getElementById('build-log');
+        var currentLines = logEl.textContent.split('\n').length;
+        for (var i = currentLines - 1; i < data.log.length; i++) {
+          if (data.log[i]) appendLog(data.log[i]);
+        }
+      }
+
+      if (data.step) {
+        setStatus(data.step.toUpperCase(), 'status-warn');
+      }
+
+      if (data.state === 'done') {
+        setStatus('COMPLETE', 'status-ok');
+        if (data.output_pkg) {
+          appendLog('PKG created: ' + data.output_pkg);
+          if (data.pkg_size) appendLog('Size: ' + formatBytes(data.pkg_size));
+        }
+        stopPolling();
+        building = false;
+        document.getElementById('build-btn').disabled = false;
+      } else if (data.state === 'error') {
+        setStatus('FAILED', 'status-danger');
+        stopPolling();
+        building = false;
+        document.getElementById('build-btn').disabled = false;
+      }
+    })
+    .catch(function() {});
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+</script>
+{% endblock %}
