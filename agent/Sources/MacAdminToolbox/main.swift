@@ -546,7 +546,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if host == "intune-base-build" || host == "serial-killer" || host == "intune-toolbox" {
+        if host == "intune-base-build" || host == "serial-killer" || host == "intune-procreate" || host == "intune-assign" {
             handledURL = true
             startIntuneServer()
             return
@@ -600,20 +600,16 @@ enum IntuneOperation: String, Encodable {
 struct IntuneState {
     var operation: IntuneOperation = .idle
     var connected: Bool = false
-    var tenantId: String = ""
-    var tenantName: String = ""
-    var userEmail: String = ""
     var error: String = ""
+    var connectStep: String = ""  // sub-step detail during connecting
     var psProcess: Process? = nil
 
     var statusResponse: [String: Any] {
         return [
             "operation": operation.rawValue,
             "connected": connected,
-            "tenantId": tenantId,
-            "tenantName": tenantName,
-            "userEmail": userEmail,
-            "error": error
+            "error": error,
+            "connectStep": connectStep
         ]
     }
 }
@@ -760,7 +756,9 @@ func runPSCommand(_ process: Process, command: String, timeout: TimeInterval = 6
           let stdoutPipe = process.standardOutput as? Pipe else {
         return ""
     }
-    let fullCmd = "\(command)\nWrite-Output '---COMMAND-COMPLETE---'\n"
+    // Use $ErrorActionPreference to ensure non-terminating errors don't stop the marker,
+    // then always write the marker on its own line after the command completes
+    let fullCmd = "$ErrorActionPreference = 'Continue'\n\(command)\nWrite-Output '---COMMAND-COMPLETE---'\n"
     stdinPipe.fileHandleForWriting.write(fullCmd.data(using: .utf8)!)
     let result = readUntilMarker(handle: stdoutPipe.fileHandleForReading, timeout: timeout)
     return cleanANSI(result)
@@ -869,6 +867,7 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
 
     intuneWorkQueue.async {
         // Step 1: Install PowerShell
+        stateQueue.sync { intuneState.connectStep = "Installing PowerShell" }
         let psResult = installPowerShellIfNeeded()
         guard psResult.success else {
             stateQueue.sync {
@@ -879,6 +878,7 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
         }
 
         // Step 2: Install Graph Authentication Module
+        stateQueue.sync { intuneState.connectStep = "Installing Graph module" }
         let graphResult = installGraphModuleIfNeeded()
         guard graphResult.success else {
             stateQueue.sync {
@@ -888,7 +888,8 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
             return
         }
 
-        // Step 3: Start PS session and connect
+        // Step 3: Start PS session
+        stateQueue.sync { intuneState.connectStep = "Starting PowerShell session" }
         guard let proc = startPowerShellSession() else {
             stateQueue.sync {
                 intuneState.error = "Failed to start PowerShell session"
@@ -897,15 +898,6 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
             return
         }
         stateQueue.sync { intuneState.psProcess = proc }
-
-        // Clear any cached tokens so the user always gets a fresh login prompt
-        let _ = runPSCommand(proc, command: "Disconnect-MgGraph -ErrorAction SilentlyContinue", timeout: 10)
-        let _ = runPSCommand(proc, command: """
-        $cachePath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.graph-cache'
-        if (Test-Path $cachePath) { Remove-Item -Recurse -Force $cachePath -ErrorAction SilentlyContinue }
-        $msalCache = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.msal_token_cache'
-        if (Test-Path $msalCache) { Remove-Item -Force $msalCache -ErrorAction SilentlyContinue }
-        """, timeout: 10)
 
         // Default scopes (base build)
         let defaultScopes = [
@@ -922,6 +914,7 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
         let scopes = requestedScopes.isEmpty
             ? defaultScopes.map { "'\($0)'" }.joined(separator: ",")
             : requestedScopes.map { "'\($0)'" }.joined(separator: ",")
+        stateQueue.sync { intuneState.connectStep = "Waiting for browser auth" }
         let connectOutput = runPSCommand(proc, command: "Connect-MgGraph -Scopes \(scopes) -NoWelcome", timeout: 120)
 
         if connectOutput.lowercased().contains("error") || connectOutput.lowercased().contains("fail") {
@@ -932,19 +925,8 @@ func handleConnect(encoder: JSONEncoder, requestedScopes: [String] = []) {
             return
         }
 
-        // Step 4: Get tenant info
-        let contextOutput = runPSCommand(proc, command: "$ctx = Get-MgContext; $ctx.TenantId; '|'; $ctx.Account", timeout: 30)
-        let contextParts = contextOutput.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let tenantId = contextParts.count > 0 ? contextParts[0] : ""
-        let email = contextParts.count > 1 ? contextParts[1] : ""
-
-        let orgOutput = runPSCommand(proc, command: "(Get-MgOrganization).DisplayName", timeout: 30)
-        let tenantName = orgOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-
+        // Auth succeeded — mark connected. Browser will fetch tenant info via Graph API.
         stateQueue.sync {
-            intuneState.tenantId = tenantId
-            intuneState.tenantName = tenantName
-            intuneState.userEmail = email
             intuneState.connected = true
             intuneState.operation = .connected
         }
@@ -960,29 +942,15 @@ func handleToken() -> [String: Any] {
         return ["error": "Not connected"]
     }
 
-    // Try Get-MgContext first
-    let tokenOutput = runPSCommand(proc, command: """
-    $ctx = Get-MgContext
-    if ($ctx.AccessToken) { $ctx.AccessToken } else {
-        try {
-            $authCtx = [Microsoft.Graph.PowerShell.Authentication.GraphSession]::Instance.AuthContext
-            $token = $authCtx.GetTokenAsync([System.Threading.CancellationToken]::None).GetAwaiter().GetResult()
-            $token.AccessToken
-        } catch { '' }
-    }
-    """, timeout: 30)
+    // Extract bearer token from Invoke-MgGraphRequest response headers
+    let tokenOutput = runPSCommand(proc, command: "$resp = Invoke-MgGraphRequest -Method GET -Uri '/v1.0/me' -OutputType HttpResponseMessage; $resp.RequestMessage.Headers.Authorization.Parameter", timeout: 30)
 
     let token = tokenOutput.trimmingCharacters(in: .whitespacesAndNewlines)
     if token.isEmpty {
         return ["error": "Could not retrieve access token"]
     }
 
-    let state = stateQueue.sync { (intuneState.tenantId, intuneState.tenantName) }
-    return [
-        "token": token,
-        "tenantId": state.0,
-        "tenantName": state.1
-    ]
+    return ["token": token]
 }
 
 func handleDisconnect(encoder: JSONEncoder) {

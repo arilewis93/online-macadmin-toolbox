@@ -83,7 +83,14 @@
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
-      {% if show_auto_config %}
+    </div>
+  </div>
+
+  {% if show_auto_config %}
+  <div class="dashboard-tools">
+    <h2 class="tool-group-title">Intune Tools</h2>
+    <p class="tool-group-desc">Connect to a client Intune tenant via Microsoft Graph to manage devices, profiles, and policies.</p>
+    <div class="tool-card-grid">
       <a href="{{ url_for('main.toolbox', tool_name='intune_base_build') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Intune Base Build</div>
@@ -91,8 +98,36 @@
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
-      {% endif %}
-      {% if show_auto_config %}
+      <a href="{{ url_for('main.toolbox', tool_name='intune_procreate') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Intune ProCreate</div>
+          <div class="tool-card-desc">Create iOS enrollment profiles for Apple Business Manager DEP tokens.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='intune_assign') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Device Assignment</div>
+          <div class="tool-card-desc">Assign devices to enrollment profiles by serial number via CSV.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+      <a href="{{ url_for('main.toolbox', tool_name='serial_killer') }}" class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-card-title">Serial Killer</div>
+          <div class="tool-card-desc">Look up and wipe an Intune-managed device by serial number.</div>
+        </div>
+        <span class="btn btn-primary">Open →</span>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if show_auto_config %}
+  <div class="dashboard-tools">
+    <h2 class="tool-group-title">Mac Agent Tools</h2>
+    <p class="tool-group-desc">Tools that use the companion agent app running on a local Mac.</p>
+    <div class="tool-card-grid">
       <a href="{{ url_for('main.toolbox', tool_name='auto_configurator') }}" class="tool-card">
         <div class="tool-card-left">
           <div class="tool-card-title">Auto Configurator</div>
@@ -100,8 +135,8 @@
         </div>
         <span class="btn btn-primary">Open →</span>
       </a>
-      {% endif %}
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

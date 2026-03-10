@@ -1,0 +1,646 @@
+{% extends "base.html" %}
+{% block title %}Intune Device Assignment{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+<a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
+<div class="logo-badge">
+  <div class="logo-icon">
+    <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+  </div>
+  <span class="logo-text">INTUNE</span>
+  <span class="logo-sep">/</span>
+  <span class="logo-sub">Device Assignment</span>
+</div>
+<span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── CHECK ROWS ── */
+.intune-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.intune-check-row:last-child { border-bottom: none; }
+.intune-check-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* ── STATUS ICONS ── */
+.intune-status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.intune-icon-pending {
+  border: 2px solid var(--border);
+}
+.intune-icon-processing {
+  border: 2px solid var(--accent, #4f8eff);
+  border-top-color: transparent;
+  animation: intune-spin 0.7s linear infinite;
+}
+.intune-icon-success {
+  background: var(--green, #34c759);
+}
+.intune-icon-success::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+.intune-icon-fail {
+  background: var(--red, #ff453a);
+}
+.intune-icon-fail::after {
+  content: '\00d7';
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+@keyframes intune-spin { to { transform: rotate(360deg); } }
+
+/* ── COLLAPSIBLE CARD ── */
+.card-collapsible .card-collapse-trigger {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-collapsible .card-collapse-trigger:hover { opacity: 0.9; }
+.card-collapsible .card-collapse-icon {
+  font-size: 10px;
+  opacity: 0.8;
+  transition: transform 0.2s ease;
+}
+.card-collapsible .card-collapse-body {
+  margin-top: 12px;
+  padding-top: 0;
+}
+
+.autoconfig-companion-steps {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim, #999);
+}
+.autoconfig-companion-steps li { margin-bottom: 6px; }
+.autoconfig-companion-steps code {
+  font-size: 12px;
+  background: var(--bg, #111);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── LOG AREA ── */
+.intune-log {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  margin-top: 16px;
+}
+
+/* ── BTN ROW ── */
+.intune-btn-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+/* ── CSV TABLE ── */
+.itb-csv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+  margin-top: 12px;
+}
+.itb-csv-table th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+}
+.itb-csv-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.itb-csv-table tr:last-child td { border-bottom: none; }
+
+/* ── PROGRESS LIST ── */
+.itb-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.itb-progress-item .intune-status-icon { flex-shrink: 0; }
+.itb-progress-label { flex: 1; }
+.itb-progress-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── MISC ── */
+.section { display: block; }
+.section.hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <!-- CONNECT SECTION -->
+    <div class="section" id="itb-connect-section">
+      <div class="section-header">
+        <div class="section-tag">Connect</div>
+        <div class="section-title">Connect to Intune</div>
+        <div class="section-desc">Authenticate with Microsoft Intune via the companion app running on your Mac.</div>
+      </div>
+
+      <div class="card card-collapsible" id="itb-companion-card">
+        <button type="button" class="card-title card-collapse-trigger" id="itb-companion-collapse-trigger"
+          onclick="itbToggleCompanion()" aria-expanded="false">
+          <span class="card-collapse-icon" id="itb-companion-collapse-icon">&#9654;</span>
+          <span>Companion app (Mac)</span>
+        </button>
+        <div class="card-collapse-body" id="itb-companion-body" style="display:none;">
+          <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac.</p>
+          <ol class="autoconfig-companion-steps">
+            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+            <li><strong>Unzip</strong> the file (double&#8209;click the .zip).</li>
+            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong>.</li>
+            <li><strong>Open</strong> the app once so macOS registers it.</li>
+          </ol>
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Authentication</div>
+        <button class="btn btn-primary" id="itb-connect-btn" onclick="itbConnect()">Connect to Intune</button>
+        <div id="itb-connect-status" style="display:none;margin-top:16px;">
+          <div class="info-box" id="itb-connect-status-msg">Launching companion app&hellip;</div>
+          <div id="itb-connect-items" style="margin-top:12px;"></div>
+        </div>
+        <div id="itb-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
+          <strong style="color:var(--green);">Connected</strong><br>
+          Tenant: <strong id="itb-tenant-name"></strong><br>
+          User: <strong id="itb-user-email"></strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEVICE ASSIGNMENT SECTION -->
+    <div class="section hidden" id="itb-assignment-section">
+      <!-- CSV Upload card -->
+      <div class="card">
+        <div class="card-title">Device Assignment CSV</div>
+        <div class="section-desc" style="margin-bottom:12px;">Upload a CSV file with columns: <strong>SerialNumber</strong>, <strong>ProfileName</strong></div>
+        <input type="file" id="itb-assign-csv-input" accept=".csv" style="display:none;" onchange="itbParseAssignCSV(event)">
+        <button class="btn btn-ghost" onclick="document.getElementById('itb-assign-csv-input').click()">Choose CSV File</button>
+        <div id="itb-assign-csv-status" class="info-box" style="display:none;margin-top:12px;"></div>
+        <div id="itb-assign-csv-table-wrap" style="display:none;margin-top:12px;overflow-x:auto;">
+          <table class="itb-csv-table" id="itb-assign-csv-table"></table>
+        </div>
+      </div>
+
+      <!-- Assign Button card -->
+      <div class="card">
+        <div class="card-title">Assign Devices</div>
+        <div class="section-desc" style="margin-bottom:12px;">Assign each device serial to its named enrollment profile.</div>
+        <button class="btn btn-primary" id="itb-assign-btn" disabled onclick="itbAssignDevices()">Assign Devices</button>
+        <div id="itb-assign-progress" style="display:none;margin-top:16px;"></div>
+        <div id="itb-assign-log-card" style="display:none;margin-top:16px;">
+          <div class="intune-log" id="itb-assign-log"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include 'tools/_shared_utils.html' %}
+<script>
+(function() {
+  /* ═══════════════════════════════════════════════════════════
+     STATE
+     ═══════════════════════════════════════════════════════════ */
+  var INTUNE_PORT = 8765;
+  var connected = false;
+  var tenantName = '';
+  var userEmail = '';
+  var tenantId = '';
+  var assignCSVRows = [];
+
+  /* ═══════════════════════════════════════════════════════════
+     AGENT / GRAPH HELPERS
+     ═══════════════════════════════════════════════════════════ */
+
+  function intuneRequest(method, path, body) {
+    var opts = { method: method, mode: 'cors', headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch('http://127.0.0.1:' + INTUNE_PORT + path, opts).then(function(r) { return r.json(); });
+  }
+
+  function getToken() {
+    return intuneRequest('GET', '/token').then(function(data) {
+      if (data.error) throw new Error(data.error);
+      return data.token;
+    });
+  }
+
+  function graphRequest(method, endpoint, body) {
+    return getToken().then(function(token) {
+      var url = 'https://graph.microsoft.com/beta' + endpoint;
+      var opts = {
+        method: method,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+      };
+      if (body && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(url, opts).then(function(r) {
+        if (r.status === 204) return null;
+        return r.json().then(function(data) {
+          if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
+          return data;
+        });
+      });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     UI HELPERS
+     ═══════════════════════════════════════════════════════════ */
+
+  function statusIcon(status) {
+    return '<span class="intune-status-icon intune-icon-' + (status || 'pending') + '"></span>';
+  }
+
+  function renderCheckRows(items) {
+    var html = '';
+    items.forEach(function(item) {
+      html += '<div class="intune-check-row">' + statusIcon(item.status) + '<span>' + esc(item.name) + '</span>';
+      if (item.message) html += '<span class="intune-check-msg">' + esc(item.message) + '</span>';
+      html += '</div>';
+    });
+    return html;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     COMPANION COLLAPSE
+     ═══════════════════════════════════════════════════════════ */
+
+  window.itbToggleCompanion = function() {
+    var body = document.getElementById('itb-companion-body');
+    var icon = document.getElementById('itb-companion-collapse-icon');
+    var trigger = document.getElementById('itb-companion-collapse-trigger');
+    var open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    icon.innerHTML = open ? '&#9654;' : '&#9660;';
+    trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+  };
+
+  /* ═══════════════════════════════════════════════════════════
+     CONNECT FLOW
+     ═══════════════════════════════════════════════════════════ */
+
+  var connectTriggered = false;
+
+  window.itbConnect = function() {
+    document.getElementById('itb-connect-btn').disabled = true;
+    document.getElementById('itb-connect-btn').style.display = 'none';
+    document.getElementById('itb-connect-status').style.display = 'block';
+    document.getElementById('itb-connect-status-msg').textContent = 'Launching companion app\u2026';
+
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'macadmin-toolbox://intune-assign';
+    document.body.appendChild(iframe);
+    setTimeout(function() { iframe.remove(); }, 3000);
+    setTimeout(startPollingConnect, 2000);
+  };
+
+  function startPollingConnect() {
+    var connectSent = false;
+    var connectItems = [
+      { name: 'Install PowerShell', status: 'processing', message: 'Launching agent\u2026' },
+      { name: 'Connect to Graph', status: 'pending', message: '' },
+      { name: 'Get Tenant Info', status: 'pending', message: '' }
+    ];
+    var el = document.getElementById('itb-connect-items');
+    el.innerHTML = renderCheckRows(connectItems);
+
+    var poll = setInterval(function() {
+      intuneRequest('GET', '/status').then(function(data) {
+        if (!connectTriggered) {
+          connectTriggered = true;
+          connectSent = false;
+          connectItems[0].status = 'success';
+          connectItems[0].message = 'Agent running';
+          connectItems[1].status = 'processing';
+          el.innerHTML = renderCheckRows(connectItems);
+          document.getElementById('itb-connect-status-msg').textContent = 'Getting things ready\u2026';
+          intuneRequest('POST', '/connect', { scopes: ['DeviceManagementServiceConfig.ReadWrite.All'] }).then(function() {
+            connectSent = true;
+          }).catch(function() {});
+          return;
+        }
+        if (!connectSent) return;
+
+        if (data.error) {
+          connectItems[1].status = 'fail';
+          connectItems[1].message = data.error;
+          el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
+          return;
+        } else if (data.connected) {
+          connectItems[1].status = 'success';
+          connectItems[1].message = 'Authenticated';
+          connectItems[2].status = 'processing';
+        } else if (data.operation === 'connecting') {
+          connectItems[1].status = 'processing';
+          connectItems[1].message = data.connectStep || 'Authenticating\u2026';
+        }
+        el.innerHTML = renderCheckRows(connectItems);
+
+        if (data.connected) {
+          connectItems[2].status = 'processing';
+          connectItems[2].message = 'Fetching tenant info\u2026';
+          el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
+
+          getToken().then(function(token) {
+            return Promise.all([
+              graphRequest('GET', '/organization').catch(function() { return null; }),
+              graphRequest('GET', '/me').catch(function() { return null; })
+            ]);
+          }).then(function(results) {
+            var orgData = results[0];
+            var meData = results[1];
+            tenantName = (orgData && orgData.value && orgData.value[0]) ? orgData.value[0].displayName : 'Unknown';
+            tenantId = (orgData && orgData.value && orgData.value[0]) ? orgData.value[0].id : '';
+            userEmail = (meData && meData.userPrincipalName) ? meData.userPrincipalName : 'Unknown';
+
+            connectItems[2].status = 'success';
+            connectItems[2].message = tenantName;
+            el.innerHTML = renderCheckRows(connectItems);
+
+            connected = true;
+            document.getElementById('itb-connect-status').style.display = 'none';
+            document.getElementById('itb-tenant-info').style.display = 'block';
+            document.getElementById('itb-tenant-name').textContent = tenantName;
+            document.getElementById('itb-user-email').textContent = userEmail;
+            document.getElementById('statusPill').textContent = 'CONNECTED';
+            document.getElementById('statusPill').classList.add('ready');
+            document.getElementById('itb-assignment-section').classList.remove('hidden');
+          }).catch(function(err) {
+            connectItems[2].status = 'fail';
+            connectItems[2].message = 'Token error: ' + err.message;
+            el.innerHTML = renderCheckRows(connectItems);
+          });
+        }
+      }).catch(function() { /* agent not ready yet */ });
+    }, 750);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     CSV PARSING
+     ═══════════════════════════════════════════════════════════ */
+
+  function parseCSVText(text) {
+    var lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return { headers: [], rows: [] };
+    var headers = lines[0].split(',').map(function(h) { return h.trim().replace(/^"|"$/g, ''); });
+    var rows = [];
+    for (var i = 1; i < lines.length; i++) {
+      var vals = lines[i].split(',').map(function(v) { return v.trim().replace(/^"|"$/g, ''); });
+      if (vals.length === 0 || (vals.length === 1 && vals[0] === '')) continue;
+      var row = {};
+      headers.forEach(function(h, idx) { row[h] = vals[idx] || ''; });
+      rows.push(row);
+    }
+    return { headers: headers, rows: rows };
+  }
+
+  window.itbParseAssignCSV = function(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var result = parseCSVText(e.target.result);
+      if (!result.headers.includes('SerialNumber') || !result.headers.includes('ProfileName')) {
+        document.getElementById('itb-assign-csv-status').style.display = 'block';
+        document.getElementById('itb-assign-csv-status').className = 'warning-box';
+        document.getElementById('itb-assign-csv-status').textContent = 'CSV must contain SerialNumber and ProfileName columns.';
+        assignCSVRows = [];
+        updateAssignBtn();
+        return;
+      }
+      assignCSVRows = result.rows;
+      document.getElementById('itb-assign-csv-status').style.display = 'block';
+      document.getElementById('itb-assign-csv-status').className = 'info-box';
+      document.getElementById('itb-assign-csv-status').textContent = assignCSVRows.length + ' row(s) loaded from ' + file.name;
+      renderAssignCSVTable();
+      updateAssignBtn();
+    };
+    reader.readAsText(file);
+  };
+
+  function renderAssignCSVTable() {
+    if (assignCSVRows.length === 0) {
+      document.getElementById('itb-assign-csv-table-wrap').style.display = 'none';
+      return;
+    }
+    document.getElementById('itb-assign-csv-table-wrap').style.display = 'block';
+    var html = '<thead><tr><th>#</th><th>SerialNumber</th><th>ProfileName</th></tr></thead><tbody>';
+    assignCSVRows.forEach(function(row, idx) {
+      html += '<tr><td>' + (idx + 1) + '</td><td>' + esc(row.SerialNumber) + '</td><td>' + esc(row.ProfileName) + '</td></tr>';
+    });
+    html += '</tbody>';
+    document.getElementById('itb-assign-csv-table').innerHTML = html;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     BUTTON STATE
+     ═══════════════════════════════════════════════════════════ */
+
+  function updateAssignBtn() {
+    var btn = document.getElementById('itb-assign-btn');
+    btn.disabled = !(connected && assignCSVRows.length > 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     DEVICE ASSIGNMENT
+     ═══════════════════════════════════════════════════════════ */
+
+  window.itbAssignDevices = function() {
+    if (assignCSVRows.length === 0) return;
+
+    var btn = document.getElementById('itb-assign-btn');
+    btn.disabled = true;
+
+    var progressEl = document.getElementById('itb-assign-progress');
+    progressEl.style.display = 'block';
+    var logCardEl = document.getElementById('itb-assign-log-card');
+    logCardEl.style.display = 'block';
+    var logEl = document.getElementById('itb-assign-log');
+    logEl.textContent = '';
+
+    function logMsg(msg) {
+      logEl.textContent += msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    progressEl.innerHTML = '<div class="itb-progress-item">' + statusIcon('processing') + '<span class="itb-progress-label">Loading enrollment profiles\u2026</span></div>';
+
+    logMsg('Fetching DEP settings and enrollment profiles\u2026');
+
+    // Step 1: Fetch all DEP settings
+    graphRequest('GET', '/deviceManagement/depOnboardingSettings').then(function(data) {
+      var depSettings = (data && data.value) || [];
+      if (depSettings.length === 0) throw new Error('No DEP settings found');
+      logMsg('Found ' + depSettings.length + ' DEP setting(s).');
+
+      // Step 2: For each DEP setting, fetch enrollment profiles
+      var profileMap = {}; // profileName -> {profileId, depSettingId}
+      var fetchPromises = depSettings.map(function(dep) {
+        return graphRequest('GET', '/deviceManagement/depOnboardingSettings/' + dep.id + '/enrollmentProfiles').then(function(profileData) {
+          var profiles = (profileData && profileData.value) || [];
+          profiles.forEach(function(p) {
+            profileMap[p.displayName] = { profileId: p.id, depSettingId: dep.id };
+          });
+          logMsg('  DEP "' + (dep.tokenName || dep.id) + '": ' + profiles.length + ' profile(s)');
+        });
+      });
+
+      return Promise.all(fetchPromises).then(function() { return profileMap; });
+    }).then(function(profileMap) {
+      logMsg('Profile map built: ' + Object.keys(profileMap).length + ' profile(s) found.\n');
+
+      // Step 3: Group CSV rows by ProfileName
+      var groups = {};
+      assignCSVRows.forEach(function(row) {
+        var name = row.ProfileName;
+        if (!groups[name]) groups[name] = [];
+        groups[name].push(row.SerialNumber);
+      });
+
+      // Build task list
+      var tasks = [];
+      Object.keys(groups).forEach(function(profileName) {
+        var mapping = profileMap[profileName];
+        tasks.push({
+          profileName: profileName,
+          serials: groups[profileName],
+          mapping: mapping,
+          status: mapping ? 'pending' : 'fail',
+          message: mapping ? '' : 'Profile not found'
+        });
+      });
+
+      function renderProgress() {
+        var html = '';
+        tasks.forEach(function(task) {
+          html += '<div class="itb-progress-item">';
+          html += statusIcon(task.status);
+          html += '<span class="itb-progress-label">' + esc(task.profileName) + ' (' + task.serials.length + ' device' + (task.serials.length !== 1 ? 's' : '') + ')</span>';
+          if (task.message) html += '<span class="itb-progress-msg">' + esc(task.message) + '</span>';
+          html += '</div>';
+        });
+        progressEl.innerHTML = html;
+      }
+
+      renderProgress();
+
+      // Step 4: Assign devices sequentially per group
+      var idx = 0;
+      function nextAssign() {
+        if (idx >= tasks.length) {
+          logMsg('\nDone. ' + tasks.filter(function(t) { return t.status === 'success'; }).length + '/' + tasks.length + ' succeeded.');
+          btn.disabled = false;
+          return;
+        }
+        var task = tasks[idx];
+        if (task.status === 'fail') {
+          logMsg('SKIP: "' + task.profileName + '" - ' + task.message);
+          idx++;
+          nextAssign();
+          return;
+        }
+        task.status = 'processing';
+        task.message = 'Assigning ' + task.serials.length + ' device(s)\u2026';
+        renderProgress();
+
+        var endpoint = '/deviceManagement/depOnboardingSettings/' + task.mapping.depSettingId +
+                       '/enrollmentProfiles/' + task.mapping.profileId +
+                       '/updateDeviceProfileAssignment';
+        var body = { deviceIds: task.serials };
+
+        logMsg('Assigning ' + task.serials.length + ' device(s) to "' + task.profileName + '"\u2026');
+
+        graphRequest('POST', endpoint, body).then(function() {
+          task.status = 'success';
+          task.message = task.serials.length + ' device(s) assigned';
+          logMsg('  OK: ' + task.serials.length + ' device(s) assigned to "' + task.profileName + '"');
+        }).catch(function(err) {
+          task.status = 'fail';
+          task.message = err.message;
+          logMsg('  FAIL: ' + err.message);
+        }).then(function() {
+          renderProgress();
+          idx++;
+          nextAssign();
+        });
+      }
+      nextAssign();
+    }).catch(function(err) {
+      progressEl.innerHTML = '<div class="itb-progress-item">' + statusIcon('fail') + '<span class="itb-progress-label">Error: ' + esc(err.message) + '</span></div>';
+      logMsg('ERROR: ' + err.message);
+      btn.disabled = false;
+    });
+  };
+})();
+</script>
+{% endblock %}

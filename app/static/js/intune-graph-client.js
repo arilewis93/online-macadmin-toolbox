@@ -30,7 +30,9 @@
       }
       return fetch(url, opts).then(function(r) {
         if (r.status === 204) return null;
-        return r.json().then(function(data) {
+        return r.text().then(function(text) {
+          if (!text) return null;
+          var data = JSON.parse(text);
           if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
           return data;
         });
@@ -45,7 +47,12 @@
   }
 
   function rawPut(url, data, headers) {
-    return fetch(url, {
+    // Proxy Azure blob requests through Flask to avoid CORS
+    var fetchUrl = url;
+    if (url.indexOf('blob.core.windows.net') !== -1) {
+      fetchUrl = '/api/azure-blob-proxy?url=' + encodeURIComponent(url);
+    }
+    return fetch(fetchUrl, {
       method: 'PUT',
       headers: headers || {},
       body: data

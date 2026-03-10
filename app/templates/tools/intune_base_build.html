@@ -125,6 +125,16 @@
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translateY(-1px);
 }
+.intune-icon-warning {
+  background: var(--amber, #ff9f0a);
+}
+.intune-icon-warning::after {
+  content: '!';
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
 .intune-icon-fail {
   background: var(--red, #ff453a);
 }
@@ -406,8 +416,8 @@
           <div class="intune-check-row" data-check="vpp"><span class="intune-status-icon intune-icon-pending"></span><span>VPP Token</span></div>
           <div class="intune-check-row" data-check="testgroup"><span class="intune-status-icon intune-icon-pending"></span><span>Test Group</span></div>
           <div class="intune-check-row" data-check="userassignment"><span class="intune-status-icon intune-icon-pending"></span><span>User Assignment</span></div>
-          <div class="intune-check-row" data-check="filevault"><span class="intune-status-icon intune-icon-pending"></span><span>FileVault</span></div>
           <div class="intune-check-row" data-check="enrollment"><span class="intune-status-icon intune-icon-pending"></span><span>Enrollment Profile</span></div>
+          <div class="intune-check-row" data-check="filevault"><span class="intune-status-icon intune-icon-pending"></span><span>FileVault</span></div>
         </div>
       </div>
 
@@ -793,7 +803,7 @@ if (typeof define === 'undefined') {
   function startPollingConnect() {
     var connectSent = false;
     var connectItems = [
-      { name: 'Install PowerShell', status: 'processing', message: '' },
+      { name: 'Install PowerShell', status: 'processing', message: 'Launching agent\u2026' },
       { name: 'Connect to Graph', status: 'pending', message: '' },
       { name: 'Get Tenant Info', status: 'pending', message: '' }
     ];
@@ -818,46 +828,47 @@ if (typeof define === 'undefined') {
         }
         if (!connectSent) return;
 
-        // Update status from agent items if available, otherwise use our simplified list
-        if (data.items && data.items.length) {
-          // Map agent items to our simplified 3-step view
-          var allDone = true;
-          var anyFail = false;
-          data.items.forEach(function(item) {
-            if (item.status === 'fail') anyFail = true;
-            if (item.status !== 'success') allDone = false;
-          });
-          if (allDone || data.connected) {
-            connectItems[1].status = 'success';
-            connectItems[1].message = 'Authenticated';
-            connectItems[2].status = 'processing';
-          } else if (anyFail) {
-            connectItems[1].status = 'fail';
-            connectItems[1].message = 'Connection failed';
-          } else {
-            connectItems[1].status = 'processing';
-            connectItems[1].message = 'Authenticating\u2026';
-          }
+        // Update status based on agent operation state
+        if (data.error) {
+          connectItems[1].status = 'fail';
+          connectItems[1].message = data.error;
+          el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
+          return;
+        } else if (data.connected) {
+          connectItems[1].status = 'success';
+          connectItems[1].message = 'Authenticated';
+          connectItems[2].status = 'processing';
+        } else if (data.operation === 'connecting') {
+          connectItems[1].status = 'processing';
+          connectItems[1].message = data.connectStep || 'Authenticating\u2026';
         }
         el.innerHTML = renderCheckRows(connectItems);
 
         if (data.connected) {
-          // Store tenant info
-          tenantName = data.tenantName || 'Unknown';
-          userEmail = data.userEmail || 'Unknown';
-          tenantId = data.tenantId || '';
-
-          // Verify token works
+          // Agent connected — now get token and fetch tenant info from Graph API
           connectItems[2].status = 'processing';
-          connectItems[2].message = 'Verifying token\u2026';
+          connectItems[2].message = 'Fetching tenant info\u2026';
           el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
 
-          IntuneGraph.getToken().then(function() {
+          IntuneGraph.getToken().then(function(token) {
+            // Fetch org info and current user from Graph API directly
+            return Promise.all([
+              IntuneGraph.graphRequest('GET', '/organization', null, 'v1.0'),
+              IntuneGraph.graphRequest('GET', '/me', null, 'v1.0').catch(function() { return null; })
+            ]);
+          }).then(function(results) {
+            var orgData = results[0];
+            var meData = results[1];
+            tenantName = (orgData && orgData.value && orgData.value[0]) ? orgData.value[0].displayName : 'Unknown';
+            tenantId = (orgData && orgData.value && orgData.value[0]) ? orgData.value[0].id : '';
+            userEmail = (meData && meData.userPrincipalName) ? meData.userPrincipalName : 'Unknown';
+
             connectItems[2].status = 'success';
-            connectItems[2].message = 'Token valid';
+            connectItems[2].message = tenantName;
             el.innerHTML = renderCheckRows(connectItems);
 
-            clearInterval(poll);
             document.getElementById('intune-connect-status').style.display = 'none';
             document.getElementById('intune-tenant-info').style.display = 'block';
             document.getElementById('intune-tenant-name').textContent = tenantName;
@@ -871,8 +882,6 @@ if (typeof define === 'undefined') {
             connectItems[2].message = 'Token error: ' + err.message;
             el.innerHTML = renderCheckRows(connectItems);
           });
-          // Stop the main poll -- the token check above handles completion
-          clearInterval(poll);
         }
       }).catch(function() { /* agent not ready yet */ });
     }, 750);
@@ -899,51 +908,72 @@ if (typeof define === 'undefined') {
 
     var checks = [
       { id: 'apns', label: 'APNs Certificate', fn: function() {
-        return IntuneOps.checkAPNs().then(function(r) {
-          return { status: r.status ? 'success' : 'fail', message: r.message };
-        });
+        return IntuneOps.checkAPNs();
       }},
       { id: 'abm', label: 'ABM Token', fn: function() {
-        return IntuneOps.checkABM().then(function(r) {
-          return { status: r.status ? 'success' : 'fail', message: r.message };
-        });
+        return IntuneOps.checkABM();
       }},
       { id: 'vpp', label: 'VPP Token', fn: function() {
-        return IntuneOps.checkVPP().then(function(r) {
-          return { status: r.status ? 'success' : 'fail', message: r.message };
-        });
+        return IntuneOps.checkVPP();
       }},
       { id: 'testgroup', label: 'Test Group', fn: function() {
-        return IntuneOps.ensureGroup('iStore Business PoC')
-          .then(function(g) {
+        return IntuneOps.findGroup('iStore Business PoC').then(function(g) {
+          if (g) {
             groupId = g.id;
-            return { status: 'success', message: 'Group: ' + g.displayName };
-          })
-          .catch(function(e) { return { status: 'fail', message: e.message }; });
+            return { status: 'success', message: 'Already exists' };
+          }
+          return IntuneOps.createGroup('iStore Business PoC').then(function(ng) {
+            groupId = ng.id;
+            return { status: 'success', message: 'Created' };
+          });
+        }).catch(function(e) { return { status: 'fail', message: e.message }; });
       }},
       { id: 'userassignment', label: 'User Assignment', fn: function() {
         return IntuneOps.findUser(userEmail).then(function(u) {
           if (!u) return { status: 'fail', message: 'User not found: ' + userEmail };
           return IntuneOps.addGroupMember(groupId, u.id)
-            .then(function() { return { status: 'success', message: 'User assigned to group' }; });
-        }).catch(function(e) { return { status: 'fail', message: e.message }; });
-      }},
-      { id: 'filevault', label: 'FileVault', fn: function() {
-        return IntuneOps.createFileVault(FILEVAULT_POLICY)
-          .then(function(p) {
-            if (groupId) {
-              IntuneOps.assignSettingsCatalog(p.id, groupId).catch(function() {});
-            }
-            return { status: 'success', message: 'FileVault configured' };
-          })
-          .catch(function(e) { return { status: 'fail', message: e.message }; });
+            .then(function() { return { status: 'success', message: 'Assigned' }; });
+        }).catch(function(e) {
+          if (e.message && e.message.indexOf('already exist') !== -1) {
+            return { status: 'success', message: 'Already a member' };
+          }
+          return { status: 'fail', message: e.message };
+        });
       }},
       { id: 'enrollment', label: 'Enrollment Profile', fn: function() {
         return IntuneOps.getDepSettings().then(function(data) {
           var settings = data.value || [];
-          if (!settings.length) return { status: 'fail', message: 'No DEP settings found' };
-          return IntuneOps.createEnrollmentProfile(settings[0].id, ENROLLMENT_PROFILE)
-            .then(function() { return { status: 'success', message: 'Profile created' }; });
+          if (!settings.length) return { status: 'fail', message: 'No DEP token found' };
+          return IntuneOps.findEnrollmentProfiles(settings[0].id).then(function(profiles) {
+            if (profiles.length > 0) {
+              return { status: 'success', message: 'Already exists (' + profiles[0].displayName + ')' };
+            }
+            return IntuneOps.createEnrollmentProfile(settings[0].id, ENROLLMENT_PROFILE)
+              .then(function() { return { status: 'success', message: 'Created' }; });
+          });
+        }).catch(function(e) {
+          return { status: 'fail', message: e.message };
+        });
+      }},
+      { id: 'filevault', label: 'FileVault', fn: function() {
+        // First check if a FileVault policy already exists and audit it
+        return IntuneOps.findFileVaultPolicies().then(function(policies) {
+          if (policies.length > 0) {
+            // Audit existing policy
+            return IntuneOps.auditFileVaultPolicy(policies[0].id).then(function(audit) {
+              if (audit.passed === audit.total) {
+                return { status: 'success', message: 'Configured \u2014 ' + audit.passed + '/' + audit.total + ' settings' };
+              }
+              return { status: 'warning', message: audit.passed + '/' + audit.total + ' settings \u2014 missing: ' + audit.missing.join(', ') };
+            });
+          }
+          // No policy exists — create one
+          return IntuneOps.createFileVault(FILEVAULT_POLICY).then(function(p) {
+            if (groupId) {
+              IntuneOps.assignSettingsCatalog(p.id, groupId).catch(function() {});
+            }
+            return { status: 'success', message: 'Created and assigned' };
+          });
         }).catch(function(e) { return { status: 'fail', message: e.message }; });
       }}
     ];
@@ -966,6 +996,8 @@ if (typeof define === 'undefined') {
     function next() {
       if (i >= checks.length) {
         document.getElementById('intune-step2-next').disabled = false;
+        document.getElementById('intune-run-checks-btn').disabled = false;
+        document.getElementById('intune-run-checks-btn').textContent = 'Re-run Checks';
         updateStepIndicator(2, 'complete');
         return;
       }
@@ -1008,10 +1040,9 @@ if (typeof define === 'undefined') {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.error) throw new Error(data.error);
-        var baseUrl = data.base_url || '';
         s3Files = data.files.map(function(name) {
           var displayName = name.replace(/\+/g, ' ');
-          return { name: displayName, url: baseUrl + encodeURIComponent(name), type: detectFileType(name), selected: true };
+          return { name: displayName, url: '/api/intune-file-proxy?file=' + encodeURIComponent(name), type: detectFileType(name), selected: true };
         });
         statusEl.textContent = 'Loaded ' + s3Files.length + ' file' + (s3Files.length !== 1 ? 's' : '') + '.';
         renderFileList();
@@ -1115,7 +1146,7 @@ if (typeof define === 'undefined') {
       }).then(function(pkgInfoArr) {
         var info = (pkgInfoArr && pkgInfoArr.length > 0) ? pkgInfoArr[0] : null;
         var pkgInfo = info ? {
-          displayName: info.name || file.name.replace('.pkg', ''),
+          displayName: file.name.replace('.pkg', ''),
           primaryBundleId: info.bundleId || info.name || 'com.unknown',
           primaryBundleVersion: info.version || '1.0',
           includedApps: [{ bundleId: info.bundleId || info.name || 'com.unknown', bundleVersion: info.version || '1.0' }]
@@ -1165,6 +1196,17 @@ if (typeof define === 'undefined') {
 
   /* ── STEP 4: UPLOAD (browser-side processing) ── */
 
+  function ensureGroupId() {
+    if (groupId) return Promise.resolve(groupId);
+    return IntuneOps.findGroup('iStore Business PoC').then(function(g) {
+      if (g) { groupId = g.id; return groupId; }
+      return IntuneOps.createGroup('iStore Business PoC').then(function(ng) {
+        groupId = ng.id;
+        return groupId;
+      });
+    });
+  }
+
   window.startUpload = function() {
     var selected = getSelectedFiles();
     if (!selected.length) return;
@@ -1179,6 +1221,11 @@ if (typeof define === 'undefined') {
       html += '<div class="intune-check-row" data-file="' + escXml(f.name) + '">' + statusIcon('pending') + '<span>' + escXml(f.name) + '</span></div>';
     });
     el.innerHTML = html;
+
+    // Ensure we have a group ID before starting uploads
+    ensureGroupId().catch(function(e) {
+      logAppend('Warning: Could not resolve group — assignments will be skipped (' + e.message + ')');
+    }).then(function() {
 
     var i = 0;
 
@@ -1208,6 +1255,8 @@ if (typeof define === 'undefined') {
     }
 
     uploadNext();
+
+    }); // end ensureGroupId
   };
 
   function setFileStatus(fileName, status, message) {
@@ -1239,6 +1288,8 @@ if (typeof define === 'undefined') {
   function onUploadComplete() {
     updateStepIndicator(4, 'complete');
     document.getElementById('statusPill').textContent = 'COMPLETE';
+    document.getElementById('intune-upload-btn').disabled = false;
+    document.getElementById('intune-upload-btn').textContent = 'Re-upload to Intune';
     logAppend('\nAll files processed.');
   }
 
@@ -1255,19 +1306,19 @@ if (typeof define === 'undefined') {
           return handlePkgUpload(f, content);
         case 'mobileconfig':
           var mcName = f.name.replace('.mobileconfig', '');
-          return IntuneOps.createMobileConfig(mcName, f.name, btoa(content), 'macOS');
+          return IntuneOps.createMobileConfig(mcName, f.name, utf8ToBase64(content), 'macOS');
         case 'ios_mobileconfig':
           var iosName = f.name.replace('.mobileconfig', '').replace(/^ios_/, '');
-          return IntuneOps.createMobileConfig(iosName, f.name, btoa(content), 'iOS');
+          return IntuneOps.createMobileConfig(iosName, f.name, utf8ToBase64(content), 'iOS');
         case 'sh':
           var shName = f.name.replace('.sh', '');
-          return IntuneOps.createShellScript(shName, f.name, btoa(content));
+          return IntuneOps.createShellScript(shName, f.name, utf8ToBase64(content));
         case 'json':
           var parsed = JSON.parse(content);
           return IntuneOps.createSettingsCatalog(parsed);
         case 'cash':
           var cashName = f.name.replace('.cash', '');
-          return IntuneOps.createCustomAttribute(cashName, '', f.name.replace('.cash', '.sh'), btoa(content));
+          return IntuneOps.createCustomAttribute(cashName, '', f.name.replace('.cash', '.sh'), utf8ToBase64(content));
         default:
           return Promise.reject(new Error('Unknown file type: ' + f.type));
       }
@@ -1280,7 +1331,12 @@ if (typeof define === 'undefined') {
     if (f.file) {
       filePromise = Promise.resolve(f.file);
     } else if (f.url) {
-      filePromise = fetch(f.url).then(function(r) { return r.blob(); }).then(function(blob) {
+      logAppend('[' + f.name + '] Fetching from proxy: ' + f.url);
+      filePromise = fetch(f.url).then(function(r) {
+        if (!r.ok) throw new Error('Proxy returned ' + r.status + ': ' + r.statusText);
+        return r.blob();
+      }).then(function(blob) {
+        logAppend('[' + f.name + '] Downloaded ' + (blob.size / 1024 / 1024).toFixed(1) + ' MB');
         return new File([blob], f.name, { type: 'application/octet-stream' });
       });
     } else {
@@ -1310,6 +1366,8 @@ if (typeof define === 'undefined') {
       }
 
       return infoPromise.then(function(pkgInfo) {
+        // Always use file name as display name
+        if (pkgInfo) pkgInfo.displayName = f.name.replace('.pkg', '');
         var appInfo = pkgInfo || {
           displayName: f.name.replace('.pkg', ''),
           primaryBundleId: 'com.unknown.' + f.name.replace('.pkg', '').replace(/[^a-zA-Z0-9]/g, ''),
@@ -1322,6 +1380,13 @@ if (typeof define === 'undefined') {
         });
       });
     });
+  }
+
+  function utf8ToBase64(str) {
+    var bytes = new TextEncoder().encode(str);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
   }
 
   function getFileContent(f) {

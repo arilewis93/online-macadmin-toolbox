@@ -2,7 +2,7 @@
   'use strict';
 
   var G = window.IntuneGraph;
-  var CHUNK_SIZE = 6 * 1024 * 1024; // 6 MiB
+  var CHUNK_SIZE = 1 * 1024 * 1024; // 1 MiB (matches PowerShell)
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -119,8 +119,8 @@
       var end = Math.min(start + CHUNK_SIZE, totalSize);
       var chunk = encryptedData.slice(start, end);
 
-      // Block ID: "block-" + zero-padded 8-char index, then base64 encoded
-      var rawId = 'block-' + ('00000000' + index).slice(-8);
+      // Block ID: zero-padded 4-char index, then base64 encoded (matches PowerShell)
+      var rawId = ('0000' + index).slice(-4);
       var blockId = window.btoa(rawId);
       blockIds.push(blockId);
 
@@ -309,7 +309,7 @@
         // Step 9: Patch the app with committed content version
         var patchBody = {
           '@odata.type': '#microsoft.graph.macOSPkgApp',
-          committedContentVersion: contentVersionId
+          committedContentVersion: '1'
         };
 
         return G.graphRequest(
@@ -320,8 +320,37 @@
       })
       .then(function() {
         progress('committing', 100);
-        progress('done', 100);
-        return { id: mobileAppId };
+
+        // Step 10: Wait then verify published state (matches PowerShell)
+        progress('verifying', 0);
+        return sleep(5000).then(function() {
+          return G.graphRequest('GET', '/deviceAppManagement/mobileApps/' + mobileAppId);
+        });
+      })
+      .then(function(app) {
+        if (app && app.publishingState === 'published') {
+          progress('done', 100);
+          return { id: mobileAppId };
+        }
+        // Not published yet — poll a few more times
+        var verifyAttempt = 0;
+        function verifyPoll() {
+          return sleep(3000).then(function() {
+            return G.graphRequest('GET', '/deviceAppManagement/mobileApps/' + mobileAppId);
+          }).then(function(a) {
+            if (a && a.publishingState === 'published') {
+              progress('done', 100);
+              return { id: mobileAppId };
+            }
+            verifyAttempt++;
+            if (verifyAttempt >= 10) {
+              throw new Error('App not published after waiting (state: ' + (a && a.publishingState) + ')');
+            }
+            progress('verifying', Math.round((verifyAttempt / 10) * 100));
+            return verifyPoll();
+          });
+        }
+        return verifyPoll();
       });
   }
 
