@@ -351,35 +351,42 @@
         <div class="section-desc">Authenticate with Microsoft Intune via the companion app running on your Mac.</div>
       </div>
 
-      <div class="card card-collapsible" id="intune-companion-card">
-        <button type="button" class="card-title card-collapse-trigger" id="intune-companion-collapse-trigger"
-          onclick="intuneToggleCompanion()" aria-expanded="false">
-          <span class="card-collapse-icon" id="intune-companion-collapse-icon">&#9654;</span>
-          <span>Companion app (Mac)</span>
-        </button>
-        <div class="card-collapse-body" id="intune-companion-body" style="display:none;">
-          <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac. The companion app communicates with Intune on your behalf.</p>
-          <ol class="autoconfig-companion-steps">
-            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
-            <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You'll get <code>Mac Admin Toolbox.app</code>.</li>
-            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
-            <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
-          </ol>
+      <!-- Shown while checking for agent -->
+      <div class="card" id="intune-agent-checking">
+        <div class="card-title">Checking for companion app&hellip;</div>
+        <div class="info-box">Detecting whether the Mac Admin Toolbox companion app is installed&hellip;</div>
+      </div>
+
+      <!-- Shown when agent is NOT found -->
+      <div class="card" id="intune-agent-missing" style="display:none;">
+        <div class="card-title">Companion app required</div>
+        <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac. The companion app communicates with Intune on your behalf.</p>
+        <ol class="autoconfig-companion-steps">
+          <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+          <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You'll get <code>Mac Admin Toolbox.app</code>.</li>
+          <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
+          <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
+        </ol>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px;">
           <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+          <button class="btn btn-ghost" onclick="intuneRecheckAgent()">Re-check</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Authentication</div>
-        <button class="btn btn-primary" id="intune-connect-btn" onclick="intuneConnect()">Connect to Intune</button>
-        <div id="intune-connect-status" style="display:none;margin-top:16px;">
-          <div class="info-box" id="intune-connect-status-msg">Launching companion app&hellip;</div>
-          <div id="intune-connect-items" style="margin-top:12px;"></div>
-        </div>
-        <div id="intune-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
-          <strong style="color:var(--green);">Connected</strong><br>
-          Tenant: <strong id="intune-tenant-name"></strong><br>
-          User: <strong id="intune-user-email"></strong>
+      <!-- Shown when agent IS found -->
+      <div id="intune-agent-ready" style="display:none;">
+        <div class="card">
+          <div class="card-title">Authentication</div>
+          <button class="btn btn-primary" id="intune-connect-btn" onclick="intuneConnect()">Connect to Intune</button>
+          <div id="intune-connect-status" style="display:none;margin-top:16px;">
+            <div class="info-box" id="intune-connect-status-msg">Launching companion app&hellip;</div>
+            <div id="intune-connect-items" style="margin-top:12px;"></div>
+          </div>
+          <div id="intune-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
+            <strong style="color:var(--green);">Connected</strong><br>
+            Tenant: <strong id="intune-tenant-name"></strong><br>
+            User: <strong id="intune-user-email"></strong>
+          </div>
         </div>
       </div>
 
@@ -784,15 +791,27 @@ if (typeof define === 'undefined') {
 
   /* ── STEP 1: CONNECT ── */
 
-  window.intuneToggleCompanion = function() {
-    var body = document.getElementById('intune-companion-body');
-    var icon = document.getElementById('intune-companion-collapse-icon');
-    var trigger = document.getElementById('intune-companion-collapse-trigger');
-    var open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    icon.innerHTML = open ? '&#9654;' : '&#9660;';
-    trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+  /* ── AGENT DETECTION ── */
+
+  function intuneShowAgentState(found) {
+    document.getElementById('intune-agent-checking').style.display = 'none';
+    if (found) {
+      document.getElementById('intune-agent-missing').style.display = 'none';
+      document.getElementById('intune-agent-ready').style.display = '';
+    } else {
+      document.getElementById('intune-agent-missing').style.display = '';
+      document.getElementById('intune-agent-ready').style.display = 'none';
+    }
+  }
+
+  window.intuneRecheckAgent = function() {
+    document.getElementById('intune-agent-missing').style.display = 'none';
+    document.getElementById('intune-agent-checking').style.display = '';
+    checkAgentPing().then(intuneShowAgentState);
   };
+
+  // Check on page load
+  checkAgentPing().then(intuneShowAgentState);
 
   window.intuneConnect = function() {
     document.getElementById('intune-connect-btn').disabled = true;

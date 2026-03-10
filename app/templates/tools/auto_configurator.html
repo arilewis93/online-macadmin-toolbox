@@ -27,41 +27,59 @@
           entries, then download.</div>
       </div>
 
-      <div class="card card-collapsible" id="autoconfig-companion-card">
-        <button type="button" class="card-title card-collapse-trigger" id="autoconfig-companion-collapse-trigger"
-          onclick="autoconfigToggleCompanionSection()" aria-expanded="false">
-          <span class="card-collapse-icon" id="autoconfig-companion-collapse-icon">▶</span>
-          <span>Companion app (Mac)</span>
-        </button>
-        <div class="card-collapse-body" id="autoconfig-companion-body" style="display:none;">
-          <p class="section-desc" style="margin-bottom:12px;">This tool needs a small <strong>Mac companion app</strong> (Mac Admin Toolbox) that runs on your Mac and reads Privacy (TCC) data. The companion app must have <strong>Full Disk Access</strong> so it can read system permission settings. When you open the app, it opens the toolbox in your browser.</p>
-          <ol class="autoconfig-companion-steps">
-            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
-            <li><strong>Unzip</strong> the file (double‑click the .zip). You’ll get <code>Mac Admin Toolbox.app</code>.</li>
-            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
-            <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings → Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
-            <li>In <strong>System Settings → Privacy &amp; Security → Full Disk Access</strong>, click + and add <strong>Mac Admin Toolbox</strong>.</li>
-          </ol>
-          <a id="autoconfig-companion-download-btn" href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+      <!-- Shown while checking for agent -->
+      <div class="card" id="autoconfig-agent-checking">
+        <div class="card-title">Checking for companion app&hellip;</div>
+        <div class="info-box">Detecting whether the Mac Admin Toolbox companion app is installed and has the required permissions&hellip;</div>
+      </div>
+
+      <!-- Shown when agent is NOT found -->
+      <div class="card" id="autoconfig-agent-missing" style="display:none;">
+        <div class="card-title">Companion app required</div>
+        <p class="section-desc" style="margin-bottom:12px;">This tool needs a small <strong>Mac companion app</strong> (Mac Admin Toolbox) that runs on your Mac and reads Privacy (TCC) data. The companion app must have <strong>Full Disk Access</strong> so it can read system permission settings.</p>
+        <ol class="autoconfig-companion-steps">
+          <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+          <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You’ll get <code>Mac Admin Toolbox.app</code>.</li>
+          <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
+          <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
+          <li>In <strong>System Settings &rarr; Privacy &amp; Security &rarr; Full Disk Access</strong>, click + and add <strong>Mac Admin Toolbox</strong>.</li>
+        </ol>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px;">
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+          <button class="btn btn-ghost" onclick="autoconfigRecheckAgent()">Re-check</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Drop app</div>
-        <p class="section-desc" style="margin-bottom:12px;">Drop a <strong>.app</strong> or binary here. Permissions for
-          that app will be loaded from your Mac.</p>
-        <input type="file" id="autoconfig-analyze-input" accept="*" style="display:none;"
-          onchange="autoconfigAnalyzeFile(event)">
-        <div class="drop-zone" id="autoconfig-analyze-zone"
-          onclick="document.getElementById('autoconfig-analyze-input').click()" style="margin-bottom:12px;">
-          <div class="drop-zone-icon">⬆</div>
-          <div class="drop-zone-label" id="autoconfig-analyze-label">Drop .app or binary here</div>
-          <div class="drop-zone-sub">Or click to select</div>
+      <!-- Shown when agent exists but lacks FDA -->
+      <div class="card" id="autoconfig-agent-no-fda" style="display:none;">
+        <div class="card-title">Full Disk Access required</div>
+        <p class="section-desc" style="margin-bottom:12px;">The companion app was found, but it does not have <strong>Full Disk Access</strong>. This permission is required to read Privacy (TCC) data from your Mac.</p>
+        <p class="section-desc" style="margin-bottom:12px;">System Settings should have opened to the Full Disk Access pane. Find <strong>Mac Admin Toolbox</strong> in the list and enable it, or click + to add it.</p>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px;">
+          <a href="macadmin-toolbox://open-full-disk-access" class="btn btn-primary">Open Full Disk Access Settings</a>
+          <button class="btn btn-ghost" onclick="autoconfigRecheckAgent()">Re-check</button>
         </div>
-        <div id="autoconfig-analyze-status" style="display:none;" class="info-box"></div>
-        <div id="autoconfig-permission-error" style="display:none;" class="warning-box autoconfig-permission-error">
-          <p id="autoconfig-permission-error-message" class="autoconfig-permission-error-msg"></p>
-          <a id="autoconfig-permission-error-open-fda" href="macadmin-toolbox://open-full-disk-access" class="btn btn-secondary" style="margin-top:10px;display:inline-block;">Open Full Disk Access Settings</a>
+      </div>
+
+      <!-- Shown when agent IS found and has FDA -->
+      <div id="autoconfig-agent-ready" style="display:none;">
+        <div class="card">
+          <div class="card-title">Drop app</div>
+          <p class="section-desc" style="margin-bottom:12px;">Drop a <strong>.app</strong> or binary here. Permissions for
+            that app will be loaded from your Mac.</p>
+          <input type="file" id="autoconfig-analyze-input" accept="*" style="display:none;"
+            onchange="autoconfigAnalyzeFile(event)">
+          <div class="drop-zone" id="autoconfig-analyze-zone"
+            onclick="document.getElementById(‘autoconfig-analyze-input’).click()" style="margin-bottom:12px;">
+            <div class="drop-zone-icon">&#11014;</div>
+            <div class="drop-zone-label" id="autoconfig-analyze-label">Drop .app or binary here</div>
+            <div class="drop-zone-sub">Or click to select</div>
+          </div>
+          <div id="autoconfig-analyze-status" style="display:none;" class="info-box"></div>
+          <div id="autoconfig-permission-error" style="display:none;" class="warning-box autoconfig-permission-error">
+            <p id="autoconfig-permission-error-message" class="autoconfig-permission-error-msg"></p>
+            <a id="autoconfig-permission-error-open-fda" href="macadmin-toolbox://open-full-disk-access" class="btn btn-secondary" style="margin-top:10px;display:inline-block;">Open Full Disk Access Settings</a>
+          </div>
         </div>
       </div>
 
@@ -499,15 +517,35 @@
       trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
     };
 
-    window.autoconfigToggleCompanionSection = function () {
-      var body = document.getElementById('autoconfig-companion-body');
-      var icon = document.getElementById('autoconfig-companion-collapse-icon');
-      var trigger = document.getElementById('autoconfig-companion-collapse-trigger');
-      var open = body.style.display !== 'none';
-      body.style.display = open ? 'none' : 'block';
-      icon.textContent = open ? '▶' : '▼';
-      trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+    /* ── AGENT + FDA DETECTION ── */
+
+    function autoconfigShowAgentState(result) {
+      document.getElementById('autoconfig-agent-checking').style.display = 'none';
+      if (!result.agent) {
+        document.getElementById('autoconfig-agent-missing').style.display = '';
+        document.getElementById('autoconfig-agent-no-fda').style.display = 'none';
+        document.getElementById('autoconfig-agent-ready').style.display = 'none';
+      } else if (!result.full_disk_access) {
+        document.getElementById('autoconfig-agent-missing').style.display = 'none';
+        document.getElementById('autoconfig-agent-no-fda').style.display = '';
+        document.getElementById('autoconfig-agent-ready').style.display = 'none';
+      } else {
+        document.getElementById('autoconfig-agent-missing').style.display = 'none';
+        document.getElementById('autoconfig-agent-no-fda').style.display = 'none';
+        document.getElementById('autoconfig-agent-ready').style.display = '';
+      }
+    }
+
+    window.autoconfigRecheckAgent = function () {
+      document.getElementById('autoconfig-agent-missing').style.display = 'none';
+      document.getElementById('autoconfig-agent-no-fda').style.display = 'none';
+      document.getElementById('autoconfig-agent-ready').style.display = 'none';
+      document.getElementById('autoconfig-agent-checking').style.display = '';
+      checkAgentFDA().then(autoconfigShowAgentState);
     };
+
+    // Check on page load
+    checkAgentFDA().then(autoconfigShowAgentState);
 
     var AUTOCONFIG_POLL_PORT = 8765;
     var AUTOCONFIG_POLL_MAX_ATTEMPTS = 60;

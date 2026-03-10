@@ -85,4 +85,68 @@ function setToggle(id, val) {
   const row = cb.closest('.toggle-row');
   if (row) row.classList.toggle('enabled', val);
 }
+/**
+ * Check if the Mac companion agent is registered/installed.
+ * Opens macadmin-toolbox://ping, polls port 8765 for a response.
+ * Returns a Promise that resolves to true (agent found) or false (timeout).
+ */
+function checkAgentPing(timeoutSeconds) {
+  timeoutSeconds = timeoutSeconds || 8;
+  return new Promise(function(resolve) {
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'macadmin-toolbox://ping';
+    document.body.appendChild(iframe);
+    setTimeout(function() { iframe.remove(); }, 3000);
+    var attempts = 0;
+    var maxAttempts = timeoutSeconds * 2;
+    function poll() {
+      attempts++;
+      fetch('http://127.0.0.1:8765/result', { mode: 'cors' })
+        .then(function(res) { return res.json(); })
+        .then(function(json) {
+          resolve(json && json.agent === true);
+        })
+        .catch(function() {
+          if (attempts < maxAttempts) setTimeout(poll, 500);
+          else resolve(false);
+        });
+    }
+    setTimeout(poll, 1000);
+  });
+}
+/**
+ * Check if the agent has Full Disk Access.
+ * Opens macadmin-toolbox://check-fda, polls port 8765.
+ * If FDA is missing, the agent automatically opens System Settings to the FDA pane.
+ * Returns a Promise resolving to {agent: bool, full_disk_access: bool}.
+ */
+function checkAgentFDA(timeoutSeconds) {
+  timeoutSeconds = timeoutSeconds || 8;
+  return new Promise(function(resolve) {
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'macadmin-toolbox://check-fda';
+    document.body.appendChild(iframe);
+    setTimeout(function() { iframe.remove(); }, 3000);
+    var attempts = 0;
+    var maxAttempts = timeoutSeconds * 2;
+    function poll() {
+      attempts++;
+      fetch('http://127.0.0.1:8765/result', { mode: 'cors' })
+        .then(function(res) { return res.json(); })
+        .then(function(json) {
+          resolve({
+            agent: json && json.agent === true,
+            full_disk_access: json && json.full_disk_access === true
+          });
+        })
+        .catch(function() {
+          if (attempts < maxAttempts) setTimeout(poll, 500);
+          else resolve({ agent: false, full_disk_access: false });
+        });
+    }
+    setTimeout(poll, 1000);
+  });
+}
 </script>

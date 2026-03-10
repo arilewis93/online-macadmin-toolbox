@@ -538,6 +538,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let url = urls.first, url.scheme == "macadmin-toolbox" else { return }
         let host = url.host ?? ""
 
+        // Ping: confirm the agent is registered and running
+        if host == "ping" {
+            handledURL = true
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let payload: [String: Any] = ["agent": true]
+            if let data = try? JSONSerialization.data(withJSONObject: payload) {
+                serveResult(jsonData: data)
+            }
+            return
+        }
+
+        // Check Full Disk Access status and open settings if missing
+        if host == "check-fda" {
+            handledURL = true
+            let hasFDA = checkTCCPermission() == nil
+            if !hasFDA {
+                openFullDiskAccessSettings()
+            }
+            let payload: [String: Any] = ["agent": true, "full_disk_access": hasFDA]
+            if let data = try? JSONSerialization.data(withJSONObject: payload) {
+                serveResult(jsonData: data)
+            }
+            return
+        }
+
         // Open Full Disk Access settings (from webpage button or direct URL)
         if host == "open-full-disk-access" {
             handledURL = true

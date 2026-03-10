@@ -197,35 +197,42 @@
         <div class="section-desc">Authenticate with Microsoft Intune via the companion app running on your Mac.</div>
       </div>
 
-      <div class="card card-collapsible" id="itb-companion-card">
-        <button type="button" class="card-title card-collapse-trigger" id="itb-companion-collapse-trigger"
-          onclick="itbToggleCompanion()" aria-expanded="false">
-          <span class="card-collapse-icon" id="itb-companion-collapse-icon">&#9654;</span>
-          <span>Companion app (Mac)</span>
-        </button>
-        <div class="card-collapse-body" id="itb-companion-body" style="display:none;">
-          <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac.</p>
-          <ol class="autoconfig-companion-steps">
-            <li><strong>Download</strong> the companion app (zip) using the button below.</li>
-            <li><strong>Unzip</strong> the file (double&#8209;click the .zip).</li>
-            <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong>.</li>
-            <li><strong>Open</strong> the app once so macOS registers it.</li>
-          </ol>
+      <!-- Shown while checking for agent -->
+      <div class="card" id="itb-agent-checking">
+        <div class="card-title">Checking for companion app&hellip;</div>
+        <div class="info-box">Detecting whether the Mac Admin Toolbox companion app is installed&hellip;</div>
+      </div>
+
+      <!-- Shown when agent is NOT found -->
+      <div class="card" id="itb-agent-missing" style="display:none;">
+        <div class="card-title">Companion app required</div>
+        <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac.</p>
+        <ol class="autoconfig-companion-steps">
+          <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+          <li><strong>Unzip</strong> the file (double&#8209;click the .zip).</li>
+          <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong>.</li>
+          <li><strong>Open</strong> the app once so macOS registers it.</li>
+        </ol>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px;">
           <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+          <button class="btn btn-ghost" onclick="itbRecheckAgent()">Re-check</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">Authentication</div>
-        <button class="btn btn-primary" id="itb-connect-btn" onclick="itbConnect()">Connect to Intune</button>
-        <div id="itb-connect-status" style="display:none;margin-top:16px;">
-          <div class="info-box" id="itb-connect-status-msg">Launching companion app&hellip;</div>
-          <div id="itb-connect-items" style="margin-top:12px;"></div>
-        </div>
-        <div id="itb-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
-          <strong style="color:var(--green);">Connected</strong><br>
-          Tenant: <strong id="itb-tenant-name"></strong><br>
-          User: <strong id="itb-user-email"></strong>
+      <!-- Shown when agent IS found -->
+      <div id="itb-agent-ready" style="display:none;">
+        <div class="card">
+          <div class="card-title">Authentication</div>
+          <button class="btn btn-primary" id="itb-connect-btn" onclick="itbConnect()">Connect to Intune</button>
+          <div id="itb-connect-status" style="display:none;margin-top:16px;">
+            <div class="info-box" id="itb-connect-status-msg">Launching companion app&hellip;</div>
+            <div id="itb-connect-items" style="margin-top:12px;"></div>
+          </div>
+          <div id="itb-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
+            <strong style="color:var(--green);">Connected</strong><br>
+            Tenant: <strong id="itb-tenant-name"></strong><br>
+            User: <strong id="itb-user-email"></strong>
+          </div>
         </div>
       </div>
     </div>
@@ -327,19 +334,27 @@
     return html;
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     COMPANION COLLAPSE
-     ═══════════════════════════════════════════════════════════ */
+  /* ── AGENT DETECTION ── */
 
-  window.itbToggleCompanion = function() {
-    var body = document.getElementById('itb-companion-body');
-    var icon = document.getElementById('itb-companion-collapse-icon');
-    var trigger = document.getElementById('itb-companion-collapse-trigger');
-    var open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    icon.innerHTML = open ? '&#9654;' : '&#9660;';
-    trigger.setAttribute('aria-expanded', open ? 'false' : 'true');
+  function itbShowAgentState(found) {
+    document.getElementById('itb-agent-checking').style.display = 'none';
+    if (found) {
+      document.getElementById('itb-agent-missing').style.display = 'none';
+      document.getElementById('itb-agent-ready').style.display = '';
+    } else {
+      document.getElementById('itb-agent-missing').style.display = '';
+      document.getElementById('itb-agent-ready').style.display = 'none';
+    }
+  }
+
+  window.itbRecheckAgent = function() {
+    document.getElementById('itb-agent-missing').style.display = 'none';
+    document.getElementById('itb-agent-checking').style.display = '';
+    checkAgentPing().then(itbShowAgentState);
   };
+
+  // Check on page load
+  checkAgentPing().then(itbShowAgentState);
 
   /* ═══════════════════════════════════════════════════════════
      CONNECT FLOW
