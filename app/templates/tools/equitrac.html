@@ -59,6 +59,20 @@
       </div>
 
       <div class="card">
+        <div class="card-title">Quick Import</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>PASTE ENROLLMENT COMMAND <span class="hint">e.g. sudo ./NDI.SecurityConfig.sh enroll domain\\user password node datacenter everyone enroll_drc</span></label>
+            <div style="display:flex;gap:0.5rem">
+              <input type="text" id="cmdPaste" placeholder="sudo ./NDI.SecurityConfig.sh enroll ..." style="flex:1" onkeydown="if(event.key==='Enter'){parseCommand();event.preventDefault()}">
+              <button class="btn btn-primary" onclick="parseCommand()" style="white-space:nowrap">Import</button>
+            </div>
+            <span class="field-error" id="err-cmdPaste">Could not parse command. Check the format and try again.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title">Domain Credentials</div>
         <div class="field-grid thirds">
           <div class="field">
@@ -931,6 +945,71 @@ function downloadBuildScript() {
 // ─────────────────────────────────────────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMAND PARSER
+// ─────────────────────────────────────────────────────────────────────────────
+
+function parseCommand() {
+  var raw = document.getElementById('cmdPaste').value.trim();
+  var errEl = document.getElementById('err-cmdPaste');
+  errEl.classList.remove('visible');
+
+  if (!raw) return;
+
+  // Strip leading "sudo" and script path — find "enroll" and take args after it
+  var tokens = raw.split(/\s+/);
+  var enrollIdx = tokens.indexOf('enroll');
+  if (enrollIdx === -1) {
+    errEl.classList.add('visible');
+    return;
+  }
+
+  var args = tokens.slice(enrollIdx + 1); // everything after "enroll"
+  // Expected: DOMAIN\USERNAME  PASSWORD  SECURITY_NODE  DATACENTER  [everyone]  [enroll_drc]
+  if (args.length < 4) {
+    errEl.classList.add('visible');
+    return;
+  }
+
+  // arg[0]: domain\username (handle both \\ and \ since shell escaping varies)
+  var domainUser = args[0].replace(/\\\\/g, '\\');
+  var sepIdx = domainUser.indexOf('\\');
+  var domain = '';
+  var username = '';
+  if (sepIdx !== -1) {
+    domain = domainUser.substring(0, sepIdx);
+    username = domainUser.substring(sepIdx + 1);
+  } else {
+    username = domainUser;
+  }
+
+  var password = args[1];
+  var secNode = args[2];
+  var datacenter = args[3];
+
+  // Check for enroll_drc flag
+  var hasDrc = args.some(function(a) { return a === 'enroll_drc'; });
+
+  // Populate fields
+  document.getElementById('secDomain').value = domain;
+  document.getElementById('secUsername').value = username;
+  document.getElementById('secPassword').value = password;
+  document.getElementById('secNode').value = secNode;
+  document.getElementById('datacenterName').value = datacenter;
+  document.getElementById('installDrc').value = hasDrc ? 'true' : 'false';
+
+  markDirty();
+
+  // Flash success on the Import button
+  var importBtn = document.getElementById('cmdPaste').nextElementSibling;
+  if (importBtn) {
+    var orig = importBtn.textContent;
+    importBtn.textContent = '✓ Imported';
+    importBtn.style.color = 'var(--green)';
+    setTimeout(function() { importBtn.textContent = orig; importBtn.style.color = ''; }, 2000);
+  }
+}
 
 renderPrinters();
 renderDrivers();
