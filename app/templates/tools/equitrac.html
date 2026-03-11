@@ -596,15 +596,15 @@ function buildXML() {
   const uuid = generateUUID();
   const now  = new Date().toISOString();
 
-  const printerXml = livePrinters.filter(p => p.name).map(p => `\t\t\t<dict>
-\t\t\t\t<key>name</key>
-\t\t\t\t<string>${xmlEsc(p.name)}</string>
-\t\t\t\t<key>ppd</key>
-\t\t\t\t<string>${xmlEsc(p.ppd)}</string>
-\t\t\t</dict>`).join('\n');
+  const printerXml = livePrinters.filter(p => p.name).map(p => `\t\t\t\t\t\t\t\t<dict>
+\t\t\t\t\t\t\t\t\t<key>name</key>
+\t\t\t\t\t\t\t\t\t<string>${xmlEsc(p.name)}</string>
+\t\t\t\t\t\t\t\t\t<key>ppd</key>
+\t\t\t\t\t\t\t\t\t<string>${xmlEsc(p.ppd)}</string>
+\t\t\t\t\t\t\t\t</dict>`).join('\n');
 
   const driverXml = liveDrivers.map(d =>
-    `\t\t\t<string>${xmlEsc(d)}</string>`
+    `\t\t\t\t\t\t\t\t<string>${xmlEsc(d)}</string>`
   ).join('\n');
 
   const xml =
@@ -613,49 +613,33 @@ function buildXML() {
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-
-\t<!-- ═══ Profile Metadata ═══ -->
 \t<key>PayloadDisplayName</key>
 \t<string>${xmlEsc(profileName)}</string>
-
 \t<key>PayloadIdentifier</key>
 \t<string>${xmlEsc(bundleId)}</string>
-
 \t<key>PayloadType</key>
 \t<string>Configuration</string>
-
 \t<key>PayloadUUID</key>
 \t<string>${uuid}</string>
-
 \t<key>PayloadVersion</key>
 \t<integer>1</integer>
-
 \t<key>PayloadDate</key>
 \t<string>${now}</string>
-
 \t<key>PayloadContent</key>
 \t<array>
 \t\t<dict>
-
-\t\t\t<!-- ─ Profile Identity ─ -->
 \t\t\t<key>PayloadType</key>
 \t\t\t<string>com.apple.ManagedClient.preferences</string>
-
 \t\t\t<key>PayloadIdentifier</key>
 \t\t\t<string>${xmlEsc(bundleId)}.payload</string>
-
 \t\t\t<key>PayloadUUID</key>
 \t\t\t<string>${generateUUID()}</string>
-
 \t\t\t<key>PayloadVersion</key>
 \t\t\t<integer>1</integer>
-
 \t\t\t<key>PayloadApplicationIdentifier</key>
 \t\t\t<string>${xmlEsc(bundleId)}</string>
-
 \t\t\t<key>PayloadEnabled</key>
 \t\t\t<true/>
-
 \t\t\t<key>PayloadContent</key>
 \t\t\t<dict>
 \t\t\t\t<key>Forced</key>
@@ -663,75 +647,50 @@ function buildXML() {
 \t\t\t\t\t<dict>
 \t\t\t\t\t\t<key>mcx_preference_settings</key>
 \t\t\t\t\t\t<dict>
-
-\t\t\t\t\t\t\t<!-- ─ Installation ─ -->
 \t\t\t\t\t\t\t<key>INSTALLER_PKG</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(installerPkg)}</string>
-
 \t\t\t\t\t\t\t<key>INSTALL_DRC</key>
 \t\t\t\t\t\t\t${boolTag(installDrc)}
-
 \t\t\t\t\t\t\t<key>DRC_SYS_NAME_MODE</key>
 \t\t\t\t\t\t\t<integer>${drcSysNameMode}</integer>
-
-\t\t\t\t\t\t\t<!-- ─ Security Framework ─ -->
 \t\t\t\t\t\t\t<key>SECURITY_DOMAIN</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(secDomain)}</string>
-
 \t\t\t\t\t\t\t<key>SECURITY_USERNAME</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(secUsername)}</string>
-
 \t\t\t\t\t\t\t<key>SECURITY_PASSWORD</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(secPassword)}</string>
-
 \t\t\t\t\t\t\t<key>SECURITY_NODE</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(secNode)}</string>
-
 \t\t\t\t\t\t\t<key>DATACENTER_NAME</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(datacenterName)}</string>
-
-\t\t\t\t\t\t\t<!-- ─ Servers ─ -->
 \t\t\t\t\t\t\t<key>CAS_SERVER</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(casServer)}</string>
-
 \t\t\t\t\t\t\t<key>DRE_SERVER</key>
 \t\t\t\t\t\t\t<string>${xmlEsc(dreServer)}</string>
-
-\t\t\t\t\t\t\t<!-- ─ Printers ─ -->
 \t\t\t\t\t\t\t<key>PRINTERS</key>
 \t\t\t\t\t\t\t<array>
 ${printerXml}
 \t\t\t\t\t\t\t</array>
-
-\t\t\t\t\t\t\t<!-- ─ Print Drivers ─ -->
 \t\t\t\t\t\t\t<key>PRINT_DRIVERS</key>
 \t\t\t\t\t\t\t<array>
 ${driverXml}
 \t\t\t\t\t\t\t</array>
-
-\t\t\t\t\t\t\t<!-- ─ Feature Selection (bitmask) ─ -->
 \t\t\t\t\t\t\t<key>PREF_CLIENT_BILLING</key>
 \t\t\t\t\t\t\t${boolTag(feats.clientBilling)}
-
 \t\t\t\t\t\t\t<key>PREF_PROMPT_FOR_LOGIN</key>
 \t\t\t\t\t\t\t${boolTag(feats.promptForLogin)}
-
 \t\t\t\t\t\t\t<key>PREF_COST_PREVIEW</key>
 \t\t\t\t\t\t\t${boolTag(feats.costPreview)}
-
 \t\t\t\t\t\t\t<key>PREF_ALLOW_RENAME_DOCUMENT</key>
 \t\t\t\t\t\t\t${boolTag(feats.allowRenameDocument)}
-
 \t\t\t\t\t\t\t<key>PREF_RELEASE_KEY</key>
 \t\t\t\t\t\t\t${boolTag(feats.releaseKey)}
-
 \t\t\t\t\t\t</dict>
 \t\t\t\t\t</dict>
 \t\t\t\t</array>
 \t\t\t</dict>
 \t</dict>
 \t</array>
-
 </dict>
 </plist>`;
 
