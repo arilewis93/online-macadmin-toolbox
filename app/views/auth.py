@@ -7,7 +7,7 @@ from flask import Blueprint, request, redirect, url_for, session, current_app, f
 from flask_login import login_user, logout_user, login_required, current_user
 
 from app.models.user import User
-from app.utils.oidc import get_oidc_endpoints, exchange_code_for_tokens, get_user_info
+from app.utils.oidc import get_oidc_endpoints, exchange_code_for_tokens, get_user_info, decode_id_token_claims
 
 auth = Blueprint("auth", __name__)
 
@@ -106,12 +106,19 @@ def oidc_callback():
         flash("Failed to exchange code for tokens.", "error")
         return redirect(url_for("main.index"))
 
-    access_token = token_response.get("access_token")
-    if not access_token:
-        flash("No access token in response.", "error")
-        return redirect(url_for("main.index"))
+    # Prefer claims from id_token (always present with 'openid' scope,
+    # reliably contains email/sub/name from Entra).  Fall back to the
+    # userinfo endpoint only when the id_token is missing or incomplete.
+    user_info = None
+    id_token = token_response.get("id_token")
+    if id_token:
+        user_info = decode_id_token_claims(id_token)
 
-    user_info = get_user_info(access_token, cfg["authority"])
+    if not user_info or not _user_from_userinfo(user_info):
+        access_token = token_response.get("access_token")
+        if access_token:
+            user_info = get_user_info(access_token, cfg["authority"])
+
     if not user_info:
         flash("Failed to get user info.", "error")
         return redirect(url_for("main.index"))

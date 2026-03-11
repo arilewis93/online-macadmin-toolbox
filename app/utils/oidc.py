@@ -1,6 +1,26 @@
 """OIDC helpers: discovery, token exchange, userinfo."""
+import base64
+import json
+
 import requests
 from flask import current_app
+
+
+def decode_id_token_claims(id_token):
+    """Decode the payload of a JWT id_token without signature verification.
+
+    Safe here because the token was received directly from the token endpoint
+    over TLS — we trust the source.  Returns the claims dict, or None.
+    """
+    try:
+        payload = id_token.split(".")[1]
+        # Pad to a multiple of 4 for base64
+        payload += "=" * (-len(payload) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload))
+    except Exception as e:
+        if current_app:
+            current_app.logger.warning("Failed to decode id_token: %s", e)
+        return None
 
 
 def get_oidc_discovery_document(authority):
