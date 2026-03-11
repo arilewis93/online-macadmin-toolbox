@@ -47,6 +47,7 @@ DATACENTER_NAME=$(defaults read "${PLIST_PATH}" DATACENTER_NAME 2>/dev/null)
 CAS_SERVER=$(defaults read "${PLIST_PATH}" CAS_SERVER 2>/dev/null)
 DRE_SERVER=$(defaults read "${PLIST_PATH}" DRE_SERVER 2>/dev/null)
 INSTALL_DRC=$(defaults read "${PLIST_PATH}" INSTALL_DRC 2>/dev/null || echo false)
+DRC_SYS_NAME_MODE=$(defaults read "${PLIST_PATH}" DRC_SYS_NAME_MODE 2>/dev/null || echo 1)
 
 MAX_AGE_DAYS=7
 
@@ -327,7 +328,7 @@ create_config_files() {
     # This is the main config file read by EQPrinterUtilityX and EQLoginController
     cat > "$base_dir/EquitracOfficePrefs" <<EOF
 DNSMachineID = ${hostname_fqdn}
-DRCSysNameMode = 1
+DRCSysNameMode = ${DRC_SYS_NAME_MODE}
 Feature Selection = ${FEATURE_SELECTION}
 IPAddrInterfaceName =
 IgnoreSuppliesLevelJob = false

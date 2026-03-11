@@ -141,12 +141,20 @@
 
       <div class="card">
         <div class="card-title">Document Routing Client</div>
-        <div class="field-grid single">
+        <div class="field-grid">
           <div class="field">
             <label>INSTALL DRC <span class="hint">Installs the Document Routing Client alongside the Print Client</span></label>
             <select id="installDrc" onchange="markDirty()">
               <option value="false">Disabled — Print Client only</option>
               <option value="true">Enabled — Print Client + DRC</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>DRC SYSTEM NAME MODE <span class="hint">How the DRC identifies this Mac to the server</span></label>
+            <select id="drcSysNameMode" onchange="markDirty()">
+              <option value="1">IP Address</option>
+              <option value="2">Bonjour Name</option>
+              <option value="3">DNS Hostname</option>
             </select>
           </div>
         </div>
@@ -563,6 +571,7 @@ function buildXML() {
   const installerPkg = document.getElementById('installerPkgName').value.trim();
 
   const installDrc    = document.getElementById('installDrc').value === 'true';
+  const drcSysNameMode= document.getElementById('drcSysNameMode').value;
   const secDomain     = document.getElementById('secDomain').value.trim();
   const secUsername   = document.getElementById('secUsername').value.trim();
   const secPassword   = document.getElementById('secPassword').value.trim();
@@ -661,6 +670,9 @@ function buildXML() {
 
 \t\t\t\t\t\t\t<key>INSTALL_DRC</key>
 \t\t\t\t\t\t\t${boolTag(installDrc)}
+
+\t\t\t\t\t\t\t<key>DRC_SYS_NAME_MODE</key>
+\t\t\t\t\t\t\t<integer>${drcSysNameMode}</integer>
 
 \t\t\t\t\t\t\t<!-- ─ Security Framework ─ -->
 \t\t\t\t\t\t\t<key>SECURITY_DOMAIN</key>
