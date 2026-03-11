@@ -26,6 +26,7 @@ TOOL_NAMES = {
     "intune_procreate",
     "intune_assign",
     "dmg_packager",
+    "defender_usb",
 }
 
 

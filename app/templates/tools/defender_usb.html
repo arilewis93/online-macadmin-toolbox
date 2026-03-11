@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Defender USB Controls{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <div class="logo-badge">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+    </div>
+    <span class="logo-text">iSTORE BUSINESS</span>
+    <span class="logo-sep">/</span>
+    <span class="logo-sub">Defender USB Controls</span>
+  </div>
+  <span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+{% block content %}
+<div class="shell tool-single">
+  <main>
+    <div class="section active" id="s-defender-usb">
+      <div class="section-header">
+        <div class="section-tag">Config Profile</div>
+        <div class="section-title">Defender USB Controls</div>
+        <div class="section-desc">Generate a Microsoft Defender for Endpoint Device Control <code>.mobileconfig</code> for USB removable media policies.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Policy Mode</div>
+        <p class="section-desc" style="margin-bottom:14px;">Choose a preset or build a custom policy. Presets configure enforcement, access permissions, and audit entries automatically.</p>
+        <div class="field" style="margin-bottom:0;">
+          <select id="dusb-mode" class="field-select" onchange="dusbModeChanged()">
+            <option value="block_all">Block All USB Access</option>
+            <option value="read_only">Read Only (block write &amp; execute)</option>
+            <option value="full_access">Full Access (allow all, audit)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" id="dusb-custom-card" style="display:none;">
+        <div class="card-title">Custom Access Rules</div>
+        <p class="section-desc" style="margin-bottom:14px;">Define enforcement per access type. Each permission can be allowed, denied, or left unset.</p>
+
+        <div class="field-grid thirds" style="margin-bottom:16px;">
+          <div class="field">
+            <label>READ</label>
+            <select id="dusb-read" class="field-select">
+              <option value="allow">Allow</option>
+              <option value="deny">Deny</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>WRITE</label>
+            <select id="dusb-write" class="field-select">
+              <option value="allow">Allow</option>
+              <option value="deny" selected>Deny</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>EXECUTE</label>
+            <select id="dusb-execute" class="field-select">
+              <option value="allow">Allow</option>
+              <option value="deny" selected>Deny</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card-title">Audit &amp; Notification</div>
+        <label class="toggle-row" onclick="toggleOption(this)">
+          <input type="checkbox" id="dusb-audit-denied" checked>
+          <div class="toggle-info">
+            <div class="toggle-label">Audit denied actions</div>
+            <div class="toggle-desc">Send an event when a denied access is attempted</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <label class="toggle-row" onclick="toggleOption(this)" style="margin-top:2px;">
+          <input type="checkbox" id="dusb-notify-denied" checked>
+          <div class="toggle-info">
+            <div class="toggle-label">Show notification on deny</div>
+            <div class="toggle-desc">Display a user-facing notification when access is blocked</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+        <label class="toggle-row" onclick="toggleOption(this)" style="margin-top:2px;">
+          <input type="checkbox" id="dusb-audit-allowed">
+          <div class="toggle-info">
+            <div class="toggle-label">Audit allowed actions</div>
+            <div class="toggle-desc">Send an event when an allowed access is used</div>
+          </div>
+          <div class="toggle-switch"></div>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Settings</div>
+        <div class="field-grid single" style="margin-bottom:16px;">
+          <div class="field">
+            <label>SUPPORT URL <span class="hint">shown in deny notification</span></label>
+            <input type="text" id="dusb-support-url" placeholder="https://support.yourcompany.com/usb-policy">
+          </div>
+        </div>
+        <div class="field">
+          <label>PROFILE DISPLAY NAME <span class="hint">optional override</span></label>
+          <input type="text" id="dusb-display-name" placeholder="Auto-generated from policy mode">
+        </div>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="dusbPreview()">Preview JSON Policy</button>
+        <button class="btn btn-success" onclick="dusbGenerate()">↓ Download .mobileconfig</button>
+      </div>
+
+      <div id="dusb-preview-wrap" style="display:none;margin-top:24px;">
+        <div class="generate-card">
+          <div class="generate-header">
+            <div class="generate-title">Device Control Policy JSON</div>
+            <div class="generate-actions">
+              <button class="btn btn-ghost" onclick="dusbCopyJson()">Copy</button>
+            </div>
+          </div>
+          <pre class="xml-preview" id="dusb-preview-json" style="white-space:pre-wrap;"></pre>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+{% include 'tools/_shared_utils.html' %}
+<script>
+var dusbModeDescriptions = {
+  block_all: 'Blocks all read, write and execute access to USB removable storage. USB will not mount.',
+  read_only: 'Allows read-only access to all USB removable storage. Write and execute are blocked.',
+  full_access: 'Allows full read, write and execute access to all USB removable storage. All activity is audited.',
+  custom: 'Custom USB removable media policy.'
+};
+
+function dusbModeChanged() {
+  var mode = document.getElementById('dusb-mode').value;
+  document.getElementById('dusb-custom-card').style.display = mode === 'custom' ? '' : 'none';
+}
+
+function dusbBuildPolicy() {
+  var mode = document.getElementById('dusb-mode').value;
+  var supportUrl = document.getElementById('dusb-support-url').value.trim() || 'https://support.yourcompany.com/usb-policy';
+
+  var groupId = '3f082cd3-f701-4c21-9a6a-ed115c28e211';
+  var policy = {
+    settings: {
+      features: { removableMedia: { disable: false } },
+      global: { defaultEnforcement: 'deny' },
+      ux: { navigationTarget: supportUrl }
+    },
+    groups: [{
+      '$type': 'device',
+      id: groupId,
+      name: 'All Removable Media Devices',
+      query: {
+        '$type': 'all',
+        clauses: [{ '$type': 'primaryId', value: 'removable_media_devices' }]
+      }
+    }],
+    rules: []
+  };
+
+  var entries = [];
+
+  if (mode === 'block_all') {
+    policy.settings.global.defaultEnforcement = 'deny';
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'deny' },
+      access: ['read', 'write', 'execute']
+    });
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'auditDeny', options: ['send_event', 'show_notification'] },
+      access: ['read', 'write', 'execute']
+    });
+  } else if (mode === 'read_only') {
+    policy.settings.global.defaultEnforcement = 'deny';
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'allow' },
+      access: ['read']
+    });
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'deny' },
+      access: ['write', 'execute']
+    });
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'auditDeny', options: ['send_event', 'show_notification'] },
+      access: ['write', 'execute']
+    });
+  } else if (mode === 'full_access') {
+    policy.settings.global.defaultEnforcement = 'allow';
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'allow' },
+      access: ['read', 'write', 'execute']
+    });
+    entries.push({
+      '$type': 'removableMedia',
+      id: uuid(),
+      enforcement: { '$type': 'auditAllow', options: ['send_event'] },
+      access: ['read', 'write', 'execute']
+    });
+  } else {
+    // Custom mode
+    var readEnf = document.getElementById('dusb-read').value;
+    var writeEnf = document.getElementById('dusb-write').value;
+    var execEnf = document.getElementById('dusb-execute').value;
+    var auditDenied = getToggle('dusb-audit-denied');
+    var notifyDenied = getToggle('dusb-notify-denied');
+    var auditAllowed = getToggle('dusb-audit-allowed');
+
+    // Determine default enforcement based on majority
+    var denyCount = (readEnf === 'deny' ? 1 : 0) + (writeEnf === 'deny' ? 1 : 0) + (execEnf === 'deny' ? 1 : 0);
+    policy.settings.global.defaultEnforcement = denyCount >= 2 ? 'deny' : 'allow';
+
+    // Group permissions by enforcement type
+    var allowPerms = [];
+    var denyPerms = [];
+    if (readEnf === 'allow') allowPerms.push('read'); else denyPerms.push('read');
+    if (writeEnf === 'allow') allowPerms.push('write'); else denyPerms.push('write');
+    if (execEnf === 'allow') allowPerms.push('execute'); else denyPerms.push('execute');
+
+    if (allowPerms.length > 0) {
+      entries.push({
+        '$type': 'removableMedia',
+        id: uuid(),
+        enforcement: { '$type': 'allow' },
+        access: allowPerms
+      });
+    }
+    if (denyPerms.length > 0) {
+      entries.push({
+        '$type': 'removableMedia',
+        id: uuid(),
+        enforcement: { '$type': 'deny' },
+        access: denyPerms
+      });
+    }
+    // Audit entries
+    if (auditDenied && denyPerms.length > 0) {
+      var auditDenyEntry = {
+        '$type': 'removableMedia',
+        id: uuid(),
+        enforcement: { '$type': 'auditDeny', options: ['send_event'] },
+        access: denyPerms.slice()
+      };
+      if (notifyDenied) auditDenyEntry.enforcement.options.push('show_notification');
+      entries.push(auditDenyEntry);
+    }
+    if (auditAllowed && allowPerms.length > 0) {
+      entries.push({
+        '$type': 'removableMedia',
+        id: uuid(),
+        enforcement: { '$type': 'auditAllow', options: ['send_event'] },
+        access: allowPerms.slice()
+      });
+    }
+  }
+
+  var ruleName = {
+    block_all: 'Block All USB Access',
+    read_only: 'Read Only Access - All USB',
+    full_access: 'Full Read Write Access - All USB',
+    custom: 'Custom USB Policy'
+  }[mode];
+
+  policy.rules.push({
+    id: uuid(),
+    name: ruleName,
+    includeGroups: [groupId],
+    excludeGroups: [],
+    entries: entries
+  });
+
+  return policy;
+}
+
+function dusbGetDisplayName(mode) {
+  var custom = document.getElementById('dusb-display-name').value.trim();
+  if (custom) return custom;
+  var names = {
+    block_all: 'MDE Device Control - USB Block All Policy',
+    read_only: 'MDE Device Control - USB Read Only Policy',
+    full_access: 'MDE Device Control - USB Full Access Policy',
+    custom: 'MDE Device Control - USB Custom Policy'
+  };
+  return names[mode] || names.custom;
+}
+
+function dusbGetPayloadDisplayName(mode) {
+  var names = {
+    block_all: 'MDE Device Control - USB Block All',
+    read_only: 'MDE Device Control - USB Read Only',
+    full_access: 'MDE Device Control - USB Full Access',
+    custom: 'MDE Device Control - USB Custom'
+  };
+  return names[mode] || names.custom;
+}
+
+function dusbGetIdentifierSuffix(mode) {
+  var suffixes = {
+    block_all: 'blockall',
+    read_only: 'readonly',
+    full_access: 'fullaccess',
+    custom: 'custom'
+  };
+  return suffixes[mode] || 'custom';
+}
+
+function dusbGenerate() {
+  var mode = document.getElementById('dusb-mode').value;
+  var org = 'com.istorebusiness.toolbox';
+  var policy = dusbBuildPolicy();
+  var policyJson = JSON.stringify(policy, null, 2);
+  var suffix = dusbGetIdentifierSuffix(mode);
+
+  var payloadUuid = uuid();
+  var profileUuid = uuid();
+
+  var profile = {
+    PayloadContent: [{
+      PayloadType: 'com.microsoft.wdav',
+      PayloadDisplayName: dusbGetPayloadDisplayName(mode),
+      PayloadDescription: dusbModeDescriptions[mode],
+      PayloadVersion: 1,
+      PayloadEnabled: true,
+      PayloadUUID: payloadUuid,
+      PayloadIdentifier: org + '.mde.devicecontrol.usb.' + suffix,
+      deviceControl: {
+        policy: policyJson
+      }
+    }],
+    PayloadDisplayName: dusbGetDisplayName(mode),
+    PayloadIdentifier: org + '.mde.devicecontrol.' + suffix + '.profile',
+    PayloadType: 'Configuration',
+    PayloadUUID: profileUuid,
+    PayloadVersion: 1,
+    PayloadScope: 'System'
+  };
+
+  var xml = buildMobileconfig(profile);
+  var filename = 'USB_' + suffix.replace(/\b\w/g, function(c) { return c.toUpperCase(); }) + '_Policy.mobileconfig';
+  download(filename, xml);
+}
+
+function buildMobileconfig(profile) {
+  // Build the mobileconfig XML manually for clean formatting matching the reference files
+  var pc = profile.PayloadContent[0];
+  var lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">');
+  lines.push('<plist version="1.0">');
+  lines.push('  <dict>');
+  lines.push('    <key>PayloadContent</key>');
+  lines.push('    <array>');
+  lines.push('      <dict>');
+  lines.push('        <key>PayloadType</key>');
+  lines.push('        <string>' + escXml(pc.PayloadType) + '</string>');
+  lines.push('        <key>PayloadDisplayName</key>');
+  lines.push('        <string>' + escXml(pc.PayloadDisplayName) + '</string>');
+  lines.push('        <key>PayloadDescription</key>');
+  lines.push('        <string>' + escXml(pc.PayloadDescription) + '</string>');
+  lines.push('        <key>PayloadVersion</key>');
+  lines.push('        <integer>1</integer>');
+  lines.push('        <key>PayloadEnabled</key>');
+  lines.push('        <true/>');
+  lines.push('        <key>PayloadUUID</key>');
+  lines.push('        <string>' + escXml(pc.PayloadUUID) + '</string>');
+  lines.push('        <key>PayloadIdentifier</key>');
+  lines.push('        <string>' + escXml(pc.PayloadIdentifier) + '</string>');
+  lines.push('        <key>deviceControl</key>');
+  lines.push('        <dict>');
+  lines.push('          <key>policy</key>');
+  lines.push('          <string>' + pc.deviceControl.policy + '</string>');
+  lines.push('        </dict>');
+  lines.push('      </dict>');
+  lines.push('    </array>');
+  lines.push('    <key>PayloadDisplayName</key>');
+  lines.push('    <string>' + escXml(profile.PayloadDisplayName) + '</string>');
+  lines.push('    <key>PayloadIdentifier</key>');
+  lines.push('    <string>' + escXml(profile.PayloadIdentifier) + '</string>');
+  lines.push('    <key>PayloadType</key>');
+  lines.push('    <string>Configuration</string>');
+  lines.push('    <key>PayloadUUID</key>');
+  lines.push('    <string>' + escXml(profile.PayloadUUID) + '</string>');
+  lines.push('    <key>PayloadVersion</key>');
+  lines.push('    <integer>1</integer>');
+  lines.push('    <key>PayloadScope</key>');
+  lines.push('    <string>System</string>');
+  lines.push('  </dict>');
+  lines.push('</plist>');
+  return lines.join('\n');
+}
+
+function dusbPreview() {
+  var policy = dusbBuildPolicy();
+  var json = JSON.stringify(policy, null, 2);
+  document.getElementById('dusb-preview-json').textContent = json;
+  document.getElementById('dusb-preview-wrap').style.display = '';
+  document.getElementById('dusb-preview-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function dusbCopyJson() {
+  var text = document.getElementById('dusb-preview-json').textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.querySelector('#dusb-preview-wrap .btn-ghost');
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+dusbModeChanged();
+</script>
+{% endblock %}
