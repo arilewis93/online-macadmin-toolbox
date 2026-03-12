@@ -642,6 +642,8 @@ function buildXML() {
 \t\t\t<true/>
 \t\t\t<key>PayloadContent</key>
 \t\t\t<dict>
+\t\t\t\t<key>${xmlEsc(bundleId)}</key>
+\t\t\t\t<dict>
 \t\t\t\t<key>Forced</key>
 \t\t\t\t<array>
 \t\t\t\t\t<dict>
@@ -688,8 +690,9 @@ ${driverXml}
 \t\t\t\t\t\t</dict>
 \t\t\t\t\t</dict>
 \t\t\t\t</array>
+\t\t\t\t</dict>
 \t\t\t</dict>
-\t</dict>
+\t\t</dict>
 \t</array>
 </dict>
 </plist>`;
