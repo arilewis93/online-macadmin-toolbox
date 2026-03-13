@@ -23,6 +23,22 @@
         <div class="section-desc">Configure options for your Netskope Client deployment. The tool generates a lean bash script that only includes the logic needed for your selected mode. <strong>Deploy as a preinstall script</strong> in your MDM or packaging workflow.</div>
       </div>
 
+      <!-- Quick Import -->
+      <div class="card">
+        <div class="card-title">Quick Import</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>PASTE SET COMMAND</label>
+            <div style="display:flex;gap:0.5rem">
+              <input type="text" id="cmdPaste" placeholder="set -- 0 0 0 idp eu.goskope.com abcde 0 ..." style="flex:1"
+                     onkeydown="if(event.key==='Enter'){parseCommand();event.preventDefault()}">
+              <button class="btn btn-primary" id="importBtn" onclick="parseCommand()" style="white-space:nowrap">Import</button>
+            </div>
+            <span class="field-error" id="err-cmdPaste">Unrecognized format. Paste a <code>set -- 0 0 0 ...</code> command from Netskope's Intune deployment docs.</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Mode Selection -->
       <div class="card">
         <div class="card-title">Deployment Mode</div>
