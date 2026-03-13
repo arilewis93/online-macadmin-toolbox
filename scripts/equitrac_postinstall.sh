@@ -36,7 +36,7 @@ PLIST_PATH="/Library/Managed Preferences/${PLIST_BUNDLE_ID}.plist"
 PAYLOAD_DIR="/private/var/tmp/.eqpayload"
 
 # Installer pkg: filename only from profile, full path built at runtime
-INSTALLER_PKG_NAME=$(defaults read "$PLIST_PATH" INSTALLER_PKG 2>/dev/null || echo "Equitrac_MacOSX_6_4_3_59.pkg")
+INSTALLER_PKG_NAME=$(defaults read "$PLIST_PATH" INSTALLER_PKG 2>/dev/null)
 INSTALLER_PKG="${PAYLOAD_DIR}/${INSTALLER_PKG_NAME}"
 
 SECURITY_DOMAIN=$(defaults read "${PLIST_PATH}" SECURITY_DOMAIN 2>/dev/null)
@@ -47,7 +47,24 @@ DATACENTER_NAME=$(defaults read "${PLIST_PATH}" DATACENTER_NAME 2>/dev/null)
 CAS_SERVER=$(defaults read "${PLIST_PATH}" CAS_SERVER 2>/dev/null)
 DRE_SERVER=$(defaults read "${PLIST_PATH}" DRE_SERVER 2>/dev/null)
 INSTALL_DRC=$(defaults read "${PLIST_PATH}" INSTALL_DRC 2>/dev/null || echo false)
-DRC_SYS_NAME_MODE=$(defaults read "${PLIST_PATH}" DRC_SYS_NAME_MODE 2>/dev/null || echo 1)
+DRC_SYS_NAME_MODE=$(defaults read "${PLIST_PATH}" DRC_SYS_NAME_MODE 2>/dev/null)
+
+# Read new prefs from config profile
+SKIP_LINK_LOCAL_IP=$(defaults read "${PLIST_PATH}" SKIP_LINK_LOCAL_IP 2>/dev/null || echo true)
+IP_ADDR_INTERFACE=$(defaults read "${PLIST_PATH}" IP_ADDR_INTERFACE 2>/dev/null || echo "")
+REG_MACHINE_ID_DNS=$(defaults read "${PLIST_PATH}" REG_MACHINE_ID_DNS 2>/dev/null || echo false)
+USE_CACHED_LOGIN=$(defaults read "${PLIST_PATH}" USE_CACHED_LOGIN 2>/dev/null || echo false)
+PROMPT_FOR_PASSWORD=$(defaults read "${PLIST_PATH}" PROMPT_FOR_PASSWORD 2>/dev/null || echo true)
+USER_ID_LABEL=$(defaults read "${PLIST_PATH}" USER_ID_LABEL 2>/dev/null || echo "")
+IGNORE_SUPPLIES_LEVEL_JOB=$(defaults read "${PLIST_PATH}" IGNORE_SUPPLIES_LEVEL_JOB 2>/dev/null || echo false)
+
+# Normalize booleans (defaults read returns 1/0 for plist booleans)
+for _bvar in SKIP_LINK_LOCAL_IP REG_MACHINE_ID_DNS USE_CACHED_LOGIN PROMPT_FOR_PASSWORD IGNORE_SUPPLIES_LEVEL_JOB; do
+    case "${!_bvar,,}" in
+        1|true|yes) printf -v "$_bvar" '%s' "true" ;;
+        *)          printf -v "$_bvar" '%s' "false" ;;
+    esac
+done
 
 MAX_AGE_DAYS=7
 
@@ -90,6 +107,11 @@ MAX_AGE_DAYS=7
 PRINTER_NAMES=()      # parallel array: queue names
 PRINTER_PPDS=()       # parallel array: "generic" or absolute ppd source path
 PRINT_DRIVERS=()      # flat array: pkg full paths to install (filenames from profile + PAYLOAD_DIR)
+PRINTER_TYPES=()     # parallel array: "dre" or "ip"
+PRINTER_IPS=()       # parallel array: IP address (IP printers only, empty for DRE)
+PRINTER_PROTOCOLS=() # parallel array: "raw" or "lpr" (IP printers only, empty for DRE)
+PRINTER_PORTS=()     # parallel array: port number (IP+raw only, empty otherwise)
+PRINTER_QUEUES=()    # parallel array: queue name (IP+lpr only, empty otherwise)
 
 # EQPrinterUtilityX / EquitracOfficePrefs feature flags (read from config profile)
 # Each maps to a bit in the "Feature Selection" bitmask written to EquitracOfficePrefs:
@@ -163,7 +185,28 @@ load_printer_config() {
             PRINTER_NAMES+=( "$name" )
             PRINTER_PPDS+=( "$ppd" )
 
-            log_info "  Printer[$i]: name='$name'  ppd='$ppd'"
+            local ptype
+            ptype=$("$pb" -c "Print :PRINTERS:${i}:type" "$PLIST_PATH" 2>/dev/null || echo "dre")
+            PRINTER_TYPES+=( "$ptype" )
+
+            if [[ "$ptype" == "ip" ]]; then
+                local pip pproto pport pqueue
+                pip=$("$pb" -c "Print :PRINTERS:${i}:ip" "$PLIST_PATH" 2>/dev/null || echo "")
+                pproto=$("$pb" -c "Print :PRINTERS:${i}:protocol" "$PLIST_PATH" 2>/dev/null || echo "raw")
+                pport=$("$pb" -c "Print :PRINTERS:${i}:port" "$PLIST_PATH" 2>/dev/null || echo "9100")
+                pqueue=$("$pb" -c "Print :PRINTERS:${i}:queue" "$PLIST_PATH" 2>/dev/null || echo "")
+                PRINTER_IPS+=( "$pip" )
+                PRINTER_PROTOCOLS+=( "$pproto" )
+                PRINTER_PORTS+=( "$pport" )
+                PRINTER_QUEUES+=( "$pqueue" )
+                log_info "  Printer[$i]: type=ip name='$name' ip='$pip' proto='$pproto' port='$pport' queue='$pqueue' ppd='$ppd'"
+            else
+                PRINTER_IPS+=( "" )
+                PRINTER_PROTOCOLS+=( "" )
+                PRINTER_PORTS+=( "" )
+                PRINTER_QUEUES+=( "" )
+                log_info "  Printer[$i]: type=dre name='$name' ppd='$ppd'"
+            fi
         done
     fi
 
@@ -330,16 +373,16 @@ create_config_files() {
 DNSMachineID = ${hostname_fqdn}
 DRCSysNameMode = ${DRC_SYS_NAME_MODE}
 Feature Selection = ${FEATURE_SELECTION}
-IPAddrInterfaceName =
-IgnoreSuppliesLevelJob = false
+IPAddrInterfaceName = ${IP_ADDR_INTERFACE}
+IgnoreSuppliesLevelJob = ${IGNORE_SUPPLIES_LEVEL_JOB}
 LastCASSync = $(date +%s)
 LastModifiedTimestamp = $(date '+%Y-%m-%d %H:%M:%S')
 LastPrinterCacheFullUpdate = $(date +%s)
-PromptForPasssword = true
-RegMachineIDWithDNSSvr = false
-SkipLinkLocalIPAddr = true
-UseCachedLogin = false
-UserIDLabelText =
+PromptForPasssword = ${PROMPT_FOR_PASSWORD}
+RegMachineIDWithDNSSvr = ${REG_MACHINE_ID_DNS}
+SkipLinkLocalIPAddr = ${SKIP_LINK_LOCAL_IP}
+UseCachedLogin = ${USE_CACHED_LOGIN}
+UserIDLabelText = ${USER_ID_LABEL}
 EOF
 
     if [[ "$INSTALL_DRC" == true ]]; then
@@ -918,7 +961,24 @@ create_printers() {
     for (( i = 0; i < ${#PRINTER_NAMES[@]}; i++ )); do
         local printer_name="${PRINTER_NAMES[$i]}"
         local ppd_config="${PRINTER_PPDS[$i]}"
-        local device_uri="${backend}://${DRE_SERVER}/${printer_name}"
+        local printer_type="${PRINTER_TYPES[$i]}"
+        local device_uri=""
+
+        if [[ "$printer_type" == "ip" ]]; then
+            local pip="${PRINTER_IPS[$i]}"
+            local pproto="${PRINTER_PROTOCOLS[$i]}"
+            if [[ "$pproto" == "lpr" ]]; then
+                local pqueue="${PRINTER_QUEUES[$i]}"
+                device_uri="lpd://${pip}/${pqueue}"
+            else
+                local pport="${PRINTER_PORTS[$i]:-9100}"
+                device_uri="socket://${pip}:${pport}"
+            fi
+        else
+            # DRE printer -- use eqtrans backend (or lpd fallback)
+            device_uri="${backend}://${DRE_SERVER}/${printer_name}"
+        fi
+
         local ppd_path=""
 
         if [[ "$ppd_config" == "generic" ]]; then
