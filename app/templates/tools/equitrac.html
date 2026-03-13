@@ -79,6 +79,20 @@
   transition: background var(--transition);
 }
 .eq-step-line.complete { background: var(--green); }
+
+/* ── TOGGLE GRID ── */
+.toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+
+/* ── PRINTER STYLES ── */
+.printer-badge { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0; }
+.printer-badge.dre { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+.printer-badge.ip { background: var(--green-dim, rgba(52,199,89,0.1)); color: var(--green, #34c759); border: 1px solid var(--green, #34c759); }
+.printer-fields { display: flex; gap: 0.5rem; flex: 1; flex-wrap: wrap; }
+.printer-fields input, .printer-fields select { flex: 1; min-width: 120px; }
+.printer-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.printer-item:last-child { border-bottom: none; }
+.printer-add-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.empty-state { color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; text-align: center; }
 </style>
 {% endblock %}
 
@@ -207,71 +221,135 @@
       </div>
     </div>
 
-    <!-- ══════════════════════════ PREFERENCES (was SERVERS + FEATURES) ══════════════════════════ -->
-    <div class="section" id="s-servers">
+    <!-- ══════════════════════════ PREFERENCES ══════════════════════════ -->
+    <div class="section" id="s-preferences">
       <div class="section-header">
         <div class="section-tag">02 / Preferences</div>
-        <div class="section-title">Preferences</div>
-        <div class="section-desc">CAS and DRE server addresses used for enrollment and print routing.</div>
+        <div class="section-title">EQPrinterUtilityX Settings</div>
+        <div class="section-desc">Print client preferences pushed via the configuration profile.</div>
       </div>
 
+      <!-- Features -->
       <div class="card">
-        <div class="card-title">Endpoints</div>
-        <div class="field-grid">
-          <div class="field">
-            <label>CAS SERVER <span class="required">*</span> <span class="hint">IP or hostname</span></label>
-            <input type="text" id="casServer" placeholder="192.168.1.100" oninput="markDirty()">
-            <span class="field-error" id="err-casServer">Required</span>
-          </div>
-          <div class="field">
-            <label>DRE SERVER <span class="required">*</span> <span class="hint">FQDN or IP</span></label>
-            <input type="text" id="dreServer" placeholder="equitrac-server.yourdomain.com" oninput="markDirty()">
-            <span class="field-error" id="err-dreServer">Required</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Print Features</div>
-        <div class="toggle-group">
+        <div class="card-title">Features</div>
+        <div class="toggle-group toggle-grid">
           <label class="toggle-row" id="tr-clientBilling" onclick="toggleFeature('clientBilling')">
             <input type="checkbox" id="clientBilling">
-            <div class="toggle-info">
-              <div class="toggle-label">Client Billing</div>
-              <div class="toggle-desc">Enable client/matter billing codes at print time</div>
-            </div>
-            <div class="toggle-switch"></div>
-          </label>
-          <label class="toggle-row" id="tr-promptForLogin" onclick="toggleFeature('promptForLogin')">
-            <input type="checkbox" id="promptForLogin">
-            <div class="toggle-info">
-              <div class="toggle-label">Prompt for Login</div>
-              <div class="toggle-desc">Prompt user to authenticate before releasing jobs</div>
-            </div>
-            <div class="toggle-switch"></div>
-          </label>
-          <label class="toggle-row" id="tr-costPreview" onclick="toggleFeature('costPreview')">
-            <input type="checkbox" id="costPreview">
-            <div class="toggle-info">
-              <div class="toggle-label">Cost Preview</div>
-              <div class="toggle-desc">Show estimated cost to user before job is released</div>
-            </div>
-            <div class="toggle-switch"></div>
-          </label>
-          <label class="toggle-row" id="tr-allowRenameDocument" onclick="toggleFeature('allowRenameDocument')">
-            <input type="checkbox" id="allowRenameDocument">
-            <div class="toggle-info">
-              <div class="toggle-label">Allow Rename Document</div>
-              <div class="toggle-desc">Allow users to rename print jobs in the release queue</div>
-            </div>
+            <div class="toggle-info"><div class="toggle-label">Client Billing</div></div>
             <div class="toggle-switch"></div>
           </label>
           <label class="toggle-row" id="tr-releaseKey" onclick="toggleFeature('releaseKey')">
             <input type="checkbox" id="releaseKey">
-            <div class="toggle-info">
-              <div class="toggle-label">Release Key</div>
-              <div class="toggle-desc">Require a physical release key (PIN/card) to release jobs</div>
+            <div class="toggle-info"><div class="toggle-label">Release Key</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-promptForLogin" onclick="toggleFeature('promptForLogin')">
+            <input type="checkbox" id="promptForLogin">
+            <div class="toggle-info"><div class="toggle-label">Prompt for Login</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-allowRenameDocument" onclick="toggleFeature('allowRenameDocument')">
+            <input type="checkbox" id="allowRenameDocument">
+            <div class="toggle-info"><div class="toggle-label">Allow Rename Document</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row" id="tr-costPreview" onclick="toggleFeature('costPreview')">
+            <input type="checkbox" id="costPreview">
+            <div class="toggle-info"><div class="toggle-label">Cost Preview</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- CAS Server -->
+      <div class="card">
+        <div class="card-title">CAS Server</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>CAS SERVER <span class="required">*</span></label>
+            <input type="text" id="casServer" placeholder="192.168.1.100" oninput="markDirty()">
+            <span class="field-error" id="err-casServer">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRC System Name (shown when DRC enabled in Step 1) -->
+      <div class="card" id="drcSystemNamePrefCard" style="display:none">
+        <div class="card-title">DRC System Name</div>
+        <div class="toggle-group">
+          <label class="toggle-row">
+            <input type="radio" name="drcMode" value="1" checked onchange="updateDrcMode();markDirty()">
+            <div class="toggle-info"><div class="toggle-label">IP Address</div></div>
+          </label>
+          <label class="toggle-row">
+            <input type="radio" name="drcMode" value="2" onchange="updateDrcMode();markDirty()">
+            <div class="toggle-info"><div class="toggle-label">Bonjour Name</div></div>
+          </label>
+          <label class="toggle-row">
+            <input type="radio" name="drcMode" value="3" onchange="updateDrcMode();markDirty()">
+            <div class="toggle-info"><div class="toggle-label">DNS Hostname</div></div>
+          </label>
+        </div>
+        <div id="drcIpOptions">
+          <label class="toggle-row compact enabled" id="tr-skipLinkLocal" onclick="togglePref('skipLinkLocal')">
+            <input type="checkbox" id="skipLinkLocal" checked>
+            <div class="toggle-info"><div class="toggle-label">Skip Link Local</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <div class="field-grid single" style="margin-top:0.5rem">
+            <div class="field">
+              <label>INTERFACE</label>
+              <select id="ipAddrInterface" onchange="markDirty()">
+                <option value="">any</option>
+                <option value="en0">en0</option>
+                <option value="en1">en1</option>
+                <option value="en2">en2</option>
+                <option value="en3">en3</option>
+                <option value="en4">en4</option>
+                <option value="en5">en5</option>
+              </select>
             </div>
+          </div>
+        </div>
+        <div class="toggle-group" style="margin-top:0.5rem">
+          <label class="toggle-row" id="tr-regDns" onclick="togglePref('regDns')">
+            <input type="checkbox" id="regDns">
+            <div class="toggle-info"><div class="toggle-label">Register with DNS Server</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Login Options -->
+      <div class="card">
+        <div class="card-title">Login Options</div>
+        <div class="toggle-group toggle-grid">
+          <label class="toggle-row" id="tr-cacheLogin" onclick="togglePref('cacheLogin')">
+            <input type="checkbox" id="cacheLogin">
+            <div class="toggle-info"><div class="toggle-label">Cache Login</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+          <label class="toggle-row enabled" id="tr-promptPassword" onclick="togglePref('promptPassword')">
+            <input type="checkbox" id="promptPassword" checked>
+            <div class="toggle-info"><div class="toggle-label">Prompt for Password</div></div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+        <div class="field-grid single" style="margin-top:0.5rem">
+          <div class="field">
+            <label>USER ID LABEL</label>
+            <input type="text" id="userIdLabel" placeholder="User ID" oninput="markDirty()">
+          </div>
+        </div>
+      </div>
+
+      <!-- Ignore C&C -->
+      <div class="card">
+        <div class="card-title">Ignore C&amp;C</div>
+        <div class="toggle-group">
+          <label class="toggle-row" id="tr-ignoreCC" onclick="togglePref('ignoreCC')">
+            <input type="checkbox" id="ignoreCC">
+            <div class="toggle-info"><div class="toggle-label">Ignore Printer 'Command and Control' Print Jobs</div></div>
             <div class="toggle-switch"></div>
           </label>
         </div>
@@ -288,13 +366,29 @@
       <div class="section-header">
         <div class="section-tag">03 / Printers</div>
         <div class="section-title">Printers</div>
-        <div class="section-desc">Print queues to create on the Mac. Set PPD to <em>generic</em> or provide a path to a .ppd file.</div>
+        <div class="section-desc">Print queues to create on the Mac. DRE printers route through the DRE server; IP printers connect directly.</div>
       </div>
 
       <div class="card">
-        <div class="card-title">Printer Definitions</div>
-        <div class="printer-list" id="printerList"></div>
-        <button class="btn-add" onclick="addPrinter()">+ Add Printer</button>
+        <div class="card-title">DRE Server</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>DRE SERVER <span class="hint">FQDN or IP &mdash; required if adding DRE printers</span></label>
+            <input type="text" id="dreServer" placeholder="equitrac-server.yourdomain.com" oninput="markDirty()">
+            <span class="field-error" id="err-dreServer">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Printer List</div>
+        <div id="printerList">
+          <div class="empty-state" id="printerEmpty">No printers added.</div>
+        </div>
+        <div class="printer-add-buttons">
+          <button class="btn btn-primary" onclick="addPrinter('dre')">+ New Printer (DRE)</button>
+          <button class="btn btn-primary" onclick="addPrinter('ip')">+ New IP Printer</button>
+        </div>
       </div>
 
       <div class="section-footer">
@@ -435,6 +529,7 @@ var FEATURE_BITS = {
   releaseKey: 32
 };
 
+// Each: { type: 'dre'|'ip', name: '', ppd: 'generic', ip: '', protocol: 'raw', port: '9100', queue: '' }
 var printers = [];
 
 var installerPkgName = '';
@@ -445,7 +540,7 @@ var drivers = [];
 // STEPPER NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-var STEPS = ['s-enrollment','s-servers','s-printers','s-packages','s-build','s-deploy'];
+var STEPS = ['s-enrollment','s-preferences','s-printers','s-packages','s-build','s-deploy'];
 var STEP_LABELS = ['Enrollment','Preferences','Printers','Packages','Build','Deploy'];
 var currentStep = 0;
 var maxStep = 0;
@@ -613,6 +708,8 @@ function updateDrcVisibility() {
   var show = document.getElementById('installDrc').checked;
   var card = document.getElementById('drcSystemNameCard');
   if (card) card.style.display = show ? '' : 'none';
+  var prefCard = document.getElementById('drcSystemNamePrefCard');
+  if (prefCard) prefCard.style.display = show ? '' : 'none';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -636,36 +733,93 @@ function updateBitmask() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PREFERENCE TOGGLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+function togglePref(id) {
+  var cb = document.getElementById(id);
+  cb.checked = !cb.checked;
+  var row = document.getElementById('tr-' + id);
+  if (row) row.classList.toggle('enabled', cb.checked);
+  markDirty();
+}
+
+function updateDrcMode() {
+  var mode = document.querySelector('input[name="drcMode"]:checked').value;
+  var ipOpts = document.getElementById('drcIpOptions');
+  ipOpts.style.display = (mode === '2') ? 'none' : '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PRINTER ROWS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderPrinters() {
   var list = document.getElementById('printerList');
+  var empty = document.getElementById('printerEmpty');
   list.innerHTML = '';
+  if (printers.length === 0) {
+    var emptyDiv = document.createElement('div');
+    emptyDiv.className = 'empty-state';
+    emptyDiv.id = 'printerEmpty';
+    emptyDiv.textContent = 'No printers added.';
+    list.appendChild(emptyDiv);
+    return;
+  }
   printers.forEach(function(p, i) {
     var row = document.createElement('div');
     row.className = 'printer-item';
-    row.innerHTML =
-      '<input type="text" value="' + esc(p.name) + '" placeholder="Queue name (e.g. HP-Colour-Mac)" ' +
-             'oninput="printers[' + i + '].name=this.value;markDirty()">' +
-      '<input type="text" value="' + esc(p.ppd) + '" placeholder="generic or /path/to/file.ppd" ' +
-             'oninput="printers[' + i + '].ppd=this.value;markDirty()">' +
-      '<button class="item-remove" onclick="removePrinter(' + i + ')" title="Remove">&times;</button>';
+    var html = '<span class="printer-badge ' + esc(p.type) + '">' + esc(p.type) + '</span>';
+    html += '<div class="printer-fields">';
+    if (p.type === 'ip') {
+      html += '<input type="text" value="' + esc(p.ip) + '" placeholder="IP Address" ' +
+              'oninput="updatePrinter(' + i + ',\'ip\',this.value)">';
+    }
+    html += '<input type="text" value="' + esc(p.name) + '" placeholder="Queue name (e.g. HP-Colour-Mac)" ' +
+            'oninput="updatePrinter(' + i + ',\'name\',this.value)">';
+    if (p.type === 'ip') {
+      html += '<select onchange="updatePrinter(' + i + ',\'protocol\',this.value)">' +
+              '<option value="raw"' + (p.protocol === 'raw' ? ' selected' : '') + '>raw</option>' +
+              '<option value="lpr"' + (p.protocol === 'lpr' ? ' selected' : '') + '>lpr</option>' +
+              '</select>';
+      if (p.protocol === 'lpr') {
+        html += '<input type="text" value="' + esc(p.queue) + '" placeholder="Queue" ' +
+                'oninput="updatePrinter(' + i + ',\'queue\',this.value)">';
+      } else {
+        html += '<input type="text" value="' + esc(p.port) + '" placeholder="Port (9100)" ' +
+                'oninput="updatePrinter(' + i + ',\'port\',this.value)">';
+      }
+    }
+    html += '<input type="text" value="' + esc(p.ppd) + '" placeholder="generic or /path/to/file.ppd" ' +
+            'oninput="updatePrinter(' + i + ',\'ppd\',this.value)">';
+    html += '</div>';
+    html += '<button class="item-remove" onclick="removePrinter(' + i + ')" title="Remove">&times;</button>';
+    row.innerHTML = html;
     list.appendChild(row);
   });
 }
 
-function addPrinter() {
-  printers.push({ name: '', ppd: 'generic' });
+function addPrinter(type) {
+  if (type === 'ip') {
+    printers.push({ type: 'ip', name: '', ppd: 'generic', ip: '', protocol: 'raw', port: '9100', queue: '' });
+  } else {
+    printers.push({ type: 'dre', name: '', ppd: 'generic', ip: '', protocol: 'raw', port: '9100', queue: '' });
+  }
   renderPrinters();
   markDirty();
   var rows = document.querySelectorAll('.printer-item');
-  rows[rows.length - 1].querySelector('input').focus();
+  if (rows.length) rows[rows.length - 1].querySelector('input').focus();
 }
 
 function removePrinter(i) {
   printers.splice(i, 1);
   renderPrinters();
+  markDirty();
+}
+
+function updatePrinter(i, key, value) {
+  printers[i][key] = value;
+  if (key === 'protocol') renderPrinters();
   markDirty();
 }
 
@@ -707,7 +861,7 @@ function removeDriver(i) {
 
 var REQUIRED_FIELDS = [
   'secDomain','secUsername','secPassword',
-  'secNode','datacenterName','casServer','dreServer',
+  'secNode','datacenterName','casServer',
   'installerPkgName'
 ];
 
@@ -1193,6 +1347,7 @@ function parseCommand() {
 renderPrinters();
 renderDrivers();
 updateDrcVisibility();
+updateDrcMode();
 updateStepper();
 </script>
 {% endblock %}
