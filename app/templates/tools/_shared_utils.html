@@ -116,9 +116,9 @@ function checkAgentPing(timeoutSeconds) {
   });
 }
 /**
- * Check if the agent has Full Disk Access.
- * Opens macadmin-toolbox://check-fda, polls port 8765.
- * If FDA is missing, the agent automatically opens System Settings to the FDA pane.
+ * Check if the agent is installed and has Full Disk Access.
+ * Uses macadmin-toolbox://ping (same as checkAgentPing) — the ping response
+ * includes full_disk_access status so a single launch covers both checks.
  * Returns a Promise resolving to {agent: bool, full_disk_access: bool}.
  */
 function checkAgentFDA(timeoutSeconds) {
@@ -126,7 +126,7 @@ function checkAgentFDA(timeoutSeconds) {
   return new Promise(function(resolve) {
     var iframe = document.createElement('iframe');
     iframe.style.display = 'none';
-    iframe.src = 'macadmin-toolbox://check-fda';
+    iframe.src = 'macadmin-toolbox://ping';
     document.body.appendChild(iframe);
     setTimeout(function() { iframe.remove(); }, 3000);
     var attempts = 0;

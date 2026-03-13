@@ -406,12 +406,25 @@ let fullDiskAccessSettingsURL = "x-apple.systempreferences:com.apple.preference.
 
 /// Returns nil if we have permission to read TCC; otherwise returns the error message to show.
 func checkTCCPermission() -> String? {
-    switch runSQLite(query: "SELECT 1 LIMIT 1;", dbPath: tccDBPath) {
-    case .success:
-        return nil
-    case .failure:
+    // Try to read from the TCC database directly using sqlite3.
+    // sqlite3_open_v2 and sqlite3_prepare_v2 can succeed without FDA;
+    // the denial only surfaces at sqlite3_step, which returns SQLITE_AUTH (23)
+    // instead of SQLITE_ROW or SQLITE_DONE.
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(tccDBPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let db = db else {
         return "Full Disk Access is required to read Privacy (TCC) and notification data. Please grant Full Disk Access to this app in System Settings → Privacy & Security → Full Disk Access."
     }
+    defer { sqlite3_close(db) }
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table';", -1, &stmt, nil) == SQLITE_OK, let stmt = stmt else {
+        return "Full Disk Access is required to read Privacy (TCC) and notification data. Please grant Full Disk Access to this app in System Settings → Privacy & Security → Full Disk Access."
+    }
+    defer { sqlite3_finalize(stmt) }
+    let rc = sqlite3_step(stmt)
+    if rc == SQLITE_ROW || rc == SQLITE_DONE {
+        return nil
+    }
+    return "Full Disk Access is required to read Privacy (TCC) and notification data. Please grant Full Disk Access to this app in System Settings → Privacy & Security → Full Disk Access."
 }
 
 /// Open System Settings to Full Disk Access pane.
@@ -538,12 +551,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let url = urls.first, url.scheme == "macadmin-toolbox" else { return }
         let host = url.host ?? ""
 
-        // Ping: confirm the agent is registered and running
+        // Ping: confirm the agent is registered and running, include FDA status
         if host == "ping" {
             handledURL = true
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            let payload: [String: Any] = ["agent": true]
+            let hasFDA = checkTCCPermission() == nil
+            let payload: [String: Any] = ["agent": true, "full_disk_access": hasFDA]
             if let data = try? JSONSerialization.data(withJSONObject: payload) {
                 serveResult(jsonData: data)
             }
