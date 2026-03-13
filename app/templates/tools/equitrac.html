@@ -3,7 +3,7 @@
 {% block main_class %}tool-layout{% endblock %}
 {% block header_class %}tool-bar{% endblock %}
 {% block header_left %}
-  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">← Dashboard</a>
+  <a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
   <div class="logo-badge">
     <div class="logo-icon">
       <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
@@ -14,46 +14,114 @@
   </div>
   <span class="status-pill" id="statusPill">NOT SAVED</span>
 {% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── STEPPER ── */
+.eq-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 32px;
+  padding: 20px 0 8px;
+}
+.eq-stepper-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  cursor: default;
+}
+.eq-stepper-item.clickable { cursor: pointer; }
+.eq-step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid var(--border-bright);
+  color: var(--text-muted);
+  background: var(--surface);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.eq-step-dot.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.eq-step-dot.complete {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-dim);
+}
+.eq-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.eq-step-label.active { color: var(--accent); }
+.eq-step-label.complete { color: var(--green); }
+.eq-step-line {
+  width: 48px;
+  height: 2px;
+  background: var(--border-bright);
+  margin: 0 12px;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.eq-step-line.complete { background: var(--green); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="progress-bar">
-  <div class="progress-fill" id="progressFill" style="width:20%"></div>
+
+<div class="eq-stepper" id="eqStepper">
+  <div class="eq-stepper-item clickable" onclick="stepClick(0)">
+    <div class="eq-step-dot active" id="eq-dot-0">1</div>
+    <span class="eq-step-label active" id="eq-lbl-0">Enrollment</span>
+  </div>
+  <div class="eq-step-line" id="eq-line-0"></div>
+  <div class="eq-stepper-item" onclick="stepClick(1)">
+    <div class="eq-step-dot" id="eq-dot-1">2</div>
+    <span class="eq-step-label" id="eq-lbl-1">Preferences</span>
+  </div>
+  <div class="eq-step-line" id="eq-line-1"></div>
+  <div class="eq-stepper-item" onclick="stepClick(2)">
+    <div class="eq-step-dot" id="eq-dot-2">3</div>
+    <span class="eq-step-label" id="eq-lbl-2">Printers</span>
+  </div>
+  <div class="eq-step-line" id="eq-line-2"></div>
+  <div class="eq-stepper-item" onclick="stepClick(3)">
+    <div class="eq-step-dot" id="eq-dot-3">4</div>
+    <span class="eq-step-label" id="eq-lbl-3">Packages</span>
+  </div>
+  <div class="eq-step-line" id="eq-line-3"></div>
+  <div class="eq-stepper-item" onclick="stepClick(4)">
+    <div class="eq-step-dot" id="eq-dot-4">5</div>
+    <span class="eq-step-label" id="eq-lbl-4">Build</span>
+  </div>
+  <div class="eq-step-line" id="eq-line-4"></div>
+  <div class="eq-stepper-item" onclick="stepClick(5)">
+    <div class="eq-step-dot" id="eq-dot-5">6</div>
+    <span class="eq-step-label" id="eq-lbl-5">Deploy</span>
+  </div>
 </div>
 
-<div class="shell">
+<main>
 
-  <nav id="sideNav">
-    <div class="nav-section-label">Config</div>
-    <a href="#" class="active" data-section="s-security" onclick="navigate('s-security',this)">
-      <span class="nav-dot"></span> Security
-    </a>
-    <a href="#" data-section="s-servers" onclick="navigate('s-servers',this)">
-      <span class="nav-dot"></span> Servers
-    </a>
-    <a href="#" data-section="s-printers" onclick="navigate('s-printers',this)">
-      <span class="nav-dot"></span> Printers
-    </a>
-    <a href="#" data-section="s-drivers" onclick="navigate('s-drivers',this)">
-      <span class="nav-dot"></span> Packages
-    </a>
-    <a href="#" data-section="s-features" onclick="navigate('s-features',this)">
-      <span class="nav-dot"></span> Features
-    </a>
-
-    <div class="nav-section-label">Output</div>
-    <a href="#" data-section="s-build" onclick="navigate('s-build',this)">
-      <span class="nav-dot"></span> Build
-    </a>
-    <a href="#" data-section="s-generate" onclick="navigate('s-generate',this)">
-      <span class="nav-dot"></span> Deploy
-    </a>
-  </nav>
-
-  <main>
-
-    <!-- ══════════════════════════ SECURITY ══════════════════════════ -->
-    <div class="section active" id="s-security">
+    <!-- ══════════════════════════ ENROLLMENT ══════════════════════════ -->
+    <div class="section active" id="s-enrollment">
       <div class="section-header">
-        <div class="section-tag">01 / Security</div>
+        <div class="section-tag">01 / Enrollment</div>
         <div class="section-title">Security Enrollment</div>
         <div class="section-desc">Credentials used to enroll Macs with the Equitrac Security Framework.</div>
       </div>
@@ -73,7 +141,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Domain Credentials</div>
+        <div class="card-title">Credentials</div>
         <div class="field-grid thirds">
           <div class="field">
             <label>SECURITY DOMAIN <span class="required">*</span></label>
@@ -91,10 +159,6 @@
             <span class="field-error" id="err-secPassword">Required</span>
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Node &amp; Datacenter</div>
         <div class="field-grid">
           <div class="field">
             <label>SECURITY NODE <span class="required">*</span></label>
@@ -109,17 +173,45 @@
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-title">Document Routing Client</div>
+        <div class="toggle-group">
+          <label class="toggle-row" id="tr-installDrc" onclick="toggleDrc()">
+            <input type="checkbox" id="installDrc">
+            <div class="toggle-info">
+              <div class="toggle-label">Install DRC</div>
+              <div class="toggle-desc">Install the Document Routing Client alongside the Print Client</div>
+            </div>
+            <div class="toggle-switch"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card" id="drcSystemNameCard" style="display:none">
+        <div class="card-title">DRC System Name Mode</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>SYSTEM NAME MODE <span class="hint">How the DRC identifies this Mac to the server</span></label>
+            <select id="drcSysNameMode" onchange="markDirty()">
+              <option value="1">IP Address</option>
+              <option value="2">Bonjour Name</option>
+              <option value="3">DNS Hostname</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div class="section-footer">
         <span></span>
-        <button class="btn btn-primary" onclick="navigate('s-servers', navLink('s-servers'))">Next →</button>
+        <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
       </div>
     </div>
 
-    <!-- ══════════════════════════ SERVERS ══════════════════════════ -->
+    <!-- ══════════════════════════ PREFERENCES (was SERVERS + FEATURES) ══════════════════════════ -->
     <div class="section" id="s-servers">
       <div class="section-header">
-        <div class="section-tag">02 / Servers</div>
-        <div class="section-title">Servers</div>
+        <div class="section-tag">02 / Preferences</div>
+        <div class="section-title">Preferences</div>
         <div class="section-desc">CAS and DRE server addresses used for enrollment and print routing.</div>
       </div>
 
@@ -137,92 +229,6 @@
             <span class="field-error" id="err-dreServer">Required</span>
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Document Routing Client</div>
-        <div class="field-grid">
-          <div class="field">
-            <label>INSTALL DRC <span class="hint">Installs the Document Routing Client alongside the Print Client</span></label>
-            <select id="installDrc" onchange="markDirty()">
-              <option value="false">Disabled — Print Client only</option>
-              <option value="true">Enabled — Print Client + DRC</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>DRC SYSTEM NAME MODE <span class="hint">How the DRC identifies this Mac to the server</span></label>
-            <select id="drcSysNameMode" onchange="markDirty()">
-              <option value="1">IP Address</option>
-              <option value="2">Bonjour Name</option>
-              <option value="3">DNS Hostname</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-security', navLink('s-security'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-printers', navLink('s-printers'))">Next →</button>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════ PRINTERS ══════════════════════════ -->
-    <div class="section" id="s-printers">
-      <div class="section-header">
-        <div class="section-tag">03 / Printers</div>
-        <div class="section-title">Printers</div>
-        <div class="section-desc">Print queues to create on the Mac. Set PPD to <em>generic</em> or provide a path to a .ppd file.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Printer Definitions</div>
-        <div class="printer-list" id="printerList"></div>
-        <button class="btn-add" onclick="addPrinter()">＋ Add Printer</button>
-      </div>
-
-      <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-servers', navLink('s-servers'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-drivers', navLink('s-drivers'))">Next →</button>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════ DRIVERS ══════════════════════════ -->
-    <div class="section" id="s-drivers">
-      <div class="section-header">
-        <div class="section-tag">04 / Packages</div>
-        <div class="section-title">Packages</div>
-        <div class="section-desc">The Equitrac installer and any print driver .pkgs to include.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Equitrac Installer</div>
-        <div class="field-grid single">
-          <div class="field">
-            <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
-            <input type="text" id="installerPkgName" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
-            <span class="field-error" id="err-installerPkgName">Required</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Print Drivers</div>
-        <div class="driver-list" id="driverList"></div>
-        <button class="btn-add" onclick="addDriver()">＋ Add Driver Package</button>
-      </div>
-
-      <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-printers', navLink('s-printers'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-features', navLink('s-features'))">Next →</button>
-      </div>
-    </div>
-
-    <!-- ══════════════════════════ FEATURES ══════════════════════════ -->
-    <div class="section" id="s-features">
-      <div class="section-header">
-        <div class="section-tag">05 / Features</div>
-        <div class="section-title">Features</div>
-        <div class="section-desc">Toggle Equitrac print features for all users on this Mac.</div>
       </div>
 
       <div class="card">
@@ -269,20 +275,69 @@
             <div class="toggle-switch"></div>
           </label>
         </div>
-      </div><!-- end .card -->
+      </div>
 
       <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-drivers', navLink('s-drivers'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-build', navLink('s-build')); generateBuildScript()">
-          Build Package →
-        </button>
+        <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
       </div>
-    </div><!-- end #s-features -->
+    </div>
+
+    <!-- ══════════════════════════ PRINTERS ══════════════════════════ -->
+    <div class="section" id="s-printers">
+      <div class="section-header">
+        <div class="section-tag">03 / Printers</div>
+        <div class="section-title">Printers</div>
+        <div class="section-desc">Print queues to create on the Mac. Set PPD to <em>generic</em> or provide a path to a .ppd file.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Printer Definitions</div>
+        <div class="printer-list" id="printerList"></div>
+        <button class="btn-add" onclick="addPrinter()">+ Add Printer</button>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ PACKAGES ══════════════════════════ -->
+    <div class="section" id="s-packages">
+      <div class="section-header">
+        <div class="section-tag">04 / Packages</div>
+        <div class="section-title">Packages</div>
+        <div class="section-desc">The Equitrac installer and any print driver .pkgs to include.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Equitrac Installer</div>
+        <div class="field-grid single">
+          <div class="field">
+            <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
+            <input type="text" id="installerPkgName" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
+            <span class="field-error" id="err-installerPkgName">Required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Print Drivers</div>
+        <div class="driver-list" id="driverList"></div>
+        <button class="btn-add" onclick="addDriver()">+ Add Driver Package</button>
+      </div>
+
+      <div class="section-footer">
+        <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
+      </div>
+    </div>
 
     <!-- ══════════════════════════ BUILD PACKAGE ══════════════════════════ -->
     <div class="section" id="s-build">
       <div class="section-header">
-        <div class="section-tag">06 / Build</div>
+        <div class="section-tag">05 / Build</div>
         <div class="section-title">Build</div>
         <div class="section-desc">Download and run this script on your admin Mac to bundle the .pkgs into a single deployment package.</div>
       </div>
@@ -295,22 +350,22 @@
           </div>
           <div class="generate-actions">
             <button class="btn btn-ghost" onclick="copyBuildScript()">Copy Script</button>
-            <button class="btn btn-success" onclick="downloadBuildScript()">↓ Download</button>
+            <button class="btn btn-success" onclick="downloadBuildScript()">&darr; Download</button>
           </div>
         </div>
         <div class="xml-preview" id="buildScriptPreview" style="white-space:pre;font-family:var(--mono);font-size:0.82rem;line-height:1.5"><!-- generated --></div>
       </div>
 
       <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-features', navLink('s-features'))">← Back</button>
-        <button class="btn btn-primary" onclick="navigate('s-generate', navLink('s-generate')); generateProfile()">Deploy →</button>
+        <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Deploy &rarr;</button>
       </div>
     </div>
 
     <!-- ══════════════════════════ DEPLOY ══════════════════════════ -->
-    <div class="section" id="s-generate">
+    <div class="section" id="s-deploy">
       <div class="section-header">
-        <div class="section-tag">07 / Deploy</div>
+        <div class="section-tag">06 / Deploy</div>
         <div class="section-title">Deploy</div>
         <div class="section-desc">Deploy these three items via Intune or Jamf.</div>
       </div>
@@ -331,7 +386,7 @@
             </div>
             <div class="generate-actions">
               <button class="btn btn-ghost" onclick="copyToClipboard()">Copy XML</button>
-              <button class="btn btn-success" onclick="downloadProfile()">↓ Download .mobileconfig</button>
+              <button class="btn btn-success" onclick="downloadProfile()">&darr; Download .mobileconfig</button>
             </div>
           </div>
           <div class="xml-preview" id="xmlPreview"><!-- generated --></div>
@@ -343,7 +398,7 @@
         <div class="card-title">2 &mdash; Equitrac Installer</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
           <span style="color:var(--text-secondary);font-size:0.85rem">Equitrac client installer with postinstall script.</span>
-          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/Equitrac.pkg" class="btn btn-success" download style="text-decoration:none;white-space:nowrap">↓ Download Equitrac.pkg</a>
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/Equitrac.pkg" class="btn btn-success" download style="text-decoration:none;white-space:nowrap">&darr; Download Equitrac.pkg</a>
         </div>
       </div>
 
@@ -352,18 +407,18 @@
         <div class="card-title">3 &mdash; Payload Package</div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:0.25rem 0">
           <span style="color:var(--text-secondary);font-size:0.85rem">Generated in the previous step.</span>
-          <button class="btn btn-ghost" onclick="navigate('s-build', navLink('s-build'))" style="white-space:nowrap">← Back to Build</button>
+          <button class="btn btn-ghost" onclick="prevStep()" style="white-space:nowrap">&larr; Back to Build</button>
         </div>
       </div>
 
       <div class="section-footer">
-        <button class="btn btn-ghost" onclick="navigate('s-build', navLink('s-build'))">← Back</button>
+        <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
         <span></span>
       </div>
     </div>
 
-  </main>
-</div>
+</main>
+
 {% endblock %}
 {% block scripts %}
 {{ super() }}
@@ -372,7 +427,7 @@
 // STATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-const FEATURE_BITS = {
+var FEATURE_BITS = {
   clientBilling: 2,
   promptForLogin: 4,
   costPreview: 8,
@@ -380,34 +435,150 @@ const FEATURE_BITS = {
   releaseKey: 32
 };
 
-let printers = [];
+var printers = [];
 
-let installerPkgName = '';
+var installerPkgName = '';
 
-let drivers = [];
+var drivers = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NAVIGATION
+// STEPPER NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SECTIONS = ['s-security','s-servers','s-printers','s-drivers','s-features','s-build','s-generate'];
+var STEPS = ['s-enrollment','s-servers','s-printers','s-packages','s-build','s-deploy'];
+var STEP_LABELS = ['Enrollment','Preferences','Printers','Packages','Build','Deploy'];
+var currentStep = 0;
+var maxStep = 0;
 
-function navLink(id) {
-  return document.querySelector(`[data-section="${id}"]`);
+function goToStep(idx) {
+  if (idx < 0 || idx >= STEPS.length) return;
+
+  // Hide all sections
+  var sections = document.querySelectorAll('.section');
+  for (var i = 0; i < sections.length; i++) {
+    sections[i].classList.remove('active');
+  }
+
+  // Show target section
+  var target = document.getElementById(STEPS[idx]);
+  if (target) target.classList.add('active');
+
+  currentStep = idx;
+  if (idx > maxStep) maxStep = idx;
+
+  // Generate build script when entering build step
+  if (idx === 4) generateBuildScript();
+  // Generate profile when entering deploy step
+  if (idx === 5) generateProfile();
+
+  updateStepper();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function updateStepper() {
+  for (var i = 0; i < STEPS.length; i++) {
+    var dot = document.getElementById('eq-dot-' + i);
+    var lbl = document.getElementById('eq-lbl-' + i);
+    var item = dot ? dot.parentElement : null;
+
+    // Reset classes
+    if (dot) { dot.className = 'eq-step-dot'; }
+    if (lbl) { lbl.className = 'eq-step-label'; }
+
+    if (i === currentStep) {
+      if (dot) dot.classList.add('active');
+      if (lbl) lbl.classList.add('active');
+    } else if (i < currentStep) {
+      if (dot) dot.classList.add('complete');
+      if (lbl) lbl.classList.add('complete');
+    }
+
+    // Make clickable if visited
+    if (item) {
+      if (i <= maxStep) {
+        item.classList.add('clickable');
+      } else {
+        item.classList.remove('clickable');
+      }
+    }
+
+    // Update connector lines
+    if (i < STEPS.length - 1) {
+      var line = document.getElementById('eq-line-' + i);
+      if (line) {
+        line.className = 'eq-step-line';
+        if (i < currentStep) line.classList.add('complete');
+      }
+    }
+  }
+}
+
+function stepClick(idx) {
+  if (idx <= maxStep) {
+    goToStep(idx);
+  }
+}
+
+function nextStep() {
+  if (!validateCurrentStep()) return;
+  if (currentStep < STEPS.length - 1) {
+    goToStep(currentStep + 1);
+  }
+}
+
+function prevStep() {
+  if (currentStep > 0) {
+    goToStep(currentStep - 1);
+  }
+}
+
+// Legacy navigate function — kept for backward compatibility with other sections
+// that still reference it. Will be removed in later tasks.
 function navigate(id, linkEl) {
-  event && event.preventDefault();
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('#sideNav a').forEach(a => a.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  if (linkEl) linkEl.classList.add('active');
+  if (event) event.preventDefault();
+  var idx = STEPS.indexOf(id);
+  if (idx !== -1) {
+    goToStep(idx);
+  }
+}
 
-  const idx = SECTIONS.indexOf(id);
-  const pct = Math.round(((idx + 1) / SECTIONS.length) * 100);
-  document.getElementById('progressFill').style.width = pct + '%';
+function navLink(id) {
+  return null; // no longer needed, kept for compat
+}
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+// ─────────────────────────────────────────────────────────────────────────────
+// PER-STEP VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+function validateCurrentStep() {
+  if (currentStep === 0) return validateFields(['secDomain','secUsername','secPassword','secNode','datacenterName']);
+  if (currentStep === 1) return validateFields(['casServer']);
+  if (currentStep === 2) return validatePrinterStep();
+  if (currentStep === 3) return validateFields(['installerPkgName']);
+  return true;
+}
+
+function validateFields(ids) {
+  var ok = true;
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    var errEl = document.getElementById('err-' + id);
+    if (!el.value.trim()) {
+      el.classList.add('invalid');
+      if (errEl) errEl.classList.add('visible');
+      ok = false;
+    } else {
+      el.classList.remove('invalid');
+      if (errEl) errEl.classList.remove('visible');
+    }
+  });
+  return ok;
+}
+
+function validatePrinterStep() {
+  var hasDre = printers.some(function(p) { return p.type === 'dre'; });
+  if (hasDre) return validateFields(['dreServer']);
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -415,15 +586,33 @@ function navigate(id, linkEl) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function markDirty() {
-  const pill = document.getElementById('statusPill');
+  var pill = document.getElementById('statusPill');
   pill.textContent = 'UNSAVED';
   pill.className = 'status-pill';
 }
 
 function markSaved() {
-  const pill = document.getElementById('statusPill');
+  var pill = document.getElementById('statusPill');
   pill.textContent = 'READY';
   pill.className = 'status-pill ready';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DRC TOGGLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+function toggleDrc() {
+  var cb = document.getElementById('installDrc');
+  cb.checked = !cb.checked;
+  document.getElementById('tr-installDrc').classList.toggle('enabled', cb.checked);
+  updateDrcVisibility();
+  markDirty();
+}
+
+function updateDrcVisibility() {
+  var show = document.getElementById('installDrc').checked;
+  var card = document.getElementById('drcSystemNameCard');
+  if (card) card.style.display = show ? '' : 'none';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,8 +620,8 @@ function markSaved() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function toggleFeature(id) {
-  const cb = document.getElementById(id);
-  const row = document.getElementById('tr-' + id);
+  var cb = document.getElementById(id);
+  var row = document.getElementById('tr-' + id);
   cb.checked = !cb.checked;
   row.classList.toggle('enabled', cb.checked);
   updateBitmask();
@@ -440,8 +629,9 @@ function toggleFeature(id) {
 }
 
 function updateBitmask() {
-  for (const [id] of Object.entries(FEATURE_BITS)) {
-    void document.getElementById(id).checked;
+  var keys = Object.keys(FEATURE_BITS);
+  for (var i = 0; i < keys.length; i++) {
+    void document.getElementById(keys[i]).checked;
   }
 }
 
@@ -450,18 +640,17 @@ function updateBitmask() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderPrinters() {
-  const list = document.getElementById('printerList');
+  var list = document.getElementById('printerList');
   list.innerHTML = '';
-  printers.forEach((p, i) => {
-    const row = document.createElement('div');
+  printers.forEach(function(p, i) {
+    var row = document.createElement('div');
     row.className = 'printer-item';
-    row.innerHTML = `
-      <input type="text" value="${esc(p.name)}" placeholder="Queue name (e.g. HP-Colour-Mac)"
-             oninput="printers[${i}].name=this.value;markDirty()">
-      <input type="text" value="${esc(p.ppd)}" placeholder="generic or /path/to/file.ppd"
-             oninput="printers[${i}].ppd=this.value;markDirty()">
-      <button class="item-remove" onclick="removePrinter(${i})" title="Remove">×</button>
-    `;
+    row.innerHTML =
+      '<input type="text" value="' + esc(p.name) + '" placeholder="Queue name (e.g. HP-Colour-Mac)" ' +
+             'oninput="printers[' + i + '].name=this.value;markDirty()">' +
+      '<input type="text" value="' + esc(p.ppd) + '" placeholder="generic or /path/to/file.ppd" ' +
+             'oninput="printers[' + i + '].ppd=this.value;markDirty()">' +
+      '<button class="item-remove" onclick="removePrinter(' + i + ')" title="Remove">&times;</button>';
     list.appendChild(row);
   });
 }
@@ -470,7 +659,7 @@ function addPrinter() {
   printers.push({ name: '', ppd: 'generic' });
   renderPrinters();
   markDirty();
-  const rows = document.querySelectorAll('.printer-item');
+  var rows = document.querySelectorAll('.printer-item');
   rows[rows.length - 1].querySelector('input').focus();
 }
 
@@ -485,16 +674,15 @@ function removePrinter(i) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function renderDrivers() {
-  const list = document.getElementById('driverList');
+  var list = document.getElementById('driverList');
   list.innerHTML = '';
-  drivers.forEach((d, i) => {
-    const row = document.createElement('div');
+  drivers.forEach(function(d, i) {
+    var row = document.createElement('div');
     row.className = 'driver-item';
-    row.innerHTML = `
-      <input type="text" value="${esc(d)}" placeholder="driver-package.pkg"
-             oninput="drivers[${i}]=this.value;markDirty()">
-      <button class="item-remove" onclick="removeDriver(${i})" title="Remove">×</button>
-    `;
+    row.innerHTML =
+      '<input type="text" value="' + esc(d) + '" placeholder="driver-package.pkg" ' +
+             'oninput="drivers[' + i + ']=this.value;markDirty()">' +
+      '<button class="item-remove" onclick="removeDriver(' + i + ')" title="Remove">&times;</button>';
     list.appendChild(row);
   });
 }
@@ -503,7 +691,7 @@ function addDriver() {
   drivers.push('');
   renderDrivers();
   markDirty();
-  const rows = document.querySelectorAll('.driver-item');
+  var rows = document.querySelectorAll('.driver-item');
   rows[rows.length - 1].querySelector('input').focus();
 }
 
@@ -514,20 +702,20 @@ function removeDriver(i) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VALIDATION
+// FULL VALIDATION (for deploy/generate)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const REQUIRED_FIELDS = [
+var REQUIRED_FIELDS = [
   'secDomain','secUsername','secPassword',
   'secNode','datacenterName','casServer','dreServer',
   'installerPkgName'
 ];
 
 function validate() {
-  let ok = true;
-  REQUIRED_FIELDS.forEach(id => {
-    const el = document.getElementById(id);
-    const errEl = document.getElementById('err-' + id);
+  var ok = true;
+  REQUIRED_FIELDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    var errEl = document.getElementById('err-' + id);
     if (!el.value.trim()) {
       el.classList.add('invalid');
       if (errEl) errEl.classList.add('visible');
@@ -566,143 +754,151 @@ function boolTag(val) {
 }
 
 function buildXML() {
-  const bundleId     = 'com.istorebusiness.equitrac';
-  const profileName  = 'Equitrac Mac Client';
-  const installerPkg = document.getElementById('installerPkgName').value.trim();
+  var bundleId     = 'com.istorebusiness.equitrac';
+  var profileName  = 'Equitrac Mac Client';
+  var installerPkg = document.getElementById('installerPkgName').value.trim();
 
-  const installDrc    = document.getElementById('installDrc').value === 'true';
-  const drcSysNameMode= document.getElementById('drcSysNameMode').value;
-  const secDomain     = document.getElementById('secDomain').value.trim();
-  const secUsername   = document.getElementById('secUsername').value.trim();
-  const secPassword   = document.getElementById('secPassword').value.trim();
-  const secNode       = document.getElementById('secNode').value.trim();
-  const datacenterName= document.getElementById('datacenterName').value.trim();
-  const casServer     = document.getElementById('casServer').value.trim();
-  const dreServer     = document.getElementById('dreServer').value.trim();
+  var installDrc    = document.getElementById('installDrc').checked;
+  var drcSysNameMode= document.getElementById('drcSysNameMode').value;
+  var secDomain     = document.getElementById('secDomain').value.trim();
+  var secUsername   = document.getElementById('secUsername').value.trim();
+  var secPassword   = document.getElementById('secPassword').value.trim();
+  var secNode       = document.getElementById('secNode').value.trim();
+  var datacenterName= document.getElementById('datacenterName').value.trim();
+  var casServer     = document.getElementById('casServer').value.trim();
+  var dreServer     = document.getElementById('dreServer').value.trim();
 
-  const feats = {};
-  for (const id of Object.keys(FEATURE_BITS)) {
-    feats[id] = document.getElementById(id).checked;
+  var feats = {};
+  var featKeys = Object.keys(FEATURE_BITS);
+  for (var fi = 0; fi < featKeys.length; fi++) {
+    feats[featKeys[fi]] = document.getElementById(featKeys[fi]).checked;
   }
 
-  const livePrinters = [...document.querySelectorAll('.printer-item')].map(row => {
-    const inputs = row.querySelectorAll('input');
-    return { name: inputs[0].value.trim(), ppd: inputs[1].value.trim() || 'generic' };
-  });
-  const liveDrivers = [...document.querySelectorAll('.driver-item')].map(row =>
-    row.querySelector('input').value.trim()
-  ).filter(Boolean);
+  var printerItems = document.querySelectorAll('.printer-item');
+  var livePrinters = [];
+  for (var pi = 0; pi < printerItems.length; pi++) {
+    var inputs = printerItems[pi].querySelectorAll('input');
+    livePrinters.push({ name: inputs[0].value.trim(), ppd: inputs[1].value.trim() || 'generic' });
+  }
+  var driverItems = document.querySelectorAll('.driver-item');
+  var liveDrivers = [];
+  for (var di = 0; di < driverItems.length; di++) {
+    var val = driverItems[di].querySelector('input').value.trim();
+    if (val) liveDrivers.push(val);
+  }
 
-  const uuid = generateUUID();
-  const now  = new Date().toISOString();
+  var uuid = generateUUID();
+  var now  = new Date().toISOString();
 
-  const printerXml = livePrinters.filter(p => p.name).map(p => `\t\t\t\t\t\t\t\t<dict>
-\t\t\t\t\t\t\t\t\t<key>name</key>
-\t\t\t\t\t\t\t\t\t<string>${xmlEsc(p.name)}</string>
-\t\t\t\t\t\t\t\t\t<key>ppd</key>
-\t\t\t\t\t\t\t\t\t<string>${xmlEsc(p.ppd)}</string>
-\t\t\t\t\t\t\t\t</dict>`).join('\n');
+  var printerXml = livePrinters.filter(function(p) { return p.name; }).map(function(p) {
+    return '\t\t\t\t\t\t\t\t<dict>\n' +
+      '\t\t\t\t\t\t\t\t\t<key>name</key>\n' +
+      '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.name) + '</string>\n' +
+      '\t\t\t\t\t\t\t\t\t<key>ppd</key>\n' +
+      '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.ppd) + '</string>\n' +
+      '\t\t\t\t\t\t\t\t</dict>';
+  }).join('\n');
 
-  const driverXml = liveDrivers.map(d =>
-    `\t\t\t\t\t\t\t\t<string>${xmlEsc(d)}</string>`
-  ).join('\n');
+  var driverXml = liveDrivers.map(function(d) {
+    return '\t\t\t\t\t\t\t\t<string>' + xmlEsc(d) + '</string>';
+  }).join('\n');
 
-  const xml =
-`<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-\t<key>PayloadDisplayName</key>
-\t<string>${xmlEsc(profileName)}</string>
-\t<key>PayloadIdentifier</key>
-\t<string>${xmlEsc(bundleId)}</string>
-\t<key>PayloadType</key>
-\t<string>Configuration</string>
-\t<key>PayloadUUID</key>
-\t<string>${uuid}</string>
-\t<key>PayloadVersion</key>
-\t<integer>1</integer>
-\t<key>PayloadDate</key>
-\t<string>${now}</string>
-\t<key>PayloadContent</key>
-\t<array>
-\t\t<dict>
-\t\t\t<key>PayloadType</key>
-\t\t\t<string>com.apple.ManagedClient.preferences</string>
-\t\t\t<key>PayloadIdentifier</key>
-\t\t\t<string>${xmlEsc(bundleId)}.payload</string>
-\t\t\t<key>PayloadUUID</key>
-\t\t\t<string>${generateUUID()}</string>
-\t\t\t<key>PayloadVersion</key>
-\t\t\t<integer>1</integer>
-\t\t\t<key>PayloadApplicationIdentifier</key>
-\t\t\t<string>${xmlEsc(bundleId)}</string>
-\t\t\t<key>PayloadEnabled</key>
-\t\t\t<true/>
-\t\t\t<key>PayloadContent</key>
-\t\t\t<dict>
-\t\t\t\t<key>${xmlEsc(bundleId)}</key>
-\t\t\t\t<dict>
-\t\t\t\t<key>Forced</key>
-\t\t\t\t<array>
-\t\t\t\t\t<dict>
-\t\t\t\t\t\t<key>mcx_preference_settings</key>
-\t\t\t\t\t\t<dict>
-\t\t\t\t\t\t\t<key>INSTALLER_PKG</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(installerPkg)}</string>
-\t\t\t\t\t\t\t<key>INSTALL_DRC</key>
-\t\t\t\t\t\t\t${boolTag(installDrc)}
-\t\t\t\t\t\t\t<key>DRC_SYS_NAME_MODE</key>
-\t\t\t\t\t\t\t<integer>${drcSysNameMode}</integer>
-\t\t\t\t\t\t\t<key>SECURITY_DOMAIN</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(secDomain)}</string>
-\t\t\t\t\t\t\t<key>SECURITY_USERNAME</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(secUsername)}</string>
-\t\t\t\t\t\t\t<key>SECURITY_PASSWORD</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(secPassword)}</string>
-\t\t\t\t\t\t\t<key>SECURITY_NODE</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(secNode)}</string>
-\t\t\t\t\t\t\t<key>DATACENTER_NAME</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(datacenterName)}</string>
-\t\t\t\t\t\t\t<key>CAS_SERVER</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(casServer)}</string>
-\t\t\t\t\t\t\t<key>DRE_SERVER</key>
-\t\t\t\t\t\t\t<string>${xmlEsc(dreServer)}</string>
-\t\t\t\t\t\t\t<key>PRINTERS</key>
-\t\t\t\t\t\t\t<array>
-${printerXml}
-\t\t\t\t\t\t\t</array>
-\t\t\t\t\t\t\t<key>PRINT_DRIVERS</key>
-\t\t\t\t\t\t\t<array>
-${driverXml}
-\t\t\t\t\t\t\t</array>
-\t\t\t\t\t\t\t<key>PREF_CLIENT_BILLING</key>
-\t\t\t\t\t\t\t${boolTag(feats.clientBilling)}
-\t\t\t\t\t\t\t<key>PREF_PROMPT_FOR_LOGIN</key>
-\t\t\t\t\t\t\t${boolTag(feats.promptForLogin)}
-\t\t\t\t\t\t\t<key>PREF_COST_PREVIEW</key>
-\t\t\t\t\t\t\t${boolTag(feats.costPreview)}
-\t\t\t\t\t\t\t<key>PREF_ALLOW_RENAME_DOCUMENT</key>
-\t\t\t\t\t\t\t${boolTag(feats.allowRenameDocument)}
-\t\t\t\t\t\t\t<key>PREF_RELEASE_KEY</key>
-\t\t\t\t\t\t\t${boolTag(feats.releaseKey)}
-\t\t\t\t\t\t</dict>
-\t\t\t\t\t</dict>
-\t\t\t\t</array>
-\t\t\t\t</dict>
-\t\t\t</dict>
-\t\t</dict>
-\t</array>
-</dict>
-</plist>`;
+  var xml =
+'<?xml version="1.0" encoding="UTF-8"?>\n' +
+'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"\n' +
+'  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+'<plist version="1.0">\n' +
+'<dict>\n' +
+'\t<key>PayloadDisplayName</key>\n' +
+'\t<string>' + xmlEsc(profileName) + '</string>\n' +
+'\t<key>PayloadIdentifier</key>\n' +
+'\t<string>' + xmlEsc(bundleId) + '</string>\n' +
+'\t<key>PayloadType</key>\n' +
+'\t<string>Configuration</string>\n' +
+'\t<key>PayloadUUID</key>\n' +
+'\t<string>' + uuid + '</string>\n' +
+'\t<key>PayloadVersion</key>\n' +
+'\t<integer>1</integer>\n' +
+'\t<key>PayloadDate</key>\n' +
+'\t<string>' + now + '</string>\n' +
+'\t<key>PayloadContent</key>\n' +
+'\t<array>\n' +
+'\t\t<dict>\n' +
+'\t\t\t<key>PayloadType</key>\n' +
+'\t\t\t<string>com.apple.ManagedClient.preferences</string>\n' +
+'\t\t\t<key>PayloadIdentifier</key>\n' +
+'\t\t\t<string>' + xmlEsc(bundleId) + '.payload</string>\n' +
+'\t\t\t<key>PayloadUUID</key>\n' +
+'\t\t\t<string>' + generateUUID() + '</string>\n' +
+'\t\t\t<key>PayloadVersion</key>\n' +
+'\t\t\t<integer>1</integer>\n' +
+'\t\t\t<key>PayloadApplicationIdentifier</key>\n' +
+'\t\t\t<string>' + xmlEsc(bundleId) + '</string>\n' +
+'\t\t\t<key>PayloadEnabled</key>\n' +
+'\t\t\t<true/>\n' +
+'\t\t\t<key>PayloadContent</key>\n' +
+'\t\t\t<dict>\n' +
+'\t\t\t\t<key>' + xmlEsc(bundleId) + '</key>\n' +
+'\t\t\t\t<dict>\n' +
+'\t\t\t\t<key>Forced</key>\n' +
+'\t\t\t\t<array>\n' +
+'\t\t\t\t\t<dict>\n' +
+'\t\t\t\t\t\t<key>mcx_preference_settings</key>\n' +
+'\t\t\t\t\t\t<dict>\n' +
+'\t\t\t\t\t\t\t<key>INSTALLER_PKG</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(installerPkg) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>INSTALL_DRC</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(installDrc) + '\n' +
+'\t\t\t\t\t\t\t<key>DRC_SYS_NAME_MODE</key>\n' +
+'\t\t\t\t\t\t\t<integer>' + drcSysNameMode + '</integer>\n' +
+'\t\t\t\t\t\t\t<key>SECURITY_DOMAIN</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(secDomain) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>SECURITY_USERNAME</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(secUsername) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>SECURITY_PASSWORD</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(secPassword) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>SECURITY_NODE</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(secNode) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>DATACENTER_NAME</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(datacenterName) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>CAS_SERVER</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(casServer) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>DRE_SERVER</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(dreServer) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>PRINTERS</key>\n' +
+'\t\t\t\t\t\t\t<array>\n' +
+printerXml + '\n' +
+'\t\t\t\t\t\t\t</array>\n' +
+'\t\t\t\t\t\t\t<key>PRINT_DRIVERS</key>\n' +
+'\t\t\t\t\t\t\t<array>\n' +
+driverXml + '\n' +
+'\t\t\t\t\t\t\t</array>\n' +
+'\t\t\t\t\t\t\t<key>PREF_CLIENT_BILLING</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(feats.clientBilling) + '\n' +
+'\t\t\t\t\t\t\t<key>PREF_PROMPT_FOR_LOGIN</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(feats.promptForLogin) + '\n' +
+'\t\t\t\t\t\t\t<key>PREF_COST_PREVIEW</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(feats.costPreview) + '\n' +
+'\t\t\t\t\t\t\t<key>PREF_ALLOW_RENAME_DOCUMENT</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(feats.allowRenameDocument) + '\n' +
+'\t\t\t\t\t\t\t<key>PREF_RELEASE_KEY</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(feats.releaseKey) + '\n' +
+'\t\t\t\t\t\t</dict>\n' +
+'\t\t\t\t\t</dict>\n' +
+'\t\t\t\t</array>\n' +
+'\t\t\t\t</dict>\n' +
+'\t\t\t</dict>\n' +
+'\t\t</dict>\n' +
+'\t</array>\n' +
+'</dict>\n' +
+'</plist>';
 
-  return { xml, bundleId };
+  return { xml: xml, bundleId: bundleId };
 }
 
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16).toUpperCase();
   });
 }
@@ -734,7 +930,7 @@ function highlight(xml) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function generateProfile() {
-  const banner = document.getElementById('validationBanner');
+  var banner = document.getElementById('validationBanner');
 
   if (!validate()) {
     banner.classList.add('visible');
@@ -747,8 +943,10 @@ function generateProfile() {
 
   banner.classList.remove('visible');
 
-  const { xml, bundleId } = buildXML();
-  const filename = bundleId + '.mobileconfig';
+  var result = buildXML();
+  var xml = result.xml;
+  var bundleId = result.bundleId;
+  var filename = bundleId + '.mobileconfig';
   document.getElementById('outputFilename').textContent = filename;
   document.getElementById('xmlPreview').innerHTML = highlight(xml);
   markSaved();
@@ -763,9 +961,9 @@ function generateProfile() {
 
 function downloadProfile() {
   if (!window._lastXml) { generateProfile(); if (!window._lastXml) return; }
-  const blob = new Blob([window._lastXml], { type: 'application/xml' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
+  var blob = new Blob([window._lastXml], { type: 'application/xml' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
   a.href     = url;
   a.download = window._lastFilename;
   a.click();
@@ -774,12 +972,12 @@ function downloadProfile() {
 
 function copyToClipboard() {
   if (!window._lastXml) { generateProfile(); if (!window._lastXml) return; }
-  navigator.clipboard.writeText(window._lastXml).then(() => {
-    const btn = event.target;
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copied';
+  navigator.clipboard.writeText(window._lastXml).then(function() {
+    var btn = event.target;
+    var orig = btn.textContent;
+    btn.textContent = 'Copied';
     btn.style.color = 'var(--green)';
-    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
   });
 }
 
@@ -788,137 +986,135 @@ function copyToClipboard() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildScriptContent() {
-  const installerPkg = document.getElementById('installerPkgName').value.trim() || 'Equitrac_MacOSX_6_4_3_59.pkg';
+  var installerPkg = document.getElementById('installerPkgName').value.trim() || 'Equitrac_MacOSX_6_4_3_59.pkg';
 
-  const liveDrivers = [...document.querySelectorAll('.driver-item')].map(row =>
-    row.querySelector('input').value.trim()
-  ).filter(Boolean);
+  var driverItems = document.querySelectorAll('.driver-item');
+  var liveDrivers = [];
+  for (var i = 0; i < driverItems.length; i++) {
+    var val = driverItems[i].querySelector('input').value.trim();
+    if (val) liveDrivers.push(val);
+  }
 
-  const hasDrivers = liveDrivers.length > 0;
-  const driverList = liveDrivers.map(p => `  "${p}"`).join('\n');
+  var hasDrivers = liveDrivers.length > 0;
+  var driverList = liveDrivers.map(function(p) { return '  "' + p + '"'; }).join('\n');
 
-  const driverArrayBlock = hasDrivers
-    ? `\nDRIVER_PKGS=(\n${driverList}\n)`
-    : `\nDRIVER_PKGS=()`;
+  var driverArrayBlock = hasDrivers
+    ? '\nDRIVER_PKGS=(\n' + driverList + '\n)'
+    : '\nDRIVER_PKGS=()';
 
-  return `#!/bin/bash
-# =============================================================================
-# Equitrac Payload Package Builder
-# iStore Business - Apple Platform Managed Services
-# =============================================================================
-
-set -euo pipefail
-IFS=$'\\n\\t'
-
-PAYLOAD_DIR="/private/var/tmp/.eqpayload"
-PKG_ID="com.istorebusiness.equitrac.megapkg"
-PKG_VERSION="1.0"
-OUTPUT_PKG="${'$'}{HOME}/Desktop/Equitrac_Payload.pkg"
-
-INSTALLER_PKG_NAME="${installerPkg}"
-${driverArrayBlock}
-
-STAGING_DIR=$(mktemp -d "${'$'}{TMPDIR:-/tmp}/equitrac_build.XXXXXX")
-PAYLOAD_ROOT="${'$'}{STAGING_DIR}/payload${'$'}{PAYLOAD_DIR}"
-mkdir -p "$PAYLOAD_ROOT"
-
-echo ""
-echo "  Equitrac Payload Package Builder"
-echo "  ================================"
-echo ""
-
-# ── Batch 1: Equitrac installer pkg ─────────────────────────────────────────
-echo "  Drag the Equitrac installer into the Finder window:"
-echo "    - $INSTALLER_PKG_NAME"
-echo ""
-open "$PAYLOAD_ROOT"
-echo "Press ENTER when done..."
-read -r
-
-if [[ ! -f "${'$'}{PAYLOAD_ROOT}/${'$'}{INSTALLER_PKG_NAME}" ]]; then
-  echo "  ✗ $INSTALLER_PKG_NAME  (missing)"
-  rm -rf "$STAGING_DIR"
-  exit 1
-fi
-echo "  ✓ $INSTALLER_PKG_NAME"
-echo ""
-
-# ── Batch 2: Driver pkgs ────────────────────────────────────────────────────
-if [[ ${'$'}{${'#'}DRIVER_PKGS[@]} -gt 0 ]]; then
-  echo "  Now drag in the print driver packages:"
-  for f in "${'$'}{DRIVER_PKGS[@]}"; do
-    echo "    - $f"
-  done
-  echo ""
-  open "$PAYLOAD_ROOT"
-  echo "Press ENTER when done..."
-  read -r
-
-  MISSING=0
-  for f in "${'$'}{DRIVER_PKGS[@]}"; do
-    if [[ ! -f "${'$'}{PAYLOAD_ROOT}/$f" ]]; then
-      echo "  ✗ $f  (missing)"
-      MISSING=1
-    else
-      echo "  ✓ $f"
-    fi
-  done
-  if [[ $MISSING -ne 0 ]]; then
-    echo ""
-    echo "  ERROR: Missing files. Add them and try again."
-    rm -rf "$STAGING_DIR"
-    exit 1
-  fi
-  echo ""
-fi
-
-# ── Build ────────────────────────────────────────────────────────────────────
-echo "Building package..."
-pkgbuild \\
-  --root "${'$'}{STAGING_DIR}/payload" \\
-  --identifier "$PKG_ID" \\
-  --version "$PKG_VERSION" \\
-  "$OUTPUT_PKG"
-
-echo ""
-echo "  ✓ Package saved to: $OUTPUT_PKG"
-echo ""
-rm -rf "$STAGING_DIR"
-`;
+  return '#!/bin/bash\n' +
+'# =============================================================================\n' +
+'# Equitrac Payload Package Builder\n' +
+'# iStore Business - Apple Platform Managed Services\n' +
+'# =============================================================================\n' +
+'\n' +
+'set -euo pipefail\n' +
+'IFS=$\'\\n\\t\'\n' +
+'\n' +
+'PAYLOAD_DIR="/private/var/tmp/.eqpayload"\n' +
+'PKG_ID="com.istorebusiness.equitrac.megapkg"\n' +
+'PKG_VERSION="1.0"\n' +
+'OUTPUT_PKG="${HOME}/Desktop/Equitrac_Payload.pkg"\n' +
+'\n' +
+'INSTALLER_PKG_NAME="' + installerPkg + '"\n' +
+driverArrayBlock + '\n' +
+'\n' +
+'STAGING_DIR=$(mktemp -d "${TMPDIR:-/tmp}/equitrac_build.XXXXXX")\n' +
+'PAYLOAD_ROOT="${STAGING_DIR}/payload${PAYLOAD_DIR}"\n' +
+'mkdir -p "$PAYLOAD_ROOT"\n' +
+'\n' +
+'echo ""\n' +
+'echo "  Equitrac Payload Package Builder"\n' +
+'echo "  ================================"\n' +
+'echo ""\n' +
+'\n' +
+'# ── Batch 1: Equitrac installer pkg ─────────────────────────────────────────\n' +
+'echo "  Drag the Equitrac installer into the Finder window:"\n' +
+'echo "    - $INSTALLER_PKG_NAME"\n' +
+'echo ""\n' +
+'open "$PAYLOAD_ROOT"\n' +
+'echo "Press ENTER when done..."\n' +
+'read -r\n' +
+'\n' +
+'if [[ ! -f "${PAYLOAD_ROOT}/${INSTALLER_PKG_NAME}" ]]; then\n' +
+'  echo "  x $INSTALLER_PKG_NAME  (missing)"\n' +
+'  rm -rf "$STAGING_DIR"\n' +
+'  exit 1\n' +
+'fi\n' +
+'echo "  ok $INSTALLER_PKG_NAME"\n' +
+'echo ""\n' +
+'\n' +
+'# ── Batch 2: Driver pkgs ────────────────────────────────────────────────────\n' +
+'if [[ ${#DRIVER_PKGS[@]} -gt 0 ]]; then\n' +
+'  echo "  Now drag in the print driver packages:"\n' +
+'  for f in "${DRIVER_PKGS[@]}"; do\n' +
+'    echo "    - $f"\n' +
+'  done\n' +
+'  echo ""\n' +
+'  open "$PAYLOAD_ROOT"\n' +
+'  echo "Press ENTER when done..."\n' +
+'  read -r\n' +
+'\n' +
+'  MISSING=0\n' +
+'  for f in "${DRIVER_PKGS[@]}"; do\n' +
+'    if [[ ! -f "${PAYLOAD_ROOT}/$f" ]]; then\n' +
+'      echo "  x $f  (missing)"\n' +
+'      MISSING=1\n' +
+'    else\n' +
+'      echo "  ok $f"\n' +
+'    fi\n' +
+'  done\n' +
+'  if [[ $MISSING -ne 0 ]]; then\n' +
+'    echo ""\n' +
+'    echo "  ERROR: Missing files. Add them and try again."\n' +
+'    rm -rf "$STAGING_DIR"\n' +
+'    exit 1\n' +
+'  fi\n' +
+'  echo ""\n' +
+'fi\n' +
+'\n' +
+'# ── Build ────────────────────────────────────────────────────────────────────\n' +
+'echo "Building package..."\n' +
+'pkgbuild \\\n' +
+'  --root "${STAGING_DIR}/payload" \\\n' +
+'  --identifier "$PKG_ID" \\\n' +
+'  --version "$PKG_VERSION" \\\n' +
+'  "$OUTPUT_PKG"\n' +
+'\n' +
+'echo ""\n' +
+'echo "  ok Package saved to: $OUTPUT_PKG"\n' +
+'echo ""\n' +
+'rm -rf "$STAGING_DIR"\n';
 }
 
 function generateBuildScript() {
-  const script = buildScriptContent();
-  const el = document.getElementById('buildScriptPreview');
+  var script = buildScriptContent();
+  var el = document.getElementById('buildScriptPreview');
   el.textContent = script;
   window._lastBuildScript = script;
 }
 
 function copyBuildScript() {
   if (!window._lastBuildScript) { generateBuildScript(); }
-  navigator.clipboard.writeText(window._lastBuildScript).then(() => {
-    const btn = event.target;
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copied';
+  navigator.clipboard.writeText(window._lastBuildScript).then(function() {
+    var btn = event.target;
+    var orig = btn.textContent;
+    btn.textContent = 'Copied';
     btn.style.color = 'var(--green)';
-    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 2000);
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
   });
 }
 
 function downloadBuildScript() {
   if (!window._lastBuildScript) { generateBuildScript(); }
-  const blob = new Blob([window._lastBuildScript], { type: 'text/x-shellscript' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
+  var blob = new Blob([window._lastBuildScript], { type: 'text/x-shellscript' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
   a.href     = url;
   a.download = 'build_equitrac_pkg.sh';
   a.click();
   URL.revokeObjectURL(url);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INIT
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMAND PARSER
@@ -971,7 +1167,12 @@ function parseCommand() {
   document.getElementById('secPassword').value = password;
   document.getElementById('secNode').value = secNode;
   document.getElementById('datacenterName').value = datacenter;
-  document.getElementById('installDrc').value = hasDrc ? 'true' : 'false';
+
+  // Set DRC toggle
+  var drcCb = document.getElementById('installDrc');
+  drcCb.checked = hasDrc;
+  document.getElementById('tr-installDrc').classList.toggle('enabled', hasDrc);
+  updateDrcVisibility();
 
   markDirty();
 
@@ -979,13 +1180,19 @@ function parseCommand() {
   var importBtn = document.getElementById('cmdPaste').nextElementSibling;
   if (importBtn) {
     var orig = importBtn.textContent;
-    importBtn.textContent = '✓ Imported';
+    importBtn.textContent = 'Imported';
     importBtn.style.color = 'var(--green)';
     setTimeout(function() { importBtn.textContent = orig; importBtn.style.color = ''; }, 2000);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
 renderPrinters();
 renderDrivers();
+updateDrcVisibility();
+updateStepper();
 </script>
 {% endblock %}
