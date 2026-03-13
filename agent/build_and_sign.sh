@@ -57,5 +57,18 @@ cp "Info.plist" "$PLIST"
 echo "Signing with $DEVELOPER_ID..."
 codesign --force --deep -s "$DEVELOPER_ID" --options runtime "$APP_NAME"
 
-echo "Done. Created and signed $APP_NAME (bundle ID: $BUNDLE_ID)."
+# Notarize
+ZIP_PATH="MacAdminToolbox.zip"
+echo "Creating zip for notarization..."
+ditto -c -k --keepParent "$APP_NAME" "$ZIP_PATH"
+
+echo "Submitting for notarization..."
+xcrun notarytool submit "$ZIP_PATH" --keychain-profile "notarytool" --wait
+
+#rm -f "$ZIP_PATH"
+
+echo "Stapling notarization ticket..."
+xcrun stapler staple "$APP_NAME"
+
+echo "Done. Created, signed, notarized, and stapled $APP_NAME (bundle ID: $BUNDLE_ID)."
 echo "Grant Full Disk Access to this app in System Settings > Privacy & Security > Full Disk Access so it can read TCC data."
