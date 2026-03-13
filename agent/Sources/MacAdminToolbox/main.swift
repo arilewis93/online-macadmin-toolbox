@@ -133,6 +133,25 @@ struct AgentResponse: Encodable {
     let system_extensions: [AgentSystemExtension]?
 }
 
+struct AgentTCCRawEntry: Encodable {
+    let client: String
+    let service: String
+    let resolved_bundle_id: String?
+}
+
+struct AgentLoginItem: Encodable {
+    let team_id: String
+    let source_file: String
+}
+
+struct AgentScanResponse: Encodable {
+    let search_term: String?
+    let tcc_raw: [AgentTCCRawEntry]
+    let notifications: [AgentNotification]
+    let login_items: [AgentLoginItem]
+    let system_extensions: [AgentSystemExtension]
+}
+
 // MARK: - Notifications (requires FDA on macOS 15+)
 
 func notificationDBPath() -> String? {
@@ -173,20 +192,15 @@ func runSQLiteSingleColumn(query: String, dbPath: String) -> Result<[String], Er
     return .success(rows)
 }
 
-func fetchNotifications(searchTerm: String) -> [AgentNotification] {
+func fetchAllNotifications() -> [AgentNotification] {
     guard let dbPath = notificationDBPath(), FileManager.default.fileExists(atPath: dbPath),
           case .success(let rows) = runSQLiteSingleColumn(query: "SELECT identifier FROM app;", dbPath: dbPath) else {
         return []
     }
-    let searchNorm = searchTerm.trimmingCharacters(in: .whitespaces).lowercased()
-    var result: [AgentNotification] = []
-    for row in rows {
+    return rows.compactMap { row in
         let ident = row.trimmingCharacters(in: .whitespaces)
-        if ident.lowercased().contains(searchNorm) {
-            result.append(AgentNotification(original_id: ident))
-        }
+        return ident.isEmpty ? nil : AgentNotification(original_id: ident)
     }
-    return result
 }
 
 // MARK: - Login items (LaunchDaemons / LaunchAgents)
@@ -212,38 +226,36 @@ func teamID(forPath path: String) -> String? {
     return nil
 }
 
-func fetchLoginItems(searchTerm: String) -> [String] {
-    var searchNorm = searchTerm.trimmingCharacters(in: .whitespaces).lowercased()
-    if searchNorm.hasSuffix(".") { searchNorm.removeLast() }
-    guard !searchNorm.isEmpty else { return [] }
+func fetchAllLoginItems() -> [AgentLoginItem] {
     let dirs = ["/Library/LaunchDaemons", "/Library/LaunchAgents"]
-    var teamIDs: Set<String> = []
+    var results: [AgentLoginItem] = []
     let fm = FileManager.default
     for dir in dirs {
         guard let files = try? fm.contentsOfDirectory(atPath: dir) else { continue }
-        for file in files where file.lowercased().hasSuffix(".plist") && file.lowercased().contains(searchNorm) {
+        for file in files where file.lowercased().hasSuffix(".plist") {
             let plistPath = (dir as NSString).appendingPathComponent(file)
             guard let plistData = fm.contents(atPath: plistPath),
                   let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any] else { continue }
+            var foundTeamIDs: Set<String> = []
             if let args = plist["ProgramArguments"] as? [String] {
                 for arg in args where fm.fileExists(atPath: arg) {
-                    if let tid = teamID(forPath: arg) { teamIDs.insert(tid) }
+                    if let tid = teamID(forPath: arg) { foundTeamIDs.insert(tid) }
                 }
             }
-            if teamIDs.isEmpty, let program = plist["Program"] as? String, fm.fileExists(atPath: program), let tid = teamID(forPath: program) {
-                teamIDs.insert(tid)
+            if foundTeamIDs.isEmpty, let program = plist["Program"] as? String, fm.fileExists(atPath: program), let tid = teamID(forPath: program) {
+                foundTeamIDs.insert(tid)
+            }
+            for tid in foundTeamIDs.sorted() {
+                results.append(AgentLoginItem(team_id: tid, source_file: file))
             }
         }
     }
-    return Array(teamIDs).sorted()
+    return results
 }
 
 // MARK: - System extensions
 
-func fetchSystemExtensions(searchTerm: String) -> [AgentSystemExtension] {
-    var searchNorm = searchTerm.trimmingCharacters(in: .whitespaces).lowercased()
-    if searchNorm.hasSuffix(".") { searchNorm.removeLast() }
-    guard !searchNorm.isEmpty else { return [] }
+func fetchAllSystemExtensions() -> [AgentSystemExtension] {
     let plistPath = "/Library/SystemExtensions/db.plist"
     guard let plistData = FileManager.default.contents(atPath: plistPath),
           let plist = try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil) as? [String: Any],
@@ -251,7 +263,6 @@ func fetchSystemExtensions(searchTerm: String) -> [AgentSystemExtension] {
     var result: [AgentSystemExtension] = []
     for ext in extensions {
         let ident = (ext["identifier"] as? String) ?? ""
-        if !ident.lowercased().contains(searchNorm) { continue }
         let categories = ext["categories"] as? [String] ?? []
         let endpointSecurity = categories.contains("com.apple.system_extension.endpoint_security")
         let networkExt = categories.contains("com.apple.system_extension.network_extension")
@@ -374,17 +385,84 @@ func fetchTCC(searchTerm: String) -> [AgentEntry] {
     return entries
 }
 
-func fetchAll(searchTerm: String) -> AgentResponse {
-    let entries = fetchTCC(searchTerm: searchTerm)
-    let notifications = fetchNotifications(searchTerm: searchTerm)
-    let loginItems = fetchLoginItems(searchTerm: searchTerm)
-    let systemExtensions = fetchSystemExtensions(searchTerm: searchTerm)
-    return AgentResponse(
+func fetchTCCRaw() -> [AgentTCCRawEntry] {
+    guard case .success(let lines) = runSQLite(query: "SELECT client, service FROM access;", dbPath: tccDBPath) else {
+        return []
+    }
+    var results: [AgentTCCRawEntry] = []
+    var seen: Set<String> = []
+    for line in lines {
+        let parts = line.split(separator: "|", maxSplits: 1).map { String($0).trimmingCharacters(in: .whitespaces) }
+        guard parts.count == 2 else { continue }
+        let client = parts[0]
+        let service = parts[1]
+        guard let profileKey = tccServiceToProfileKey(service), !profileKey.isEmpty else { continue }
+        let dedupeKey = "\(client)\0\(profileKey)"
+        guard !seen.contains(dedupeKey) else { continue }
+        seen.insert(dedupeKey)
+        let resolvedBID: String?
+        if client.hasPrefix("/") {
+            resolvedBID = bundleID(forPath: client)
+        } else {
+            resolvedBID = client
+        }
+        results.append(AgentTCCRawEntry(client: client, service: profileKey, resolved_bundle_id: resolvedBID))
+    }
+    return results
+}
+
+func resolveTCCClients(clients: [String]) -> [AgentEntry] {
+    guard case .success(let lines) = runSQLite(query: "SELECT client, service FROM access;", dbPath: tccDBPath) else {
+        return []
+    }
+    let clientSet = Set(clients)
+    var pathToServices: [String: Set<String>] = [:]
+    for line in lines {
+        let parts = line.split(separator: "|", maxSplits: 1).map { String($0).trimmingCharacters(in: .whitespaces) }
+        guard parts.count == 2 else { continue }
+        let client = parts[0]
+        let service = parts[1]
+        guard clientSet.contains(client) else { continue }
+        let isPath = client.hasPrefix("/")
+        let path: String
+        if isPath {
+            path = client
+        } else {
+            guard let p = pathForBundleID(client) else { continue }
+            path = p
+        }
+        guard let profileKey = tccServiceToProfileKey(service), !profileKey.isEmpty else { continue }
+        pathToServices[path, default: []].insert(profileKey)
+    }
+    return pathToServices.compactMap { path, perms in
+        let semaphore = DispatchSemaphore(value: 0)
+        var cr: (identifier: String, requirement: String)?
+        DispatchQueue.global().async {
+            cr = codeRequirementOrNil(forPath: path)
+            semaphore.signal()
+        }
+        let timeout = semaphore.wait(timeout: .now() + 10)
+        guard timeout == .success, let resolved = cr, !resolved.identifier.isEmpty, !resolved.requirement.isEmpty else { return nil }
+        return AgentEntry(
+            path_or_label: path,
+            identifier: resolved.identifier,
+            code_requirement: resolved.requirement,
+            permissions: Array(perms).sorted()
+        )
+    }
+}
+
+func fetchAllScan(searchTerm: String) -> AgentScanResponse {
+    let tccRaw = fetchTCCRaw()
+    let notifications = fetchAllNotifications()
+    let loginItems = fetchAllLoginItems()
+    let systemExtensions = fetchAllSystemExtensions()
+    return AgentScanResponse(
         search_term: searchTerm,
-        entries: entries,
-        notifications: notifications.isEmpty ? nil : notifications,
-        login_items: loginItems.isEmpty ? nil : loginItems,
-        system_extensions: systemExtensions.isEmpty ? nil : systemExtensions
+        tcc_raw: tccRaw,
+        notifications: notifications,
+        login_items: loginItems,
+        system_extensions: systemExtensions
     )
 }
 
@@ -504,20 +582,43 @@ func serveResult(jsonData: Data, terminateAfter: Bool = true) {
         "Content-Type: application/json",
         "Content-Length: \(body.count)",
         "Access-Control-Allow-Origin: *",
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers: Content-Type",
+        "Connection: close",
         "",
         ""
     ].joined(separator: "\r\n")
     let responseData = headerStr.data(using: .utf8)! + body
+    let preflightHeader = [
+        "HTTP/1.1 204 No Content",
+        "Access-Control-Allow-Origin: *",
+        "Access-Control-Allow-Methods: GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers: Content-Type",
+        "Content-Length: 0",
+        "Connection: close",
+        "",
+        ""
+    ].joined(separator: "\r\n")
+    let preflightData = preflightHeader.data(using: .utf8)!
     listener.newConnectionHandler = { conn in
         conn.start(queue: queue)
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { _, _, _, _ in
-            conn.send(content: responseData, completion: .contentProcessed { _ in
-                conn.cancel()
-                listener.cancel()
-                if terminateAfter {
-                    DispatchQueue.main.async { NSApp.terminate(nil) }
-                }
-            })
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, _ in
+            // Check if this is a CORS preflight (OPTIONS) request
+            let isOptions = data.flatMap({ String(data: $0, encoding: .utf8) })?.hasPrefix("OPTIONS") ?? false
+            if isOptions {
+                // Respond to preflight and keep listener alive for the actual request
+                conn.send(content: preflightData, completion: .contentProcessed { _ in
+                    conn.cancel()
+                })
+            } else {
+                conn.send(content: responseData, completion: .contentProcessed { _ in
+                    conn.cancel()
+                    listener.cancel()
+                    if terminateAfter {
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
+                    }
+                })
+            }
         }
     }
     listener.start(queue: queue)
