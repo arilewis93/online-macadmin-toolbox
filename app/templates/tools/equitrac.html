@@ -201,20 +201,6 @@
         </div>
       </div>
 
-      <div class="card" id="drcSystemNameCard" style="display:none">
-        <div class="card-title">DRC System Name Mode</div>
-        <div class="field-grid single">
-          <div class="field">
-            <label>SYSTEM NAME MODE <span class="hint">How the DRC identifies this Mac to the server</span></label>
-            <select id="drcSysNameMode" onchange="markDirty()">
-              <option value="1">IP Address</option>
-              <option value="2">Bonjour Name</option>
-              <option value="3">DNS Hostname</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       <div class="section-footer">
         <span></span>
         <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
@@ -627,20 +613,6 @@ function prevStep() {
   }
 }
 
-// Legacy navigate function — kept for backward compatibility with other sections
-// that still reference it. Will be removed in later tasks.
-function navigate(id, linkEl) {
-  if (event) event.preventDefault();
-  var idx = STEPS.indexOf(id);
-  if (idx !== -1) {
-    goToStep(idx);
-  }
-}
-
-function navLink(id) {
-  return null; // no longer needed, kept for compat
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PER-STEP VALIDATION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -706,8 +678,6 @@ function toggleDrc() {
 
 function updateDrcVisibility() {
   var show = document.getElementById('installDrc').checked;
-  var card = document.getElementById('drcSystemNameCard');
-  if (card) card.style.display = show ? '' : 'none';
   var prefCard = document.getElementById('drcSystemNamePrefCard');
   if (prefCard) prefCard.style.display = show ? '' : 'none';
 }
@@ -721,15 +691,7 @@ function toggleFeature(id) {
   var row = document.getElementById('tr-' + id);
   cb.checked = !cb.checked;
   row.classList.toggle('enabled', cb.checked);
-  updateBitmask();
   markDirty();
-}
-
-function updateBitmask() {
-  var keys = Object.keys(FEATURE_BITS);
-  for (var i = 0; i < keys.length; i++) {
-    void document.getElementById(keys[i]).checked;
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -884,6 +846,8 @@ function boolTag(val) {
 function buildXML() {
   var bundleId     = 'com.istorebusiness.equitrac';
   var profileName  = 'Equitrac Mac Client';
+  var uuid         = generateUUID();
+  var now          = new Date().toISOString();
   var installerPkg = document.getElementById('installerPkgName').value.trim();
 
   var installDrc     = document.getElementById('installDrc').checked;
@@ -912,6 +876,7 @@ function buildXML() {
   }
 
   var livePrinters = printers.filter(function(p) { return p.name; });
+  var liveDrivers = drivers.filter(function(d) { return d.trim(); });
   var printerXml = livePrinters.map(function(p) {
     var xml = '\t\t\t\t\t\t\t\t<dict>\n';
     xml += '\t\t\t\t\t\t\t\t\t<key>type</key>\n';
