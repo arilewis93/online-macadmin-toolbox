@@ -630,6 +630,77 @@ func serveResult(jsonData: Data, terminateAfter: Bool = true) {
     }
 }
 
+func startScanServer(scanData: Data) {
+    let queue = DispatchQueue(label: "com.macadmin.scanServer")
+    guard let port = NWEndpoint.Port(rawValue: resultPort),
+          let listener = try? NWListener(using: .tcp, on: port) else { return }
+
+    var idleTimer: DispatchWorkItem?
+    func resetIdleTimer() {
+        idleTimer?.cancel()
+        let item = DispatchWorkItem {
+            listener.cancel()
+            NSApp.terminate(nil)
+        }
+        idleTimer = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 300, execute: item)
+    }
+    resetIdleTimer()
+
+    listener.newConnectionHandler = { connection in
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, _ in
+            guard let data = data, let request = parseHTTPRequest(data) else {
+                connection.cancel()
+                return
+            }
+            if request.method == "OPTIONS" {
+                let resp = corsPreflightResponse()
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                return
+            }
+            if request.path == "/result" && request.method == "GET" {
+                resetIdleTimer()
+                let resp = jsonResponseFromData(scanData)
+                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                return
+            }
+            if request.path == "/resolve" && request.method == "POST" {
+                let clients: [String]
+                if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
+                   let c = json["clients"] as? [String] {
+                    clients = c
+                } else {
+                    let resp = jsonResponse(["error": "Invalid request body"], status: "400 Bad Request")
+                    connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                    return
+                }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let entries = resolveTCCClients(clients: clients)
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.sortedKeys]
+                    let responseObj = ["entries": entries]
+                    guard let responseData = try? encoder.encode(responseObj) else {
+                        let resp = jsonResponse(["error": "Encoding failed"], status: "500 Internal Server Error")
+                        connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+                        return
+                    }
+                    let resp = jsonResponseFromData(responseData)
+                    connection.send(content: resp, completion: .contentProcessed { _ in
+                        connection.cancel()
+                        listener.cancel()
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
+                    })
+                }
+                return
+            }
+            let resp = jsonResponse(["error": "Not found"], status: "404 Not Found")
+            connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
+        }
+    }
+    listener.start(queue: queue)
+}
+
 // MARK: - App delegate
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -751,15 +822,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 return
             }
-            let response = scopeFull ? fetchAll(searchTerm: search) : fetchCodeRequirementOnly(searchTerm: search)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            guard let data = try? encoder.encode(response) else {
-                DispatchQueue.main.async { NSApp.terminate(nil) }
-                return
-            }
-            DispatchQueue.main.async {
-                serveResult(jsonData: data)
+            if scopeFull {
+                let response = fetchAllScan(searchTerm: search)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                guard let data = try? encoder.encode(response) else {
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                    return
+                }
+                DispatchQueue.main.async {
+                    startScanServer(scanData: data)
+                }
+            } else {
+                let response = fetchCodeRequirementOnly(searchTerm: search)
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                guard let data = try? encoder.encode(response) else {
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                    return
+                }
+                DispatchQueue.main.async {
+                    serveResult(jsonData: data)
+                }
             }
         }
     }
