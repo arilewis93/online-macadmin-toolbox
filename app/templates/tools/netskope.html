@@ -338,6 +338,110 @@
     if (el) el.style.display = visible ? '' : 'none';
   }
 
+  /** Programmatically check a toggle and apply visual state. */
+  function setToggleOn(id) {
+    var cb = document.getElementById(id);
+    if (!cb || cb.checked) return;
+    cb.checked = true;
+    var row = cb.closest('.toggle-row');
+    if (row) row.classList.add('enabled');
+  }
+
+  /** Parse a Netskope set -- command and populate form fields. */
+  window.parseCommand = function() {
+    var raw = document.getElementById('cmdPaste').value.trim();
+    var errEl = document.getElementById('err-cmdPaste');
+    errEl.classList.remove('visible');
+
+    if (!raw) return;
+
+    // Tokenize and strip "set", "--", and exactly three leading 0s
+    var tokens = raw.split(/\s+/);
+    var startIdx = 0;
+    if (tokens[0] === 'set') startIdx++;
+    if (tokens[startIdx] === '--') startIdx++;
+    // Skip exactly 3 leading 0s (Netskope's fixed positional params 1-3)
+    for (var z = 0; z < 3 && startIdx < tokens.length && tokens[startIdx] === '0'; z++) startIdx++;
+
+    var args = tokens.slice(startIdx);
+    if (args.length < 2) {
+      errEl.classList.add('visible');
+      return;
+    }
+
+    var mode = null;
+
+    // Scan all args for token= style values and keywords
+    var enrollAuth = '';
+    var enrollEnc = '';
+    var hasPerUserConfig = false;
+    for (var i = 0; i < args.length; i++) {
+      var a = args[i];
+      if (a.toLowerCase().indexOf('enrollauthtoken=') === 0) {
+        enrollAuth = a.substring('enrollauthtoken='.length);
+      } else if (a.toLowerCase().indexOf('enrollencryptiontoken=') === 0) {
+        enrollEnc = a.substring('enrollencryptiontoken='.length);
+      } else if (a.toLowerCase() === 'peruserconfig') {
+        hasPerUserConfig = true;
+      }
+    }
+
+    // Detect mode from args[0]
+    if (args[0].toLowerCase() === 'idp') {
+      mode = 'idp';
+      document.getElementById('nsMode').value = 'idp';
+
+      if (args[1]) document.getElementById('idpDomain').value = args[1];
+      if (args[2]) document.getElementById('idpTenant').value = args[2];
+
+      // args[3] is email request: 1 = checked, 0 = unchecked
+      if (args[3] === '1') {
+        setToggleOn('idpRequestEmail');
+      }
+
+      if (hasPerUserConfig) {
+        setToggleOn('idpPerUser');
+      }
+
+    } else if (args[0].toLowerCase().indexOf('addon-') === 0) {
+      mode = 'prefemail';
+      document.getElementById('nsMode').value = 'prefemail';
+
+      document.getElementById('prefemailTenantUrl').value = args[0];
+      if (args[1]) document.getElementById('prefemailOrgKey').value = args[1];
+      if (args[2]) {
+        // Normalize .plist on the pref file name
+        var pf = args[2];
+        if (!/\.plist$/i.test(pf)) pf += '.plist';
+        document.getElementById('prefemailPrefFile').value = pf;
+      }
+
+    } else {
+      errEl.classList.add('visible');
+      return;
+    }
+
+    // Apply enrollment tokens
+    if (enrollAuth) {
+      setToggleOn('optAuthToken');
+      document.getElementById('optAuthTokenVal').value = enrollAuth;
+    }
+    if (enrollEnc) {
+      setToggleOn('optEncToken');
+      document.getElementById('optEncTokenVal').value = enrollEnc;
+    }
+
+    // Switch UI and validate
+    nsModeChanged();
+
+    // Flash success on import button
+    var btn = document.getElementById('importBtn');
+    var orig = btn.textContent;
+    btn.textContent = 'Imported';
+    btn.style.color = 'var(--green)';
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  };
+
   window.nsToggle = function(row) {
     var cb = row.querySelector('input[type="checkbox"]');
     cb.checked = !cb.checked;
