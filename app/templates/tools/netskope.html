@@ -636,7 +636,7 @@
     var s = buildHeader() + buildPaths() + buildSetup() + buildUserDetect() + buildSilent() + buildEnrollTokens();
 
     if (source === 'pref') {
-      var prefFile = esc(val('upnPrefFile'));
+      var prefFile = esc(normalizePlist(val('upnPrefFile')));
       s += '# Read UPN from preference file\n';
       s += 'emailPrefFile="/Library/Managed Preferences/' + prefFile + '"\n';
       s += 'if [ ! -f "$emailPrefFile" ]; then echo "$emailPrefFile not found, exiting"; exit 1; fi\n';
@@ -683,7 +683,7 @@
   function buildPrefemailScript() {
     var tenantUrl = esc(val('prefemailTenantUrl'));
     var orgKey = esc(val('prefemailOrgKey'));
-    var prefFile = esc(val('prefemailPrefFile'));
+    var prefFile = esc(normalizePlist(val('prefemailPrefFile')));
 
     var s = buildHeader() + buildPaths() + buildSetup() + buildSilent() + buildEnrollTokens();
 
