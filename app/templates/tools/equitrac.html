@@ -424,7 +424,7 @@
 
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
-        <button class="btn btn-primary" onclick="nextStep()">Next &rarr;</button>
+        <button class="btn btn-primary" onclick="generateBuildScript(); nextStep()">Next &rarr;</button>
       </div>
     </div>
 
@@ -452,7 +452,7 @@
 
       <div class="section-footer">
         <button class="btn btn-ghost" onclick="prevStep()">&larr; Back</button>
-        <button class="btn btn-primary" onclick="nextStep()">Deploy &rarr;</button>
+        <button class="btn btn-primary" onclick="generateProfile(); nextStep()">Deploy &rarr;</button>
       </div>
     </div>
 
@@ -855,32 +855,6 @@ function removeDriver(i) {
   markDirty();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FULL VALIDATION (for deploy/generate)
-// ─────────────────────────────────────────────────────────────────────────────
-
-var REQUIRED_FIELDS = [
-  'secDomain','secUsername','secPassword',
-  'secNode','datacenterName','casServer',
-  'installerPkgName'
-];
-
-function validate() {
-  var ok = true;
-  REQUIRED_FIELDS.forEach(function(id) {
-    var el = document.getElementById(id);
-    var errEl = document.getElementById('err-' + id);
-    if (!el.value.trim()) {
-      el.classList.add('invalid');
-      if (errEl) errEl.classList.add('visible');
-      ok = false;
-    } else {
-      el.classList.remove('invalid');
-      if (errEl) errEl.classList.remove('visible');
-    }
-  });
-  return ok;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // XML GENERATION
@@ -912,15 +886,24 @@ function buildXML() {
   var profileName  = 'Equitrac Mac Client';
   var installerPkg = document.getElementById('installerPkgName').value.trim();
 
-  var installDrc    = document.getElementById('installDrc').checked;
-  var drcSysNameMode= document.getElementById('drcSysNameMode').value;
-  var secDomain     = document.getElementById('secDomain').value.trim();
-  var secUsername   = document.getElementById('secUsername').value.trim();
-  var secPassword   = document.getElementById('secPassword').value.trim();
-  var secNode       = document.getElementById('secNode').value.trim();
-  var datacenterName= document.getElementById('datacenterName').value.trim();
-  var casServer     = document.getElementById('casServer').value.trim();
-  var dreServer     = document.getElementById('dreServer').value.trim();
+  var installDrc     = document.getElementById('installDrc').checked;
+  var drcSysNameMode = document.querySelector('input[name="drcMode"]:checked').value;
+  var secDomain      = document.getElementById('secDomain').value.trim();
+  var secUsername     = document.getElementById('secUsername').value.trim();
+  var secPassword    = document.getElementById('secPassword').value.trim();
+  var secNode        = document.getElementById('secNode').value.trim();
+  var datacenterName = document.getElementById('datacenterName').value.trim();
+  var casServer      = document.getElementById('casServer').value.trim();
+  var dreServer      = document.getElementById('dreServer').value.trim();
+
+  // New preference fields
+  var skipLinkLocal  = document.getElementById('skipLinkLocal').checked;
+  var ipAddrInterface = document.getElementById('ipAddrInterface').value;
+  var regDns         = document.getElementById('regDns').checked;
+  var cacheLogin     = document.getElementById('cacheLogin').checked;
+  var promptPassword = document.getElementById('promptPassword').checked;
+  var userIdLabel    = document.getElementById('userIdLabel').value.trim();
+  var ignoreCC       = document.getElementById('ignoreCC').checked;
 
   var feats = {};
   var featKeys = Object.keys(FEATURE_BITS);
@@ -928,29 +911,30 @@ function buildXML() {
     feats[featKeys[fi]] = document.getElementById(featKeys[fi]).checked;
   }
 
-  var printerItems = document.querySelectorAll('.printer-item');
-  var livePrinters = [];
-  for (var pi = 0; pi < printerItems.length; pi++) {
-    var inputs = printerItems[pi].querySelectorAll('input');
-    livePrinters.push({ name: inputs[0].value.trim(), ppd: inputs[1].value.trim() || 'generic' });
-  }
-  var driverItems = document.querySelectorAll('.driver-item');
-  var liveDrivers = [];
-  for (var di = 0; di < driverItems.length; di++) {
-    var val = driverItems[di].querySelector('input').value.trim();
-    if (val) liveDrivers.push(val);
-  }
-
-  var uuid = generateUUID();
-  var now  = new Date().toISOString();
-
-  var printerXml = livePrinters.filter(function(p) { return p.name; }).map(function(p) {
-    return '\t\t\t\t\t\t\t\t<dict>\n' +
-      '\t\t\t\t\t\t\t\t\t<key>name</key>\n' +
-      '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.name) + '</string>\n' +
-      '\t\t\t\t\t\t\t\t\t<key>ppd</key>\n' +
-      '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.ppd) + '</string>\n' +
-      '\t\t\t\t\t\t\t\t</dict>';
+  var livePrinters = printers.filter(function(p) { return p.name; });
+  var printerXml = livePrinters.map(function(p) {
+    var xml = '\t\t\t\t\t\t\t\t<dict>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<key>type</key>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.type) + '</string>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<key>name</key>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.name) + '</string>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<key>ppd</key>\n';
+    xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.ppd || 'generic') + '</string>\n';
+    if (p.type === 'ip') {
+      xml += '\t\t\t\t\t\t\t\t\t<key>ip</key>\n';
+      xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.ip) + '</string>\n';
+      xml += '\t\t\t\t\t\t\t\t\t<key>protocol</key>\n';
+      xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.protocol) + '</string>\n';
+      if (p.protocol === 'raw') {
+        xml += '\t\t\t\t\t\t\t\t\t<key>port</key>\n';
+        xml += '\t\t\t\t\t\t\t\t\t<integer>' + parseInt(p.port || '9100', 10) + '</integer>\n';
+      } else {
+        xml += '\t\t\t\t\t\t\t\t\t<key>queue</key>\n';
+        xml += '\t\t\t\t\t\t\t\t\t<string>' + xmlEsc(p.queue) + '</string>\n';
+      }
+    }
+    xml += '\t\t\t\t\t\t\t\t</dict>';
+    return xml;
   }).join('\n');
 
   var driverXml = liveDrivers.map(function(d) {
@@ -1037,6 +1021,20 @@ driverXml + '\n' +
 '\t\t\t\t\t\t\t' + boolTag(feats.allowRenameDocument) + '\n' +
 '\t\t\t\t\t\t\t<key>PREF_RELEASE_KEY</key>\n' +
 '\t\t\t\t\t\t\t' + boolTag(feats.releaseKey) + '\n' +
+'\t\t\t\t\t\t\t<key>SKIP_LINK_LOCAL_IP</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(skipLinkLocal) + '\n' +
+'\t\t\t\t\t\t\t<key>IP_ADDR_INTERFACE</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(ipAddrInterface) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>REG_MACHINE_ID_DNS</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(regDns) + '\n' +
+'\t\t\t\t\t\t\t<key>USE_CACHED_LOGIN</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(cacheLogin) + '\n' +
+'\t\t\t\t\t\t\t<key>PROMPT_FOR_PASSWORD</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(promptPassword) + '\n' +
+'\t\t\t\t\t\t\t<key>USER_ID_LABEL</key>\n' +
+'\t\t\t\t\t\t\t<string>' + xmlEsc(userIdLabel) + '</string>\n' +
+'\t\t\t\t\t\t\t<key>IGNORE_SUPPLIES_LEVEL_JOB</key>\n' +
+'\t\t\t\t\t\t\t' + boolTag(ignoreCC) + '\n' +
 '\t\t\t\t\t\t</dict>\n' +
 '\t\t\t\t\t</dict>\n' +
 '\t\t\t\t</array>\n' +
@@ -1085,27 +1083,21 @@ function highlight(xml) {
 
 function generateProfile() {
   var banner = document.getElementById('validationBanner');
-
-  if (!validate()) {
+  var allOk = validateFields(['secDomain','secUsername','secPassword','secNode','datacenterName','casServer','installerPkgName']);
+  var printerOk = validatePrinterStep();
+  if (!allOk || !printerOk) {
     banner.classList.add('visible');
-    document.getElementById('validationMsg').textContent =
-      'Some required fields are empty. Check highlighted sections.';
-    document.getElementById('xmlPreview').innerHTML =
-      '<span style="color:var(--danger)">Fix validation errors before generating.</span>';
+    document.getElementById('validationMsg').textContent = 'Some required fields are empty. Check highlighted sections.';
+    document.getElementById('xmlPreview').innerHTML = '<span style="color:var(--danger)">Fix validation errors before generating.</span>';
     return;
   }
-
   banner.classList.remove('visible');
-
   var result = buildXML();
-  var xml = result.xml;
-  var bundleId = result.bundleId;
-  var filename = bundleId + '.mobileconfig';
+  var filename = result.bundleId + '.mobileconfig';
   document.getElementById('outputFilename').textContent = filename;
-  document.getElementById('xmlPreview').innerHTML = highlight(xml);
+  document.getElementById('xmlPreview').innerHTML = highlight(result.xml);
   markSaved();
-
-  window._lastXml = xml;
+  window._lastXml = result.xml;
   window._lastFilename = filename;
 }
 
