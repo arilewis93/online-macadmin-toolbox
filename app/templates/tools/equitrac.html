@@ -252,9 +252,8 @@
         <div class="card-title">CAS Server</div>
         <div class="field-grid single">
           <div class="field">
-            <label>CAS SERVER <span class="required">*</span></label>
+            <label>CAS SERVER <span class="hint">IP or hostname</span></label>
             <input type="text" id="casServer" placeholder="192.168.1.100" oninput="markDirty()">
-            <span class="field-error" id="err-casServer">Required</span>
           </div>
         </div>
       </div>
@@ -619,7 +618,7 @@ function prevStep() {
 
 function validateCurrentStep() {
   if (currentStep === 0) return validateFields(['secDomain','secUsername','secPassword','secNode','datacenterName']);
-  if (currentStep === 1) return validateFields(['casServer']);
+  if (currentStep === 1) return true;
   if (currentStep === 2) return validatePrinterStep();
   if (currentStep === 3) return validateFields(['installerPkgName']);
   return true;
@@ -1048,7 +1047,7 @@ function highlight(xml) {
 
 function generateProfile() {
   var banner = document.getElementById('validationBanner');
-  var allOk = validateFields(['secDomain','secUsername','secPassword','secNode','datacenterName','casServer','installerPkgName']);
+  var allOk = validateFields(['secDomain','secUsername','secPassword','secNode','datacenterName','installerPkgName']);
   var printerOk = validatePrinterStep();
   if (!allOk || !printerOk) {
     banner.classList.add('visible');
