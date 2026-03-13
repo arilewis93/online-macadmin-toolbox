@@ -83,18 +83,79 @@
         </div>
       </div>
 
-      <div id="autoconfig-after-drop" style="display:none;">
-      <div class="card">
-        <div class="card-title">Permission entries</div>
-        <div class="col-header autoconfig-row" id="autoconfig-headers" style="display:none;">
+      <div id=”autoconfig-after-drop” style=”display:none;”>
+      <!-- TCC Permissions -->
+      <div class=”card” id=”autoconfig-tcc-card” style=”display:none;”>
+        <div class=”card-title” id=”autoconfig-tcc-title”>TCC Permissions</div>
+        <div class=”item-list” id=”autoconfig-tcc-matched”></div>
+        <div class=”card-collapsible” id=”autoconfig-tcc-other-section” style=”display:none;”>
+          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('tcc')” style=”font-size:12px;margin-top:8px;”>
+            <span class=”card-collapse-icon” id=”autoconfig-tcc-other-icon”>▶</span>
+            <span id=”autoconfig-tcc-other-label”>Also found on this Mac</span>
+          </button>
+          <div id=”autoconfig-tcc-other-body” style=”display:none;”>
+            <div class=”item-list” id=”autoconfig-tcc-unmatched”></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class=”card” id=”autoconfig-notif-card” style=”display:none;”>
+        <div class=”card-title” id=”autoconfig-notif-title”>Notifications</div>
+        <div class=”item-list” id=”autoconfig-notif-matched”></div>
+        <div class=”card-collapsible” id=”autoconfig-notif-other-section” style=”display:none;”>
+          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('notif')” style=”font-size:12px;margin-top:8px;”>
+            <span class=”card-collapse-icon” id=”autoconfig-notif-other-icon”>▶</span>
+            <span id=”autoconfig-notif-other-label”>Also found on this Mac</span>
+          </button>
+          <div id=”autoconfig-notif-other-body” style=”display:none;”>
+            <div class=”item-list” id=”autoconfig-notif-unmatched”></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Login Items -->
+      <div class=”card” id=”autoconfig-login-card” style=”display:none;”>
+        <div class=”card-title” id=”autoconfig-login-title”>Login Items</div>
+        <div class=”item-list” id=”autoconfig-login-matched”></div>
+        <div class=”card-collapsible” id=”autoconfig-login-other-section” style=”display:none;”>
+          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('login')” style=”font-size:12px;margin-top:8px;”>
+            <span class=”card-collapse-icon” id=”autoconfig-login-other-icon”>▶</span>
+            <span id=”autoconfig-login-other-label”>Also found on this Mac</span>
+          </button>
+          <div id=”autoconfig-login-other-body” style=”display:none;”>
+            <div class=”item-list” id=”autoconfig-login-unmatched”></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Extensions -->
+      <div class=”card” id=”autoconfig-sysext-card” style=”display:none;”>
+        <div class=”card-title” id=”autoconfig-sysext-title”>System Extensions</div>
+        <div class=”item-list” id=”autoconfig-sysext-matched”></div>
+        <div class=”card-collapsible” id=”autoconfig-sysext-other-section” style=”display:none;”>
+          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('sysext')” style=”font-size:12px;margin-top:8px;”>
+            <span class=”card-collapse-icon” id=”autoconfig-sysext-other-icon”>▶</span>
+            <span id=”autoconfig-sysext-other-label”>Also found on this Mac</span>
+          </button>
+          <div id=”autoconfig-sysext-other-body” style=”display:none;”>
+            <div class=”item-list” id=”autoconfig-sysext-unmatched”></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Permission Entries (kept for Add Entry flow) -->
+      <div class=”card” id=”autoconfig-manual-entries-card”>
+        <div class=”card-title”>Manual Permission Entries</div>
+        <div class=”col-header autoconfig-row” id=”autoconfig-headers” style=”display:none;”>
           <span>App / Path</span><span>Identifier</span><span>Permissions</span><span></span>
         </div>
-        <div class="item-list" id="autoconfig-entries-list"></div>
-        <div class="empty-state" id="autoconfig-empty">No entries yet. Drop an app above or add one manually in the
-          section below.</div>
-        <div class="info-box" style="margin-top:12px;font-size:12px;">
-          <strong>Something missing?</strong> We do our best to detect everything, but some items may be missed. Check for yourself: open <strong>System Settings → Privacy &amp; Security → Full Disk Access</strong>. If your app (or a helper from it) appears in that list, right‑click it → <strong>Show in Finder</strong>, then drag that item into the “Add permission entry” drop zone below to add it.
-        </div>
+        <div class=”item-list” id=”autoconfig-entries-list”></div>
+        <div class=”empty-state” id=”autoconfig-empty”>No manual entries. Use the drop zone above or “Add permission entry” below.</div>
+      </div>
+
+      <div class=”info-box” style=”margin-top:12px;font-size:12px;”>
+        <strong>Something missing?</strong> Expand “Also found on this Mac” to see all entries detected on your Mac. Check any item to include it in the profile.
       </div>
 
       <div class="card card-collapsible" id="autoconfig-add-card">
@@ -409,9 +470,29 @@
     var autoconfigEntries = [];
     var autoconfigEditingIndex = -1;
     var autoconfigSearchTerm = '';
-    var autoconfigNotifications = [];
-    var autoconfigLoginItems = [];
-    var autoconfigSystemExtensions = [];
+    var autoconfigScanData = null;
+
+    function autoconfigCascadeFilter(items, bundleId, keyFn) {
+        if (!bundleId || !items || !items.length) return { matched: [], unmatched: items || [] };
+        var parts = bundleId.split('.');
+        var levels = [bundleId.toLowerCase()];
+        if (parts.length >= 3) levels.push(parts.slice(0, 3).join('.').toLowerCase() + '.');
+        if (parts.length >= 2) levels.push(parts.slice(0, 2).join('.').toLowerCase() + '.');
+        for (var li = 0; li < levels.length; li++) {
+            var term = levels[li];
+            var matched = [], unmatched = [];
+            for (var i = 0; i < items.length; i++) {
+                var key = (keyFn(items[i]) || '').toLowerCase();
+                if (key.indexOf(term) !== -1) {
+                    matched.push(items[i]);
+                } else {
+                    unmatched.push(items[i]);
+                }
+            }
+            if (matched.length > 0) return { matched: matched, unmatched: unmatched };
+        }
+        return { matched: [], unmatched: items };
+    }
 
     var permEl = document.getElementById('autoconfig-permissions');
     TCC_KEYS_SORTED.forEach(function (key) {
@@ -454,15 +535,8 @@
         }
         var ident = result.identifier || '';
         var teamId = result.teamId || null;
-        var searchTerm = '';
-        if (ident) {
-          var parts = ident.split('.');
-          var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
-          searchTerm = truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.';
-          autoconfigSearchTerm = searchTerm;
-        } else {
-          autoconfigSearchTerm = '';
-        }
+        var searchTerm = ident;
+        autoconfigSearchTerm = searchTerm;
         status.className = 'info-box';
         status.textContent = ident ? 'Bundle ID: ' + ident + (teamId ? ', Team ID: ' + teamId : '') + '. Getting permissions from your Mac…' : 'No identifier found.';
         zone.classList.add('has-file');
@@ -489,15 +563,8 @@
         return;
       }
       var ident = result.identifier || '';
-      var searchTerm = '';
-      if (ident) {
-        var parts = ident.split('.');
-        var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
-        searchTerm = truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.';
-        autoconfigSearchTerm = searchTerm;
-      } else {
-        autoconfigSearchTerm = '';
-      }
+      var searchTerm = ident;
+      autoconfigSearchTerm = searchTerm;
       status.className = 'info-box';
       status.textContent = ident ? 'Bundle ID: ' + ident + '. Getting permissions from your Mac…' : 'No identifier found.';
       zone.classList.add('has-file');
@@ -569,11 +636,12 @@
             if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) { setTimeout(poll, 1000); return; }
           }
           document.getElementById('autoconfig-permission-error').style.display = 'none';
-          var n = json.entries && json.entries.length ? json.entries.length : 0;
+          var tccCount = json.tcc_raw ? json.tcc_raw.length : 0;
+          var notifCount = json.notifications ? json.notifications.length : 0;
           statusEl.className = 'info-box';
           statusEl.style.display = 'block';
-          statusEl.textContent = n ? 'Found ' + n + ' permission entr' + (n === 1 ? 'y' : 'ies') + '.' : 'No permission entries found for this app.';
-          autoconfigMergeAgentEntries(json);
+          statusEl.textContent = 'Scan complete. Found ' + tccCount + ' TCC entries, ' + notifCount + ' notifications. Review below.';
+          autoconfigRenderScanResults(json);
         }).catch(function () {
           if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) setTimeout(poll, 1000);
           else {
@@ -589,25 +657,18 @@
       if (!searchTerm || !statusEl) return;
       var errEl = document.getElementById('autoconfig-permission-error');
       if (errEl) errEl.style.display = 'none';
-      var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
-      window.open(url, '_blank');
-      startPollForFull(searchTerm, statusEl);
+      fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function () {
+        statusEl.className = 'warning-box';
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Agent is still running from a previous scan. Please wait a moment and try again.';
+      }).catch(function () {
+        var url = 'macadmin-toolbox://fetch-tcc?search=' + encodeURIComponent(searchTerm) + '&scope=full';
+        window.open(url, '_blank');
+        startPollForFull(searchTerm, statusEl);
+      });
     }
 
-    /** Find an entry matching targetIdentifier (lenient: exact, case-insensitive, or contains). */
-    function autoconfigFindMatchingEntry(entries, targetIdentifier) {
-      var target = (targetIdentifier || '').trim();
-      var targetLower = target.toLowerCase();
-      if (!target) return null;
-      function id(e) { return (e.identifier || '').trim(); }
-      function idLower(e) { return id(e).toLowerCase(); }
-      var match = entries.find(function (e) { return id(e) === target; });
-      if (match) return match;
-      match = entries.find(function (e) { return idLower(e) === targetLower; });
-      if (match) return match;
-      match = entries.find(function (e) { return idLower(e).indexOf(targetLower) !== -1 || targetLower.indexOf(idLower(e)) !== -1; });
-      return match || (entries.length === 1 ? entries[0] : null);
-    }
+
 
     function startPollForAddForm(searchTerm, targetIdentifier, statusEl) {
       var attempts = 0;
@@ -702,9 +763,7 @@
           statusEl.textContent = 'No bundle ID found.';
           return;
         }
-        var parts = ident.split('.');
-        var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
-        var searchTerm = (truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.');
+        var searchTerm = ident;
         document.getElementById('autoconfig-path-label').value = file.name || ident;
         document.getElementById('autoconfig-identifier').value = ident;
         zone.classList.add('has-file');
@@ -734,9 +793,7 @@
         statusEl.textContent = 'No bundle ID found.';
         return;
       }
-      var parts = ident.split('.');
-      var truncated = parts.length >= 2 ? parts.slice(0, 2).join('.') : ident;
-      var searchTerm = (truncated.indexOf('.') === truncated.length - 1 ? truncated : truncated + '.');
+      var searchTerm = ident;
       document.getElementById('autoconfig-path-label').value = name || ident;
       document.getElementById('autoconfig-identifier').value = ident;
       zone.classList.add('has-file');
@@ -744,41 +801,83 @@
       autoconfigFetchFromMacForAddForm(searchTerm, ident, name, statusEl);
     }
 
-    /** Merge agent JSON: entries into list; store notifications, login_items, system_extensions for profile generation. */
-    function autoconfigMergeAgentEntries(data) {
-      var entries = (data && data.entries) ? data.entries : [];
-      function key(e) { return (e.identifier || '') + '\0' + (e.codeRequirement || ''); }
-      var byKey = {};
-      autoconfigEntries.forEach(function (e) { byKey[key(e)] = e; });
-      entries.forEach(function (e) {
-        var id = (e.identifier || '').trim();
-        if (!id) return;
-        var pathLabel = (e.path_or_label || e.pathLabel || id).trim();
-        var codeReq = (e.code_requirement || e.codeRequirement || '').trim();
-        var perms = e.permissions && Array.isArray(e.permissions) ? e.permissions : [];
-        var k = id + '\0' + codeReq;
-        if (byKey[k]) {
-          byKey[k].pathLabel = pathLabel;
-          var existing = byKey[k].permissions || [];
-          perms.forEach(function (p) { if (existing.indexOf(p) === -1) existing.push(p); });
-          byKey[k].permissions = existing;
+    window.autoconfigToggleScanSection = function (category) {
+        var body = document.getElementById('autoconfig-' + category + '-other-body');
+        var icon = document.getElementById('autoconfig-' + category + '-other-icon');
+        if (!body) return;
+        var open = body.style.display === 'none';
+        body.style.display = open ? '' : 'none';
+        if (icon) icon.textContent = open ? '▼' : '▶';
+    };
+
+    function autoconfigRenderScanResults(data) {
+        autoconfigScanData = data;
+        var bundleId = autoconfigSearchTerm;
+
+        var tccItems = (data.tcc_raw || []);
+        var tccFiltered = autoconfigCascadeFilter(tccItems, bundleId, function (e) {
+            return (e.resolved_bundle_id || '') + ' ' + (e.client || '');
+        });
+        autoconfigRenderCategory('tcc', tccFiltered, function (e, checked) {
+            var svc = TCC_DISPLAY_NAMES[e.service] || e.service;
+            return '<label><input type="checkbox" ' + (checked ? 'checked' : '') + ' data-client="' + esc(e.client) + '" data-service="' + esc(e.service) + '"> ' + esc(e.client) + ' — ' + esc(svc) + '</label>';
+        });
+
+        var notifItems = (data.notifications || []);
+        var notifFiltered = autoconfigCascadeFilter(notifItems, bundleId, function (e) { return e.original_id || ''; });
+        autoconfigRenderCategory('notif', notifFiltered, function (e, checked) {
+            return '<label><input type="checkbox" ' + (checked ? 'checked' : '') + ' data-id="' + esc(e.original_id) + '"> ' + esc(e.original_id) + '</label>';
+        });
+
+        var loginItems = (data.login_items || []);
+        var loginFiltered = autoconfigCascadeFilter(loginItems, bundleId, function (e) { return e.source_file || ''; });
+        autoconfigRenderCategory('login', loginFiltered, function (e, checked) {
+            return '<label><input type="checkbox" ' + (checked ? 'checked' : '') + ' data-team-id="' + esc(e.team_id) + '"> ' + esc(e.source_file) + ' (Team: ' + esc(e.team_id) + ')</label>';
+        });
+
+        var sysextItems = (data.system_extensions || []);
+        var sysextFiltered = autoconfigCascadeFilter(sysextItems, bundleId, function (e) { return e.identifier || ''; });
+        autoconfigRenderCategory('sysext', sysextFiltered, function (e, checked) {
+            var types = [];
+            if (e.endpoint_security) types.push('Endpoint Security');
+            if (e.network_extension) types.push('Network Extension');
+            return '<label><input type="checkbox" ' + (checked ? 'checked' : '') + ' data-ident="' + esc(e.identifier) + '"> ' + esc(e.identifier) + (types.length ? ' (' + types.join(', ') + ')' : '') + '</label>';
+        });
+
+        document.getElementById('autoconfig-after-drop').style.display = '';
+    }
+
+    function autoconfigRenderCategory(category, filtered, renderFn) {
+        var card = document.getElementById('autoconfig-' + category + '-card');
+        var matchedEl = document.getElementById('autoconfig-' + category + '-matched');
+        var unmatchedEl = document.getElementById('autoconfig-' + category + '-unmatched');
+        var otherSection = document.getElementById('autoconfig-' + category + '-other-section');
+        var otherLabel = document.getElementById('autoconfig-' + category + '-other-label');
+        var otherBody = document.getElementById('autoconfig-' + category + '-other-body');
+        var titleEl = document.getElementById('autoconfig-' + category + '-title');
+        var total = filtered.matched.length + filtered.unmatched.length;
+        if (total === 0) { card.style.display = 'none'; return; }
+        card.style.display = '';
+        var titles = { tcc: 'TCC Permissions', notif: 'Notifications', login: 'Login Items', sysext: 'System Extensions' };
+        titleEl.textContent = titles[category] + ' (' + filtered.matched.length + ' matched, ' + filtered.unmatched.length + ' other)';
+        matchedEl.innerHTML = filtered.matched.map(function (e) { return '<div class="item-row">' + renderFn(e, true) + '</div>'; }).join('');
+        if (filtered.unmatched.length > 0) {
+            otherSection.style.display = '';
+            otherLabel.textContent = 'Also found on this Mac (' + filtered.unmatched.length + ')';
+            unmatchedEl.innerHTML = filtered.unmatched.map(function (e) { return '<div class="item-row">' + renderFn(e, false) + '</div>'; }).join('');
+            if (filtered.matched.length === 0) {
+                otherBody.style.display = '';
+                var icon = document.getElementById('autoconfig-' + category + '-other-icon');
+                if (icon) icon.textContent = '▼';
+            }
         } else {
-          var newEntry = { pathLabel: pathLabel, identifier: id, codeRequirement: codeReq, permissions: perms };
-          byKey[k] = newEntry;
-          autoconfigEntries.push(newEntry);
+            otherSection.style.display = 'none';
         }
-      });
-      autoconfigNotifications = (data && data.notifications) ? data.notifications : [];
-      autoconfigLoginItems = (data && data.login_items) ? data.login_items : [];
-      autoconfigSystemExtensions = (data && data.system_extensions) ? data.system_extensions : [];
-      autoconfigCancelEdit();
-      autoconfigRender();
-      autoconfigShowAfterDropIfNeeded();
     }
 
     function autoconfigShowAfterDropIfNeeded() {
       var el = document.getElementById('autoconfig-after-drop');
-      if (el && autoconfigEntries.length > 0) el.style.display = '';
+      if (el && (autoconfigEntries.length > 0 || autoconfigScanData)) el.style.display = '';
     }
 
     window.autoconfigAddEntry = function () {
@@ -869,145 +968,100 @@
     }
 
     window.autoconfigGenerate = function () {
-      if (!autoconfigEntries.length) { alert('Add at least one permission entry.'); return; }
-      var payloadContent = [];
-      var servicesPayload = {};
-      autoconfigEntries.forEach(function (e) {
-        var item = { Allowed: true, CodeRequirement: e.codeRequirement, Identifier: e.identifier, IdentifierType: 'bundleID', StaticCode: false };
-        (e.permissions || []).forEach(function (profileKey) {
-          if (!servicesPayload[profileKey]) servicesPayload[profileKey] = [];
-          servicesPayload[profileKey].push(item);
-        });
-      });
-      if (Object.keys(servicesPayload).length) {
-        payloadContent.push({
-          PayloadDisplayName: 'Privacy Preferences Policy Control',
-          PayloadIdentifier: 'com.apple.TCC.configuration-profile-policy.' + uuid(),
-          PayloadType: 'com.apple.TCC.configuration-profile-policy',
-          PayloadUUID: uuid(),
-          PayloadVersion: 1,
-          Services: servicesPayload
-        });
-      }
-      if (autoconfigLoginItems && autoconfigLoginItems.length) {
-        payloadContent.push({
-          PayloadDisplayName: 'Managed Login Items',
-          PayloadIdentifier: 'com.apple.servicemanagement.' + uuid(),
-          PayloadType: 'com.apple.servicemanagement',
-          PayloadUUID: uuid(),
-          PayloadVersion: 1,
-          Rules: autoconfigLoginItems.map(function (teamId) { return { RuleType: 'TeamIdentifier', RuleValue: teamId }; })
-        });
-      }
-      if (autoconfigNotifications && autoconfigNotifications.length) {
-        payloadContent.push({
-          PayloadDisplayName: 'Notifications',
-          PayloadIdentifier: 'com.apple.notificationsettings.' + uuid(),
-          PayloadType: 'com.apple.notificationsettings',
-          PayloadUUID: uuid(),
-          PayloadVersion: 1,
-          NotificationSettings: autoconfigNotifications.map(function (n) {
-            return {
-              AlertType: 2,
-              BadgesEnabled: true,
-              BundleIdentifier: n.original_id || n.found_id || n,
-              CriticalAlertEnabled: false,
-              NotificationsEnabled: true,
-              PreviewType: 0,
-              ShowInCarPlay: false,
-              ShowInLockScreen: false,
-              ShowInNotificationCenter: true,
-              SoundsEnabled: true
-            };
-          })
-        });
-      }
-      (autoconfigSystemExtensions || []).forEach(function (ext) {
-        var teamId = ext.team_id || '';
-        var ident = ext.identifier || '';
-        var endpointSecurity = ext.endpoint_security;
-        var networkExt = ext.network_extension;
-        if (!teamId || (!endpointSecurity && !networkExt)) return;
-        var types = [];
-        if (endpointSecurity) types.push('EndpointSecurityExtension');
-        if (networkExt) types.push('NetworkExtension');
-        payloadContent.push({
-          PayloadDisplayName: 'System Extension Policy',
-          PayloadIdentifier: 'com.apple.system-extension-policy.' + uuid(),
-          PayloadType: 'com.apple.system-extension-policy',
-          PayloadUUID: uuid(),
-          PayloadVersion: 1,
-          PayloadOrganization: 'iStore Business',
-          AllowUserOverrides: true,
-          AllowedSystemExtensionTypes: (function () { var o = {}; o[teamId] = types; return o; })(),
-          AllowedSystemExtensions: (function () { var o = {}; o[teamId] = [ident]; return o; })()
-        });
-        if (networkExt && ext.filter_data_provider_designated_requirement) {
-          payloadContent.push({
-            PayloadDisplayName: 'Web Content Filter',
-            PayloadIdentifier: 'com.apple.webcontent-filter.' + uuid(),
-            PayloadType: 'com.apple.webcontent-filter',
-            PayloadUUID: uuid(),
-            PayloadVersion: 1,
-            FilterDataProviderBundleIdentifier: ident,
-            FilterDataProviderDesignatedRequirement: ext.filter_data_provider_designated_requirement,
-            FilterSockets: true,
-            FilterType: 'Plugin',
-            PluginBundleID: ext.app_identifier || '',
-            UserDefinedName: 'Web Content Filter'
-          });
+    var tccCard = document.getElementById('autoconfig-tcc-card');
+    var checkedTCC = [];
+    if (tccCard) {
+        var tccChecks = tccCard.querySelectorAll('input[type="checkbox"]:checked[data-client]');
+        for (var i = 0; i < tccChecks.length; i++) {
+            checkedTCC.push(tccChecks[i].getAttribute('data-client'));
         }
-      });
-      var profileName = document.getElementById('autoconfig-profile-name').value.trim() || 'Permissions';
-      var config = {
-        PayloadContent: payloadContent,
-        PayloadDisplayName: profileName,
-        PayloadIdentifier: 'com.istorebusiness.autoconfig.' + uuid(),
-        PayloadType: 'Configuration',
-        PayloadUUID: uuid(),
-        PayloadVersion: 1,
-        PayloadOrganization: 'iStore Business'
-      };
-      var filename = (profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '.mobileconfig';
-      download(filename, buildPlistDoc(config), 'application/x-apple-aspen-config');
-
-      if (autoconfigSystemExtensions && autoconfigSystemExtensions.length > 0) {
-        var nonRemovable = {};
-        autoconfigSystemExtensions.forEach(function (ext) {
-          var tid = ext.team_id || '';
-          var ident = ext.identifier || '';
-          if (!tid || !ident) return;
-          if (!nonRemovable[tid]) nonRemovable[tid] = [];
-          if (nonRemovable[tid].indexOf(ident) === -1) nonRemovable[tid].push(ident);
-        });
-        if (Object.keys(nonRemovable).length > 0) {
-          var sequoiaPayload = {
-            AllowUserOverrides: true,
-            NonRemovableSystemExtensions: nonRemovable,
-            PayloadDescription: '',
-            PayloadDisplayName: 'System Extensions',
-            PayloadIdentifier: 'com.apple.system-extension-policy.sequoia.' + uuid(),
-            PayloadOrganization: 'Company Name',
-            PayloadType: 'com.apple.system-extension-policy',
-            PayloadUUID: uuid(),
-            PayloadVersion: 1
-          };
-          var sequoiaConfig = {
-            PayloadContent: [sequoiaPayload],
-            PayloadDescription: '',
-            PayloadDisplayName: profileName + ' System Extension NonRemovable Settings',
-            PayloadIdentifier: 'com.istorebusiness.autoconfig.sequoia.' + uuid(),
-            PayloadOrganization: 'iStore Business',
-            PayloadRemovalDisallowed: true,
-            PayloadScope: 'System',
-            PayloadType: 'Configuration',
-            PayloadUUID: uuid(),
-            PayloadVersion: 1
-          };
-          var sequoiaFilename = (profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '_Sequoia.mobileconfig';
-          download(sequoiaFilename, buildPlistDoc(sequoiaConfig), 'application/x-apple-aspen-config');
+    }
+    var notifCard = document.getElementById('autoconfig-notif-card');
+    var checkedNotifs = [];
+    if (notifCard) {
+        var notifChecks = notifCard.querySelectorAll('input[type="checkbox"]:checked[data-id]');
+        for (var i = 0; i < notifChecks.length; i++) {
+            checkedNotifs.push({ original_id: notifChecks[i].getAttribute('data-id') });
         }
-      }
+    }
+    var loginCard = document.getElementById('autoconfig-login-card');
+    var checkedLogins = [];
+    if (loginCard) {
+        var loginChecks = loginCard.querySelectorAll('input[type="checkbox"]:checked[data-team-id]');
+        for (var i = 0; i < loginChecks.length; i++) {
+            var tid = loginChecks[i].getAttribute('data-team-id');
+            if (checkedLogins.indexOf(tid) === -1) checkedLogins.push(tid);
+        }
+    }
+    var sysextCard = document.getElementById('autoconfig-sysext-card');
+    var checkedSysexts = [];
+    if (sysextCard && autoconfigScanData) {
+        var sysextChecks = sysextCard.querySelectorAll('input[type="checkbox"]:checked[data-ident]');
+        var allSysexts = autoconfigScanData.system_extensions || [];
+        for (var i = 0; i < sysextChecks.length; i++) {
+            var ident = sysextChecks[i].getAttribute('data-ident');
+            var ext = allSysexts.find(function (e) { return e.identifier === ident; });
+            if (ext) checkedSysexts.push(ext);
+        }
+    }
+    var manualEntries = autoconfigEntries || [];
+    if (!checkedTCC.length && !manualEntries.length && !checkedNotifs.length && !checkedLogins.length && !checkedSysexts.length) {
+        alert('Select at least one item or add a permission entry.');
+        return;
+    }
+    var statusEl = document.getElementById('autoconfig-analyze-status');
+    function buildAndDownload(resolvedEntries) {
+        var allTCCEntries = manualEntries.concat(resolvedEntries || []);
+        var payloadContent = [];
+        var servicesPayload = {};
+        allTCCEntries.forEach(function (e) {
+            var item = { Allowed: true, CodeRequirement: e.codeRequirement || e.code_requirement, Identifier: e.identifier, IdentifierType: 'bundleID', StaticCode: false };
+            (e.permissions || []).forEach(function (profileKey) {
+                if (!servicesPayload[profileKey]) servicesPayload[profileKey] = [];
+                servicesPayload[profileKey].push(item);
+            });
+        });
+        if (Object.keys(servicesPayload).length) {
+            payloadContent.push({ PayloadDisplayName: 'Privacy Preferences Policy Control', PayloadIdentifier: 'com.apple.TCC.configuration-profile-policy.' + uuid(), PayloadType: 'com.apple.TCC.configuration-profile-policy', PayloadUUID: uuid(), PayloadVersion: 1, Services: servicesPayload });
+        }
+        if (checkedLogins.length) {
+            payloadContent.push({ PayloadDisplayName: 'Managed Login Items', PayloadIdentifier: 'com.apple.servicemanagement.' + uuid(), PayloadType: 'com.apple.servicemanagement', PayloadUUID: uuid(), PayloadVersion: 1, Rules: checkedLogins.map(function (teamId) { return { RuleType: 'TeamIdentifier', RuleValue: teamId }; }) });
+        }
+        if (checkedNotifs.length) {
+            payloadContent.push({ PayloadDisplayName: 'Notifications', PayloadIdentifier: 'com.apple.notificationsettings.' + uuid(), PayloadType: 'com.apple.notificationsettings', PayloadUUID: uuid(), PayloadVersion: 1, NotificationSettings: checkedNotifs.map(function (n) { return { AlertType: 2, BadgesEnabled: true, BundleIdentifier: n.original_id, CriticalAlertEnabled: false, NotificationsEnabled: true, PreviewType: 0, ShowInCarPlay: false, ShowInLockScreen: false, ShowInNotificationCenter: true, SoundsEnabled: true }; }) });
+        }
+        checkedSysexts.forEach(function (ext) {
+            var teamId = ext.team_id || ''; var ident = ext.identifier || '';
+            var endpointSecurity = ext.endpoint_security; var networkExt = ext.network_extension;
+            if (!teamId || (!endpointSecurity && !networkExt)) return;
+            var types = [];
+            if (endpointSecurity) types.push('EndpointSecurityExtension');
+            if (networkExt) types.push('NetworkExtension');
+            payloadContent.push({ PayloadDisplayName: 'System Extension Policy', PayloadIdentifier: 'com.apple.system-extension-policy.' + uuid(), PayloadType: 'com.apple.system-extension-policy', PayloadUUID: uuid(), PayloadVersion: 1, PayloadOrganization: 'iStore Business', AllowUserOverrides: true, AllowedSystemExtensionTypes: (function () { var o = {}; o[teamId] = types; return o; })(), AllowedSystemExtensions: (function () { var o = {}; o[teamId] = [ident]; return o; })() });
+            if (networkExt && ext.filter_data_provider_designated_requirement) {
+                payloadContent.push({ PayloadDisplayName: 'Web Content Filter', PayloadIdentifier: 'com.apple.webcontent-filter.' + uuid(), PayloadType: 'com.apple.webcontent-filter', PayloadUUID: uuid(), PayloadVersion: 1, FilterDataProviderBundleIdentifier: ident, FilterDataProviderDesignatedRequirement: ext.filter_data_provider_designated_requirement, FilterSockets: true, FilterType: 'Plugin', PluginBundleID: ext.app_identifier || '', UserDefinedName: 'Web Content Filter' });
+            }
+        });
+        if (!payloadContent.length) { alert('No payload content to include in the profile.'); return; }
+        var profileName = document.getElementById('autoconfig-profile-name').value.trim() || 'Permissions';
+        var config = { PayloadContent: payloadContent, PayloadDisplayName: profileName, PayloadIdentifier: 'com.istorebusiness.autoconfig.' + uuid(), PayloadType: 'Configuration', PayloadUUID: uuid(), PayloadVersion: 1, PayloadOrganization: 'iStore Business' };
+        download((profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '.mobileconfig', buildPlistDoc(config), 'application/x-apple-aspen-config');
+        if (checkedSysexts.length > 0) {
+            var nonRemovable = {};
+            checkedSysexts.forEach(function (ext) { var tid = ext.team_id || ''; var id = ext.identifier || ''; if (!tid || !id) return; if (!nonRemovable[tid]) nonRemovable[tid] = []; if (nonRemovable[tid].indexOf(id) === -1) nonRemovable[tid].push(id); });
+            if (Object.keys(nonRemovable).length > 0) {
+                var seqPayload = { AllowUserOverrides: true, NonRemovableSystemExtensions: nonRemovable, PayloadDescription: '', PayloadDisplayName: 'System Extensions', PayloadIdentifier: 'com.apple.system-extension-policy.sequoia.' + uuid(), PayloadOrganization: 'Company Name', PayloadType: 'com.apple.system-extension-policy', PayloadUUID: uuid(), PayloadVersion: 1 };
+                var seqConfig = { PayloadContent: [seqPayload], PayloadDescription: '', PayloadDisplayName: profileName + ' System Extension NonRemovable Settings', PayloadIdentifier: 'com.istorebusiness.autoconfig.sequoia.' + uuid(), PayloadOrganization: 'iStore Business', PayloadRemovalDisallowed: true, PayloadScope: 'System', PayloadType: 'Configuration', PayloadUUID: uuid(), PayloadVersion: 1 };
+                download((profileName.replace(/[^\w\-]/g, '_') || 'autoconfig') + '_Sequoia.mobileconfig', buildPlistDoc(seqConfig), 'application/x-apple-aspen-config');
+            }
+        }
+    }
+    if (checkedTCC.length) {
+        if (statusEl) { statusEl.className = 'info-box'; statusEl.style.display = 'block'; statusEl.textContent = 'Resolving permissions for ' + checkedTCC.length + ' entries...'; }
+        fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/resolve', { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clients: checkedTCC }) }).then(function (res) { return res.json(); }).then(function (json) { if (statusEl) statusEl.style.display = 'none'; buildAndDownload(json.entries || []); }).catch(function (err) { if (statusEl) { statusEl.className = 'warning-box'; statusEl.textContent = 'Failed to resolve permissions: ' + (err.message || 'Agent not responding. Try dropping the app again.'); statusEl.style.display = 'block'; } });
+    } else {
+        buildAndDownload([]);
+    }
     };
 
     window.autoconfigImport = function (event) {
@@ -1020,33 +1074,34 @@
           var profile = parsePlistText(reader.result);
           var content = profile.PayloadContent || [];
           var tccPayload = content.find(function (p) { return p.PayloadType === 'com.apple.TCC.configuration-profile-policy'; });
-          if (!tccPayload || !tccPayload.Services) { alert('No TCC Privacy payload found in this profile.'); return; }
           autoconfigEntries = [];
-          var seen = {};
-          Object.keys(tccPayload.Services).forEach(function (profileKey) {
-            var items = tccPayload.Services[profileKey] || [];
-            items.forEach(function (item) {
-              var id = item.Identifier;
-              if (!id) return;
-              if (!seen[id]) {
-                seen[id] = { pathLabel: id, identifier: id, codeRequirement: item.CodeRequirement || '', permissions: [] };
-                autoconfigEntries.push(seen[id]);
-              }
-              if (profileKey && seen[id].permissions.indexOf(profileKey) === -1) seen[id].permissions.push(profileKey);
+          if (tccPayload && tccPayload.Services) {
+            var seen = {};
+            Object.keys(tccPayload.Services).forEach(function (profileKey) {
+              var items = tccPayload.Services[profileKey] || [];
+              items.forEach(function (item) {
+                var id = item.Identifier;
+                if (!id) return;
+                if (!seen[id]) {
+                  seen[id] = { pathLabel: id, identifier: id, codeRequirement: item.CodeRequirement || '', permissions: [] };
+                  autoconfigEntries.push(seen[id]);
+                }
+                if (profileKey && seen[id].permissions.indexOf(profileKey) === -1) seen[id].permissions.push(profileKey);
+              });
             });
-          });
+          }
           var loginPayload = content.find(function (p) { return p.PayloadType === 'com.apple.servicemanagement'; });
-          autoconfigLoginItems = (loginPayload && loginPayload.Rules) ? loginPayload.Rules.map(function (r) { return r.RuleValue || r.TeamIdentifier || ''; }).filter(Boolean) : [];
+          var importedLogins = (loginPayload && loginPayload.Rules) ? loginPayload.Rules.map(function (r) { return { team_id: r.RuleValue || r.TeamIdentifier || '', source_file: r.RuleValue || r.TeamIdentifier || '' }; }).filter(function (l) { return l.team_id; }) : [];
           var notifPayload = content.find(function (p) { return p.PayloadType === 'com.apple.notificationsettings'; });
-          autoconfigNotifications = (notifPayload && notifPayload.NotificationSettings) ? notifPayload.NotificationSettings.map(function (n) { return { original_id: n.BundleIdentifier }; }) : [];
+          var importedNotifs = (notifPayload && notifPayload.NotificationSettings) ? notifPayload.NotificationSettings.map(function (n) { return { original_id: n.BundleIdentifier }; }) : [];
           var sysExtPayloads = content.filter(function (p) { return p.PayloadType === 'com.apple.system-extension-policy' && p.AllowedSystemExtensions; });
-          autoconfigSystemExtensions = [];
+          var importedSysexts = [];
           sysExtPayloads.forEach(function (p) {
             Object.keys(p.AllowedSystemExtensions || {}).forEach(function (tid) {
               (p.AllowedSystemExtensions[tid] || []).forEach(function (ident) {
                 var types = (p.AllowedSystemExtensionTypes || {})[tid] || [];
                 var webFilter = content.find(function (q) { return q.PayloadType === 'com.apple.webcontent-filter' && q.FilterDataProviderBundleIdentifier === ident; });
-                autoconfigSystemExtensions.push({
+                importedSysexts.push({
                   identifier: ident,
                   team_id: tid,
                   app_identifier: (webFilter && webFilter.PluginBundleID) || '',
@@ -1056,6 +1111,23 @@
                 });
               });
             });
+          });
+          if (!autoconfigEntries.length && !importedNotifs.length && !importedLogins.length && !importedSysexts.length) {
+            alert('No supported payloads found in this profile.');
+            return;
+          }
+          var importData = { tcc_raw: [], notifications: importedNotifs, login_items: importedLogins, system_extensions: importedSysexts };
+          autoconfigSearchTerm = '';
+          autoconfigRenderScanResults(importData);
+          ['notif', 'login', 'sysext'].forEach(function (cat) {
+            var card = document.getElementById('autoconfig-' + cat + '-card');
+            if (!card || card.style.display === 'none') return;
+            var checks = card.querySelectorAll('input[type="checkbox"]');
+            for (var i = 0; i < checks.length; i++) { checks[i].checked = true; }
+            var otherBody = document.getElementById('autoconfig-' + cat + '-other-body');
+            var icon = document.getElementById('autoconfig-' + cat + '-other-icon');
+            if (otherBody) otherBody.style.display = '';
+            if (icon) icon.textContent = '▼';
           });
           autoconfigEditingIndex = -1;
           autoconfigCancelEdit();
