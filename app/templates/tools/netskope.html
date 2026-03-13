@@ -369,8 +369,6 @@
       return;
     }
 
-    var mode = null;
-
     // Scan all args for token= style values and keywords
     var enrollAuth = '';
     var enrollEnc = '';
@@ -388,7 +386,6 @@
 
     // Detect mode from args[0]
     if (args[0].toLowerCase() === 'idp') {
-      mode = 'idp';
       document.getElementById('nsMode').value = 'idp';
 
       if (args[1]) document.getElementById('idpDomain').value = args[1];
@@ -404,16 +401,12 @@
       }
 
     } else if (args[0].toLowerCase().indexOf('addon-') === 0) {
-      mode = 'prefemail';
       document.getElementById('nsMode').value = 'prefemail';
 
       document.getElementById('prefemailTenantUrl').value = args[0];
       if (args[1]) document.getElementById('prefemailOrgKey').value = args[1];
       if (args[2]) {
-        // Normalize .plist on the pref file name
-        var pf = args[2];
-        if (!/\.plist$/i.test(pf)) pf += '.plist';
-        document.getElementById('prefemailPrefFile').value = pf;
+        document.getElementById('prefemailPrefFile').value = normalizePlist(args[2]);
       }
 
     } else {
