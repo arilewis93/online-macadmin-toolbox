@@ -39,7 +39,7 @@
         <p class="section-desc" style="margin-bottom:12px;">This tool needs a small <strong>Mac companion app</strong> (Mac Admin Toolbox) that runs on your Mac and reads Privacy (TCC) data. The companion app must have <strong>Full Disk Access</strong> so it can read system permission settings.</p>
         <ol class="autoconfig-companion-steps">
           <li><strong>Download</strong> the companion app (zip) using the button below.</li>
-          <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You’ll get <code>Mac Admin Toolbox.app</code>.</li>
+          <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You'll get <code>Mac Admin Toolbox.app</code>.</li>
           <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
           <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser. The app is not notarized, so macOS may block it the first time. If so, go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down to the message about the app being blocked, and click <strong>Open Anyway</strong>. Then open the app again.</li>
           <li>In <strong>System Settings &rarr; Privacy &amp; Security &rarr; Full Disk Access</strong>, click + and add <strong>Mac Admin Toolbox</strong>.</li>
@@ -70,7 +70,7 @@
           <input type="file" id="autoconfig-analyze-input" accept="*" style="display:none;"
             onchange="autoconfigAnalyzeFile(event)">
           <div class="drop-zone" id="autoconfig-analyze-zone"
-            onclick="document.getElementById(‘autoconfig-analyze-input’).click()" style="margin-bottom:12px;">
+            onclick="document.getElementById('autoconfig-analyze-input').click()" style="margin-bottom:12px;">
             <div class="drop-zone-icon">&#11014;</div>
             <div class="drop-zone-label" id="autoconfig-analyze-label">Drop .app or binary here</div>
             <div class="drop-zone-sub">Or click to select</div>
@@ -83,79 +83,79 @@
         </div>
       </div>
 
-      <div id=”autoconfig-after-drop” style=”display:none;”>
+      <div id="autoconfig-after-drop" style="display:none;">
       <!-- TCC Permissions -->
-      <div class=”card” id=”autoconfig-tcc-card” style=”display:none;”>
-        <div class=”card-title” id=”autoconfig-tcc-title”>TCC Permissions</div>
-        <div class=”item-list” id=”autoconfig-tcc-matched”></div>
-        <div class=”card-collapsible” id=”autoconfig-tcc-other-section” style=”display:none;”>
-          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('tcc')” style=”font-size:12px;margin-top:8px;”>
-            <span class=”card-collapse-icon” id=”autoconfig-tcc-other-icon”>▶</span>
-            <span id=”autoconfig-tcc-other-label”>Also found on this Mac</span>
-          </button>
-          <div id=”autoconfig-tcc-other-body” style=”display:none;”>
-            <div class=”item-list” id=”autoconfig-tcc-unmatched”></div>
+      <div class="card" id="autoconfig-tcc-card" style="display:none;">
+        <div class="card-title" id="autoconfig-tcc-title">TCC Permissions</div>
+        <div class="item-list" id="autoconfig-tcc-matched"></div>
+        <div class="card-collapsible" id="autoconfig-tcc-other-section" style="display:none;">
+          <span class="scan-section-toggle" onclick="autoconfigToggleScanSection('tcc')">
+            <span class="card-collapse-icon" id="autoconfig-tcc-other-icon">▶</span>
+            <span id="autoconfig-tcc-other-label">Also found on this Mac</span>
+          </span>
+          <div id="autoconfig-tcc-other-body" style="display:none;">
+            <div class="item-list" id="autoconfig-tcc-unmatched"></div>
           </div>
         </div>
       </div>
 
       <!-- Notifications -->
-      <div class=”card” id=”autoconfig-notif-card” style=”display:none;”>
-        <div class=”card-title” id=”autoconfig-notif-title”>Notifications</div>
-        <div class=”item-list” id=”autoconfig-notif-matched”></div>
-        <div class=”card-collapsible” id=”autoconfig-notif-other-section” style=”display:none;”>
-          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('notif')” style=”font-size:12px;margin-top:8px;”>
-            <span class=”card-collapse-icon” id=”autoconfig-notif-other-icon”>▶</span>
-            <span id=”autoconfig-notif-other-label”>Also found on this Mac</span>
-          </button>
-          <div id=”autoconfig-notif-other-body” style=”display:none;”>
-            <div class=”item-list” id=”autoconfig-notif-unmatched”></div>
+      <div class="card" id="autoconfig-notif-card" style="display:none;">
+        <div class="card-title" id="autoconfig-notif-title">Notifications</div>
+        <div class="item-list" id="autoconfig-notif-matched"></div>
+        <div class="card-collapsible" id="autoconfig-notif-other-section" style="display:none;">
+          <span class="scan-section-toggle" onclick="autoconfigToggleScanSection('notif')">
+            <span class="card-collapse-icon" id="autoconfig-notif-other-icon">▶</span>
+            <span id="autoconfig-notif-other-label">Also found on this Mac</span>
+          </span>
+          <div id="autoconfig-notif-other-body" style="display:none;">
+            <div class="item-list" id="autoconfig-notif-unmatched"></div>
           </div>
         </div>
       </div>
 
       <!-- Login Items -->
-      <div class=”card” id=”autoconfig-login-card” style=”display:none;”>
-        <div class=”card-title” id=”autoconfig-login-title”>Login Items</div>
-        <div class=”item-list” id=”autoconfig-login-matched”></div>
-        <div class=”card-collapsible” id=”autoconfig-login-other-section” style=”display:none;”>
-          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('login')” style=”font-size:12px;margin-top:8px;”>
-            <span class=”card-collapse-icon” id=”autoconfig-login-other-icon”>▶</span>
-            <span id=”autoconfig-login-other-label”>Also found on this Mac</span>
-          </button>
-          <div id=”autoconfig-login-other-body” style=”display:none;”>
-            <div class=”item-list” id=”autoconfig-login-unmatched”></div>
+      <div class="card" id="autoconfig-login-card" style="display:none;">
+        <div class="card-title" id="autoconfig-login-title">Login Items</div>
+        <div class="item-list" id="autoconfig-login-matched"></div>
+        <div class="card-collapsible" id="autoconfig-login-other-section" style="display:none;">
+          <span class="scan-section-toggle" onclick="autoconfigToggleScanSection('login')">
+            <span class="card-collapse-icon" id="autoconfig-login-other-icon">▶</span>
+            <span id="autoconfig-login-other-label">Also found on this Mac</span>
+          </span>
+          <div id="autoconfig-login-other-body" style="display:none;">
+            <div class="item-list" id="autoconfig-login-unmatched"></div>
           </div>
         </div>
       </div>
 
       <!-- System Extensions -->
-      <div class=”card” id=”autoconfig-sysext-card” style=”display:none;”>
-        <div class=”card-title” id=”autoconfig-sysext-title”>System Extensions</div>
-        <div class=”item-list” id=”autoconfig-sysext-matched”></div>
-        <div class=”card-collapsible” id=”autoconfig-sysext-other-section” style=”display:none;”>
-          <button type=”button” class=”card-title card-collapse-trigger” onclick=”autoconfigToggleScanSection('sysext')” style=”font-size:12px;margin-top:8px;”>
-            <span class=”card-collapse-icon” id=”autoconfig-sysext-other-icon”>▶</span>
-            <span id=”autoconfig-sysext-other-label”>Also found on this Mac</span>
-          </button>
-          <div id=”autoconfig-sysext-other-body” style=”display:none;”>
-            <div class=”item-list” id=”autoconfig-sysext-unmatched”></div>
+      <div class="card" id="autoconfig-sysext-card" style="display:none;">
+        <div class="card-title" id="autoconfig-sysext-title">System Extensions</div>
+        <div class="item-list" id="autoconfig-sysext-matched"></div>
+        <div class="card-collapsible" id="autoconfig-sysext-other-section" style="display:none;">
+          <span class="scan-section-toggle" onclick="autoconfigToggleScanSection('sysext')">
+            <span class="card-collapse-icon" id="autoconfig-sysext-other-icon">▶</span>
+            <span id="autoconfig-sysext-other-label">Also found on this Mac</span>
+          </span>
+          <div id="autoconfig-sysext-other-body" style="display:none;">
+            <div class="item-list" id="autoconfig-sysext-unmatched"></div>
           </div>
         </div>
       </div>
 
       <!-- Manual Permission Entries (kept for Add Entry flow) -->
-      <div class=”card” id=”autoconfig-manual-entries-card”>
-        <div class=”card-title”>Manual Permission Entries</div>
-        <div class=”col-header autoconfig-row” id=”autoconfig-headers” style=”display:none;”>
+      <div class="card" id="autoconfig-manual-entries-card">
+        <div class="card-title">Manual Permission Entries</div>
+        <div class="col-header autoconfig-row" id="autoconfig-headers" style="display:none;">
           <span>App / Path</span><span>Identifier</span><span>Permissions</span><span></span>
         </div>
-        <div class=”item-list” id=”autoconfig-entries-list”></div>
-        <div class=”empty-state” id=”autoconfig-empty”>No manual entries. Use the drop zone above or “Add permission entry” below.</div>
+        <div class="item-list" id="autoconfig-entries-list"></div>
+        <div class="empty-state" id="autoconfig-empty">No manual entries. Use the "Add permission entry" below.</div>
       </div>
 
-      <div class=”info-box” style=”margin-top:12px;font-size:12px;”>
-        <strong>Something missing?</strong> Expand “Also found on this Mac” to see all entries detected on your Mac. Check any item to include it in the profile.
+      <div class="info-box" style="margin-top:12px;font-size:12px;">
+        <strong>Something missing?</strong> Expand "Also found on this Mac" to see all entries detected on your Mac. Check any item to include it in the profile.
       </div>
 
       <div class="card card-collapsible" id="autoconfig-add-card">
@@ -256,6 +256,21 @@
   .item-row.autoconfig-row.editing {
     border-color: var(--accent);
     background: var(--accent-dim, rgba(0, 122, 255, 0.08));
+  }
+
+  .scan-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    margin-top: 8px;
+    color: var(--text-dim, #888);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .scan-section-toggle:hover {
+    color: var(--text);
   }
 
   .card-collapsible .card-collapse-trigger {
@@ -471,6 +486,15 @@
     var autoconfigEditingIndex = -1;
     var autoconfigSearchTerm = '';
     var autoconfigScanData = null;
+
+    function autoconfigFindMatchingEntry(entries, identifier) {
+        if (!entries || !identifier) return null;
+        var lower = identifier.toLowerCase();
+        for (var i = 0; i < entries.length; i++) {
+            if ((entries[i].identifier || '').toLowerCase() === lower) return entries[i];
+        }
+        return null;
+    }
 
     function autoconfigCascadeFilter(items, bundleId, keyFn) {
         if (!bundleId || !items || !items.length) return { matched: [], unmatched: items || [] };
@@ -1058,7 +1082,20 @@
     }
     if (checkedTCC.length) {
         if (statusEl) { statusEl.className = 'info-box'; statusEl.style.display = 'block'; statusEl.textContent = 'Resolving permissions for ' + checkedTCC.length + ' entries...'; }
-        fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/resolve', { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clients: checkedTCC }) }).then(function (res) { return res.json(); }).then(function (json) { if (statusEl) statusEl.style.display = 'none'; buildAndDownload(json.entries || []); }).catch(function (err) { if (statusEl) { statusEl.className = 'warning-box'; statusEl.textContent = 'Failed to resolve permissions: ' + (err.message || 'Agent not responding. Try dropping the app again.'); statusEl.style.display = 'block'; } });
+        window.open('macadmin-toolbox://resolve-tcc', '_blank');
+        var resolveAttempts = 0;
+        var maxResolveAttempts = 30;
+        function pollResolve() {
+            resolveAttempts++;
+            fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/resolve', { method: 'POST', mode: 'cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clients: checkedTCC }) }).then(function (res) { return res.json(); }).then(function (json) {
+                if (statusEl) statusEl.style.display = 'none';
+                buildAndDownload(json.entries || []);
+            }).catch(function (err) {
+                if (resolveAttempts < maxResolveAttempts) { setTimeout(pollResolve, 1000); }
+                else if (statusEl) { statusEl.className = 'warning-box'; statusEl.textContent = 'Failed to resolve permissions: Agent not responding. Try downloading again.'; statusEl.style.display = 'block'; }
+            });
+        }
+        setTimeout(pollResolve, 1000);
     } else {
         buildAndDownload([]);
     }
@@ -1141,13 +1178,17 @@
 
     var zone = document.getElementById('autoconfig-analyze-zone');
     if (zone) {
-      zone.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.add('drag-over'); });
-      zone.addEventListener('dragleave', function (e) { e.preventDefault(); if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+      zone.addEventListener('dragover', function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', function (e) { e.preventDefault(); if (e.relatedTarget && !zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
       zone.addEventListener('drop', function (e) {
         e.preventDefault();
         zone.classList.remove('drag-over');
         var items = e.dataTransfer.items;
-        if (!items || !items.length) return;
+        if (!items || !items.length) {
+          var fallbackFile = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (fallbackFile) autoconfigAnalyzeFromFile(fallbackFile);
+          return;
+        }
         var item = items[0];
         if (item.webkitGetAsEntry) {
           var entry = item.webkitGetAsEntry();
