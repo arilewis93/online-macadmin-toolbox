@@ -395,7 +395,7 @@
         <div class="field-grid single">
           <div class="field">
             <label>EQUITRAC INSTALLER PKG <span class="required">*</span> <span class="hint">Filename only</span></label>
-            <input type="text" id="installerPkgName" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="installerPkgName=this.value;markDirty()">
+            <input type="text" id="installerPkgName" placeholder="Equitrac_MacOSX_6_4_3_59.pkg" oninput="markDirty()">
             <span class="field-error" id="err-installerPkgName">Required</span>
           </div>
         </div>
@@ -428,7 +428,7 @@
             <span>build_equitrac_pkg.sh</span>
           </div>
           <div class="generate-actions">
-            <button class="btn btn-ghost" onclick="copyBuildScript()">Copy Script</button>
+            <button class="btn btn-ghost" onclick="copyBuildScript(this)">Copy Script</button>
             <button class="btn btn-success" onclick="downloadBuildScript()">&darr; Download</button>
           </div>
         </div>
@@ -464,7 +464,7 @@
               <span id="outputFilename">com.istorebusiness.equitrac.mobileconfig</span>
             </div>
             <div class="generate-actions">
-              <button class="btn btn-ghost" onclick="copyToClipboard()">Copy XML</button>
+              <button class="btn btn-ghost" onclick="copyToClipboard(this)">Copy XML</button>
               <button class="btn btn-success" onclick="downloadProfile()">&darr; Download .mobileconfig</button>
             </div>
           </div>
@@ -517,8 +517,6 @@ var FEATURE_BITS = {
 // Each: { type: 'dre'|'ip', name: '', ppd: 'generic', ip: '', protocol: 'raw', port: '9100', queue: '' }
 var printers = [];
 
-var installerPkgName = '';
-
 var drivers = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -566,11 +564,13 @@ function updateStepper() {
     if (lbl) { lbl.className = 'eq-step-label'; }
 
     if (i === currentStep) {
-      if (dot) dot.classList.add('active');
+      if (dot) { dot.classList.add('active'); dot.textContent = String(i + 1); }
       if (lbl) lbl.classList.add('active');
     } else if (i < currentStep) {
-      if (dot) dot.classList.add('complete');
+      if (dot) { dot.classList.add('complete'); dot.innerHTML = '&#10003;'; }
       if (lbl) lbl.classList.add('complete');
+    } else {
+      if (dot) dot.textContent = String(i + 1);
     }
 
     // Make clickable if visited
@@ -921,6 +921,8 @@ function buildXML() {
 '\t<string>' + uuid + '</string>\n' +
 '\t<key>PayloadVersion</key>\n' +
 '\t<integer>1</integer>\n' +
+'\t<key>PayloadScope</key>\n' +
+'\t<string>System</string>\n' +
 '\t<key>PayloadDate</key>\n' +
 '\t<string>' + now + '</string>\n' +
 '\t<key>PayloadContent</key>\n' +
@@ -1080,14 +1082,13 @@ function downloadProfile() {
   URL.revokeObjectURL(url);
 }
 
-function copyToClipboard() {
+function copyToClipboard(el) {
   if (!window._lastXml) { generateProfile(); if (!window._lastXml) return; }
   navigator.clipboard.writeText(window._lastXml).then(function() {
-    var btn = event.target;
-    var orig = btn.textContent;
-    btn.textContent = 'Copied';
-    btn.style.color = 'var(--green)';
-    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+    var orig = el.textContent;
+    el.textContent = 'Copied';
+    el.style.color = 'var(--green)';
+    setTimeout(function() { el.textContent = orig; el.style.color = ''; }, 2000);
   });
 }
 
@@ -1204,14 +1205,13 @@ function generateBuildScript() {
   window._lastBuildScript = script;
 }
 
-function copyBuildScript() {
+function copyBuildScript(el) {
   if (!window._lastBuildScript) { generateBuildScript(); }
   navigator.clipboard.writeText(window._lastBuildScript).then(function() {
-    var btn = event.target;
-    var orig = btn.textContent;
-    btn.textContent = 'Copied';
-    btn.style.color = 'var(--green)';
-    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+    var orig = el.textContent;
+    el.textContent = 'Copied';
+    el.style.color = 'var(--green)';
+    setTimeout(function() { el.textContent = orig; el.style.color = ''; }, 2000);
   });
 }
 

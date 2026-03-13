@@ -59,7 +59,7 @@ USER_ID_LABEL=$(defaults read "${PLIST_PATH}" USER_ID_LABEL 2>/dev/null || echo 
 IGNORE_SUPPLIES_LEVEL_JOB=$(defaults read "${PLIST_PATH}" IGNORE_SUPPLIES_LEVEL_JOB 2>/dev/null || echo false)
 
 # Normalize booleans (defaults read returns 1/0 for plist booleans)
-for _bvar in SKIP_LINK_LOCAL_IP REG_MACHINE_ID_DNS USE_CACHED_LOGIN PROMPT_FOR_PASSWORD IGNORE_SUPPLIES_LEVEL_JOB; do
+for _bvar in INSTALL_DRC SKIP_LINK_LOCAL_IP REG_MACHINE_ID_DNS USE_CACHED_LOGIN PROMPT_FOR_PASSWORD IGNORE_SUPPLIES_LEVEL_JOB; do
     case "${!_bvar,,}" in
         1|true|yes) printf -v "$_bvar" '%s' "true" ;;
         *)          printf -v "$_bvar" '%s' "false" ;;
