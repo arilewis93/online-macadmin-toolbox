@@ -1191,7 +1191,7 @@ driverArrayBlock + '\n' +
 'echo ""\n' +
 '\n' +
 '# ── Batch 2: Driver pkgs ────────────────────────────────────────────────────\n' +
-'if [[ ${#DRIVER_PKGS[@]} -gt 0 ]]; then\n' +
+'if [[ ${{ "{#" }}DRIVER_PKGS[@]} -gt 0 ]]; then\n' +
 '  echo "  Now drag in the print driver packages:"\n' +
 '  for f in "${DRIVER_PKGS[@]}"; do\n' +
 '    echo "    - $f"\n' +
