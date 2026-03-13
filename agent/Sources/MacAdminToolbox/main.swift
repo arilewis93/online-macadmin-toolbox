@@ -630,22 +630,10 @@ func serveResult(jsonData: Data, terminateAfter: Bool = true) {
     }
 }
 
-func startScanServer(scanData: Data) {
-    let queue = DispatchQueue(label: "com.macadmin.scanServer")
+func startResolveServer() {
+    let queue = DispatchQueue(label: "com.macadmin.resolveServer")
     guard let port = NWEndpoint.Port(rawValue: resultPort),
           let listener = try? NWListener(using: .tcp, on: port) else { return }
-
-    var idleTimer: DispatchWorkItem?
-    func resetIdleTimer() {
-        idleTimer?.cancel()
-        let item = DispatchWorkItem {
-            listener.cancel()
-            NSApp.terminate(nil)
-        }
-        idleTimer = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 300, execute: item)
-    }
-    resetIdleTimer()
 
     listener.newConnectionHandler = { connection in
         connection.start(queue: queue)
@@ -659,13 +647,7 @@ func startScanServer(scanData: Data) {
                 connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
                 return
             }
-            if request.path == "/result" && request.method == "GET" {
-                resetIdleTimer()
-                let resp = jsonResponseFromData(scanData)
-                connection.send(content: resp, completion: .contentProcessed { _ in connection.cancel() })
-                return
-            }
-            if request.path == "/resolve" && request.method == "POST" {
+            if request.method == "POST" {
                 let clients: [String]
                 if let json = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
                    let c = json["clients"] as? [String] {
@@ -699,6 +681,10 @@ func startScanServer(scanData: Data) {
         }
     }
     listener.start(queue: queue)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+        listener.cancel()
+        NSApp.terminate(nil)
+    }
 }
 
 // MARK: - App delegate
@@ -797,6 +783,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if host == "resolve-tcc" {
+            handledURL = true
+            DispatchQueue.main.async {
+                startResolveServer()
+            }
+            return
+        }
+
         guard host == "fetch-tcc" else { return }
         let query = url.query ?? ""
         let search = query
@@ -831,7 +825,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
                 DispatchQueue.main.async {
-                    startScanServer(scanData: data)
+                    serveResult(jsonData: data)
                 }
             } else {
                 let response = fetchCodeRequirementOnly(searchTerm: search)
