@@ -317,6 +317,12 @@
     return String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
   }
 
+  /** Ensure plist filename ends with .plist extension. */
+  function normalizePlist(name) {
+    if (!name) return name;
+    return name.replace(/\.plist$/i, '') + '.plist';
+  }
+
   function val(id) {
     var el = document.getElementById(id);
     return el ? el.value.trim() : '';
