@@ -2,7 +2,7 @@
   'use strict';
 
   var AGENT_PORT = 8765;
-  var AGENT_BASE = 'http://127.0.0.1:' + AGENT_PORT;
+  var AGENT_BASE = 'http://localhost:' + AGENT_PORT;
   var GRAPH_BASE = 'https://graph.microsoft.com';
 
   var _cachedToken = null;

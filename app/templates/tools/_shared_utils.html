@@ -102,7 +102,7 @@ function checkAgentPing(timeoutSeconds) {
     var maxAttempts = timeoutSeconds * 2;
     function poll() {
       attempts++;
-      fetch('http://127.0.0.1:8765/result', { mode: 'cors' })
+      fetch('http://localhost:8765/result', { mode: 'cors' })
         .then(function(res) { return res.json(); })
         .then(function(json) {
           resolve(json && json.agent === true);
@@ -133,7 +133,7 @@ function checkAgentFDA(timeoutSeconds) {
     var maxAttempts = timeoutSeconds * 2;
     function poll() {
       attempts++;
-      fetch('http://127.0.0.1:8765/result', { mode: 'cors' })
+      fetch('http://localhost:8765/result', { mode: 'cors' })
         .then(function(res) { return res.json(); })
         .then(function(json) {
           resolve({
