@@ -693,6 +693,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
   border-color: var(--accent);
 }
 .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 0 16px var(--accent-glow); }
+.btn:disabled, .btn[disabled] { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
 .btn-success {
   background: var(--green);

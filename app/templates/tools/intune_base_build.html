@@ -404,14 +404,9 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Options</div>
-        <div class="intune-toggle-wrap">
-          <div class="intune-toggle-switch on" id="intune-prereq-toggle" onclick="togglePrereqSwitch()"></div>
-          <span class="intune-toggle-label">Run prerequisite checks</span>
-        </div>
         <div class="intune-btn-row">
           <button class="btn btn-primary" id="intune-run-checks-btn" onclick="runPrerequisites()">Run Checks</button>
-          <button class="btn btn-ghost" onclick="skipPrerequisites()">Skip</button>
+          <button class="btn btn-ghost" id="intune-skip-checks-btn" onclick="skipPrerequisites()">Skip</button>
         </div>
       </div>
 
@@ -448,6 +443,16 @@
         <div class="card-title">Base build files</div>
         <button class="btn btn-primary" id="intune-load-files-btn" onclick="loadFileList()">Load Base Build Files</button>
         <div id="intune-load-status" class="info-box" style="display:none;margin-top:12px;"></div>
+      </div>
+
+      <div class="card" id="intune-psso-card" style="display:none;">
+        <div class="card-title">Platform SSO</div>
+        <p class="section-desc" style="margin-bottom:12px;">Choose which Platform SSO profile to include in the deployment.</p>
+        <select id="intune-psso-select" onchange="updatePssoSelection()" style="font-family:var(--mono);font-size:13px;padding:8px 12px;border:1px solid var(--border-bright);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;min-width:200px;">
+          <option value="se" selected>Secure Enclave</option>
+          <option value="pw">Password</option>
+          <option value="skip">Skip</option>
+        </select>
       </div>
 
       <div class="card" id="intune-files-card" style="display:none;">
@@ -535,6 +540,11 @@ if (typeof define === 'undefined') {
   var currentStep = 1;
   var maxStep = 1;
   var s3Files = [];
+  var S3_BASE = 'https://narcp.s3.af-south-1.amazonaws.com/BaseBuildFiles/';
+  var pssoFiles = {
+    se: { name: 'PSSO_Secure_Enclave.json', url: '/api/intune-file-proxy?file=' + encodeURIComponent('PSSO_Secure_Enclave.json'), type: 'json' },
+    pw: { name: 'PSSO_Password.json', url: '/api/intune-file-proxy?file=' + encodeURIComponent('PSSO_Password.json'), type: 'json' }
+  };
   var customFiles = [];   // {name, file, type, selected, pkgInfo}
   var stepStates = [null, 'active', 'pending', 'pending', 'pending'];
 
@@ -921,21 +931,9 @@ if (typeof define === 'undefined') {
 
   /* ── STEP 2: PREREQUISITES (browser-side Graph API calls) ── */
 
-  var prereqToggle = true;
-
-  window.togglePrereqSwitch = function() {
-    prereqToggle = !prereqToggle;
-    var el = document.getElementById('intune-prereq-toggle');
-    if (prereqToggle) {
-      el.classList.add('on');
-    } else {
-      el.classList.remove('on');
-    }
-  };
-
   window.runPrerequisites = function() {
-    if (!prereqToggle) { skipPrerequisites(); return; }
     document.getElementById('intune-run-checks-btn').disabled = true;
+    document.getElementById('intune-skip-checks-btn').style.display = 'none';
     document.getElementById('intune-prereq-results').style.display = 'block';
 
     var checks = [
@@ -1083,6 +1081,7 @@ if (typeof define === 'undefined') {
           return { name: displayName, url: '/api/intune-file-proxy?file=' + encodeURIComponent(name), type: detectFileType(name), selected: true };
         });
         statusEl.textContent = 'Loaded ' + s3Files.length + ' file' + (s3Files.length !== 1 ? 's' : '') + '.';
+        document.getElementById('intune-psso-card').style.display = 'block';
         renderFileList();
       })
       .catch(function(err) {
@@ -1151,10 +1150,26 @@ if (typeof define === 'undefined') {
     renderFileList();
   };
 
+  window.updatePssoSelection = function() {
+    updateFileCount();
+    updateStep3Next();
+  };
+
+  function getSelectedPssoFile() {
+    var sel = document.getElementById('intune-psso-select');
+    var val = sel ? sel.value : 'se';
+    if (val === 'skip') return null;
+    var f = pssoFiles[val];
+    if (!f) return null;
+    return { name: f.name, url: f.url, type: f.type, file: null, pkgInfo: null };
+  }
+
   function getSelectedFiles() {
     var files = [];
     s3Files.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: f.url, type: f.type, file: null, pkgInfo: null }); });
     customFiles.forEach(function(f) { if (f.selected) files.push({ name: f.name, url: null, type: f.type, file: f.file, pkgInfo: f.pkgInfo || null }); });
+    var psso = getSelectedPssoFile();
+    if (psso) files.push(psso);
     return files;
   }
 
