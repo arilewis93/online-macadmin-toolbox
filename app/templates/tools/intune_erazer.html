@@ -1,0 +1,1063 @@
+{% extends "base.html" %}
+{% block title %}Intune ERazer{% endblock %}
+{% block main_class %}tool-layout{% endblock %}
+{% block header_class %}tool-bar{% endblock %}
+{% block header_left %}
+<a href="{{ url_for('main.dashboard') }}" class="tool-bar-back">&larr; Dashboard</a>
+<div class="logo-badge">
+  <div class="logo-icon">
+    <svg viewBox="0 0 16 16"><path d="M8 1L1 4v5c0 3.5 3 6.5 7 7 4-0.5 7-3.5 7-7V4L8 1z"/></svg>
+  </div>
+  <span class="logo-text">INTUNE</span>
+  <span class="logo-sep">/</span>
+  <span class="logo-sub">ERazer</span>
+</div>
+<span class="status-pill" id="statusPill">READY</span>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* ── STEPPER ── */
+.intune-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 32px;
+  padding: 20px 0 8px;
+}
+.intune-stepper-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  cursor: default;
+}
+.intune-stepper-item.clickable { cursor: pointer; }
+.intune-step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid var(--border-bright);
+  color: var(--text-muted);
+  background: var(--surface);
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.intune-step-dot.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.intune-step-dot.complete {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-dim);
+}
+.intune-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.intune-step-label.active { color: var(--accent); }
+.intune-step-label.complete { color: var(--green); }
+.intune-step-line {
+  width: 48px;
+  height: 2px;
+  background: var(--border-bright);
+  margin: 0 12px;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.intune-step-line.complete { background: var(--green); }
+
+/* ── STATUS ICONS ── */
+.intune-status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.intune-icon-pending {
+  border: 2px solid var(--border);
+}
+.intune-icon-processing {
+  border: 2px solid var(--accent, #4f8eff);
+  border-top-color: transparent;
+  animation: intune-spin 0.7s linear infinite;
+}
+.intune-icon-success {
+  background: var(--green, #34c759);
+}
+.intune-icon-success::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+.intune-icon-fail {
+  background: var(--red, #ff453a);
+}
+.intune-icon-fail::after {
+  content: '\00d7';
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+@keyframes intune-spin { to { transform: rotate(360deg); } }
+
+/* ── CHECK ROWS ── */
+.intune-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.intune-check-row:last-child { border-bottom: none; }
+.intune-check-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* ── COMPANION STEPS ── */
+.autoconfig-companion-steps {
+  margin: 0 0 16px 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim, #999);
+}
+.autoconfig-companion-steps li { margin-bottom: 6px; }
+.autoconfig-companion-steps code {
+  font-size: 12px;
+  background: var(--bg, #111);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── CATEGORY CARDS ── */
+.er-category-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.er-category-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.er-category-header:hover { background: var(--surface2); }
+.er-category-icon { font-size: 10px; opacity: 0.6; transition: transform 0.2s; }
+.er-category-icon.open { transform: rotate(90deg); }
+.er-category-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+.er-category-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.er-category-select-all {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.er-category-select-all:hover { text-decoration: underline; }
+.er-category-body { display: none; border-top: 1px solid var(--border); }
+.er-category-body.open { display: block; }
+.er-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.er-item-row:last-child { border-bottom: none; }
+.er-item-row:hover { background: var(--surface2); }
+.er-item-name { flex: 1; color: var(--text); }
+.er-item-detail {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.er-item-row input[type="checkbox"] { flex-shrink: 0; }
+.er-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.er-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── DELETE BAR ── */
+.er-delete-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border-bright);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+}
+.er-delete-count {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.er-btn-delete {
+  background: var(--red, #ff453a);
+  border-color: var(--red, #ff453a);
+  color: #fff;
+}
+.er-btn-delete:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── CONFIRM MODAL ── */
+.er-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.er-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.er-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.er-dialog-body {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.er-dialog-input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+.er-dialog-input:focus { border-color: var(--accent); }
+.er-dialog-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.er-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.er-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+.er-progress-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ── MISC ── */
+.intune-btn-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shell tool-single">
+  <main>
+
+    <!-- ══════════════════════════ STEPPER ══════════════════════════ -->
+    <div class="intune-stepper" id="intune-stepper">
+      <div class="intune-stepper-item" onclick="stepClick(1)">
+        <div class="intune-step-dot active" id="intune-dot-1">1</div>
+        <span class="intune-step-label active" id="intune-label-1">Connect</span>
+      </div>
+      <div class="intune-step-line" id="intune-line-1"></div>
+      <div class="intune-stepper-item" onclick="stepClick(2)">
+        <div class="intune-step-dot" id="intune-dot-2">2</div>
+        <span class="intune-step-label" id="intune-label-2">Review &amp; Delete</span>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 1: CONNECT ══════════════════════════ -->
+    <div class="section active" id="intune-step-1">
+      <div class="section-header">
+        <div class="section-tag">01 / Connect</div>
+        <div class="section-title">Connect to Intune</div>
+        <div class="section-desc">Authenticate with Microsoft Intune via the companion app running on your Mac.</div>
+      </div>
+
+      <div class="card" id="intune-agent-checking">
+        <div class="card-title">Checking for companion app&hellip;</div>
+        <div class="info-box">Detecting whether the Mac Admin Toolbox companion app is installed&hellip;</div>
+      </div>
+
+      <div class="card" id="intune-agent-missing" style="display:none;">
+        <div class="card-title">Companion app required</div>
+        <p class="section-desc" style="margin-bottom:12px;">This tool needs the <strong>Mac Admin Toolbox</strong> companion app running on your Mac.</p>
+        <ol class="autoconfig-companion-steps">
+          <li><strong>Download</strong> the companion app (zip) using the button below.</li>
+          <li><strong>Unzip</strong> the file (double&#8209;click the .zip). You'll get <code>Mac Admin Toolbox.app</code>.</li>
+          <li><strong>Move</strong> <code>Mac Admin Toolbox.app</code> to <strong>Applications</strong> (or keep it anywhere on your Mac).</li>
+          <li><strong>Open</strong> the app once so macOS registers it. It will open the Mac Admin Toolbox in your browser.</li>
+        </ol>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:16px;">
+          <a href="https://narcp.s3.af-south-1.amazonaws.com/InstallerFiles/MacAdminToolbox.zip" class="btn btn-primary" target="_blank" rel="noopener">Download companion app</a>
+          <button class="btn btn-ghost" onclick="erRecheckAgent()">Re-check</button>
+        </div>
+      </div>
+
+      <div id="intune-agent-ready" style="display:none;">
+        <div class="card">
+          <div class="card-title">Authentication</div>
+          <button class="btn btn-primary" id="intune-connect-btn" onclick="erConnect()">Connect to Intune</button>
+          <div id="intune-connect-status" style="display:none;margin-top:16px;">
+            <div class="info-box" id="intune-connect-status-msg">Launching companion app&hellip;</div>
+            <div id="intune-connect-items" style="margin-top:12px;"></div>
+          </div>
+          <div id="intune-tenant-info" class="info-box" style="display:none;margin-top:16px;border-color:var(--green);background:var(--green-dim);">
+            <strong style="color:var(--green);">Connected</strong><br>
+            Tenant: <strong id="intune-tenant-name"></strong><br>
+            User: <strong id="intune-user-email"></strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-primary" id="intune-step1-next" disabled style="display:none" onclick="goToStep(2)">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ STEP 2: REVIEW & DELETE ══════════════════════════ -->
+    <div class="section" id="intune-step-2">
+      <div class="section-header">
+        <div class="section-tag">02 / Review &amp; Delete</div>
+        <div class="section-title">Review Intune Objects</div>
+        <div class="section-desc">Select the macOS and iOS items you want to remove from Intune. This action cannot be undone.</div>
+      </div>
+
+      <div id="er-scan-status" class="info-box" style="margin-bottom:16px;">
+        <span class="intune-status-icon intune-icon-processing"></span>&ensp;Scanning Intune tenant&hellip;
+      </div>
+
+      <div id="er-categories"></div>
+
+      <div class="er-delete-bar" id="er-delete-bar" style="display:none;">
+        <span class="er-delete-count" id="er-delete-count">0 items selected</span>
+        <button class="btn er-btn-delete" id="er-delete-btn" disabled onclick="erShowConfirm()">Delete Selected</button>
+      </div>
+
+      <div class="intune-btn-row" style="justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="goToStep(1)">&larr; Back</button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════ CONFIRM MODAL ══════════════════════════ -->
+    <div class="er-overlay" id="er-confirm-overlay" style="display:none;">
+      <div class="er-dialog" id="er-confirm-dialog">
+        <div class="er-dialog-title">Confirm Deletion</div>
+        <div class="er-dialog-body" id="er-confirm-body"></div>
+        <div id="er-confirm-input-wrap">
+          <input type="text" class="er-dialog-input" id="er-confirm-input" placeholder="Type DELETE to confirm" autocomplete="off" spellcheck="false">
+        </div>
+        <div id="er-progress-wrap" style="display:none;">
+          <div class="er-progress-bar"><div class="er-progress-fill" id="er-progress-fill"></div></div>
+          <div class="er-progress-text" id="er-progress-text">Deleting&hellip;</div>
+        </div>
+        <div class="er-dialog-actions" id="er-confirm-actions">
+          <button class="btn btn-ghost" onclick="erCancelConfirm()">Cancel</button>
+          <button class="btn er-btn-delete" id="er-confirm-delete-btn" disabled onclick="erExecuteDelete()">Delete</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include 'tools/_shared_utils.html' %}
+<script>
+(function() {
+  var INTUNE_PORT = 8765;
+  var currentStep = 1;
+  var maxStep = 1;
+  var stepStates = [null, 'active', 'pending'];
+
+  // Category data: { key, label, items[], deleteEndpoint(item) }
+  var categories = [];
+
+  /* ── AGENT COMMUNICATION ── */
+
+  function intuneRequest(method, path, body) {
+    var opts = { method: method, mode: 'cors', headers: {'Content-Type': 'application/json'} };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch('http://127.0.0.1:' + INTUNE_PORT + path, opts).then(function(r) { return r.json(); });
+  }
+
+  var _cachedToken = null;
+  function getToken() {
+    if (_cachedToken) return Promise.resolve(_cachedToken);
+    return intuneRequest('GET', '/token').then(function(data) {
+      if (data.error) throw new Error(data.error);
+      _cachedToken = data.token;
+      fetch('http://127.0.0.1:' + INTUNE_PORT + '/disconnect', { method: 'POST', mode: 'cors' }).catch(function() {});
+      return _cachedToken;
+    });
+  }
+
+  function graphRequest(method, endpoint, body, apiVersion) {
+    apiVersion = apiVersion || 'beta';
+    return getToken().then(function(token) {
+      var url = 'https://graph.microsoft.com/' + apiVersion + endpoint;
+      var opts = {
+        method: method,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+      };
+      if (body && (method === 'POST' || method === 'PATCH' || method === 'DELETE')) {
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(url, opts).then(function(r) {
+        if (r.status === 204) return null;
+        return r.text().then(function(text) {
+          if (!text) return null;
+          var data = JSON.parse(text);
+          if (!r.ok) throw new Error(data.error ? data.error.message : 'Graph API error ' + r.status);
+          return data;
+        });
+      });
+    });
+  }
+
+  // Fetch all pages for a Graph API endpoint
+  function graphRequestAll(endpoint, apiVersion) {
+    var all = [];
+    function fetchPage(url) {
+      return getToken().then(function(token) {
+        return fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        });
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.value) all = all.concat(data.value);
+        if (data['@odata.nextLink']) return fetchPage(data['@odata.nextLink']);
+        return all;
+      });
+    }
+    apiVersion = apiVersion || 'beta';
+    return fetchPage('https://graph.microsoft.com/' + apiVersion + endpoint);
+  }
+
+  /* ── STEPPER ── */
+
+  function updateStepIndicators() {
+    for (var i = 1; i <= 2; i++) {
+      var dot = document.getElementById('intune-dot-' + i);
+      var label = document.getElementById('intune-label-' + i);
+      var line = document.getElementById('intune-line-' + i);
+      dot.className = 'intune-step-dot';
+      label.className = 'intune-step-label';
+      if (i < currentStep || stepStates[i] === 'complete') {
+        dot.className += ' complete';
+        dot.innerHTML = '&#10003;';
+        label.className += ' complete';
+        if (line) line.className = 'intune-step-line complete';
+      } else if (i === currentStep) {
+        dot.className += ' active';
+        dot.textContent = i;
+        label.className += ' active';
+        if (line) line.className = 'intune-step-line';
+      } else {
+        dot.textContent = i;
+        if (line) line.className = 'intune-step-line';
+      }
+      var item = dot.parentElement;
+      if (i <= maxStep) item.classList.add('clickable');
+      else item.classList.remove('clickable');
+    }
+  }
+
+  function updateStepIndicator(step, state) {
+    stepStates[step] = state;
+    updateStepIndicators();
+  }
+
+  window.stepClick = function(n) { if (n <= maxStep) goToStep(n); };
+
+  window.goToStep = function(n) {
+    if (n > maxStep + 1 || n < 1 || n > 2) return;
+    currentStep = n;
+    if (n > maxStep) maxStep = n;
+    for (var i = 1; i <= 2; i++) {
+      var el = document.getElementById('intune-step-' + i);
+      if (i === n) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+    updateStepIndicators();
+    if (n === 2 && categories.length === 0) erStartScan();
+  };
+
+  /* ── STEP 1: CONNECT ── */
+
+  function erShowAgentState(found) {
+    document.getElementById('intune-agent-checking').style.display = 'none';
+    if (found) {
+      document.getElementById('intune-agent-missing').style.display = 'none';
+      document.getElementById('intune-agent-ready').style.display = '';
+    } else {
+      document.getElementById('intune-agent-missing').style.display = '';
+      document.getElementById('intune-agent-ready').style.display = 'none';
+    }
+  }
+
+  window.erRecheckAgent = function() {
+    document.getElementById('intune-agent-missing').style.display = 'none';
+    document.getElementById('intune-agent-checking').style.display = '';
+    checkAgentPing().then(erShowAgentState);
+  };
+
+  checkAgentPing().then(erShowAgentState);
+
+  var connectTriggered = false;
+
+  window.erConnect = function() {
+    document.getElementById('intune-connect-btn').disabled = true;
+    document.getElementById('intune-connect-btn').style.display = 'none';
+    document.getElementById('intune-connect-status').style.display = 'block';
+    document.getElementById('intune-connect-status-msg').textContent = 'Launching companion app\u2026';
+    var iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = 'macadmin-toolbox://intune-base-build';
+    document.body.appendChild(iframe);
+    setTimeout(function() { iframe.remove(); }, 3000);
+    setTimeout(startPollingConnect, 2000);
+  };
+
+  function startPollingConnect() {
+    var connectSent = false;
+    var connectItems = [
+      { name: 'Launch Agent', status: 'processing', message: 'Starting\u2026' },
+      { name: 'Connect to Graph', status: 'pending', message: '' },
+      { name: 'Get Tenant Info', status: 'pending', message: '' }
+    ];
+    var el = document.getElementById('intune-connect-items');
+    el.innerHTML = renderCheckRows(connectItems);
+
+    var poll = setInterval(function() {
+      intuneRequest('GET', '/status').then(function(data) {
+        if (!connectTriggered) {
+          connectTriggered = true;
+          connectItems[0].status = 'success';
+          connectItems[0].message = 'Agent running';
+          connectItems[1].status = 'processing';
+          el.innerHTML = renderCheckRows(connectItems);
+          document.getElementById('intune-connect-status-msg').textContent = 'Getting things ready\u2026';
+          intuneRequest('POST', '/connect', {
+            scopes: [
+              'DeviceManagementApps.ReadWrite.All',
+              'DeviceManagementConfiguration.ReadWrite.All',
+              'DeviceManagementManagedDevices.ReadWrite.All'
+            ]
+          }).then(function() { connectSent = true; }).catch(function() {});
+          return;
+        }
+        if (!connectSent) return;
+
+        if (data.error) {
+          connectItems[1].status = 'fail';
+          connectItems[1].message = data.error;
+          el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
+          return;
+        } else if (data.connected) {
+          connectItems[1].status = 'success';
+          connectItems[1].message = 'Authenticated';
+          connectItems[2].status = 'processing';
+        } else if (data.operation === 'connecting') {
+          connectItems[1].status = 'processing';
+          connectItems[1].message = data.connectStep || 'Authenticating\u2026';
+        }
+        el.innerHTML = renderCheckRows(connectItems);
+
+        if (data.connected) {
+          connectItems[2].status = 'processing';
+          connectItems[2].message = 'Fetching tenant info\u2026';
+          el.innerHTML = renderCheckRows(connectItems);
+          clearInterval(poll);
+
+          getToken().then(function() {
+            return Promise.all([
+              graphRequest('GET', '/organization', null, 'v1.0').catch(function() { return null; }),
+              graphRequest('GET', '/me', null, 'v1.0').catch(function() { return null; })
+            ]);
+          }).then(function(results) {
+            var orgData = results[0];
+            var meData = results[1];
+            var tn = (orgData && orgData.value && orgData.value[0]) ? orgData.value[0].displayName : 'Unknown';
+            var ue = (meData && meData.userPrincipalName) ? meData.userPrincipalName : 'Unknown';
+            connectItems[2].status = 'success';
+            connectItems[2].message = tn;
+            el.innerHTML = renderCheckRows(connectItems);
+            document.getElementById('intune-connect-status').style.display = 'none';
+            document.getElementById('intune-tenant-info').style.display = 'block';
+            document.getElementById('intune-tenant-name').textContent = tn;
+            document.getElementById('intune-user-email').textContent = ue;
+            var step1Next = document.getElementById('intune-step1-next');
+            step1Next.disabled = false;
+            step1Next.style.display = '';
+            document.getElementById('statusPill').textContent = 'CONNECTED';
+            document.getElementById('statusPill').classList.add('ready');
+            updateStepIndicator(1, 'complete');
+          }).catch(function(err) {
+            connectItems[2].status = 'fail';
+            connectItems[2].message = 'Token error: ' + err.message;
+            el.innerHTML = renderCheckRows(connectItems);
+          });
+        }
+      }).catch(function() {});
+    }, 750);
+  }
+
+  function statusIcon(status) {
+    return '<span class="intune-status-icon intune-icon-' + (status || 'pending') + '"></span>';
+  }
+
+  function renderCheckRows(items) {
+    var html = '';
+    items.forEach(function(item) {
+      html += '<div class="intune-check-row">' + statusIcon(item.status) + '<span>' + escXml(item.name) + '</span>';
+      if (item.message) html += '<span class="intune-check-msg">' + escXml(item.message) + '</span>';
+      html += '</div>';
+    });
+    return html;
+  }
+
+  /* ── STEP 2: SCAN & DISPLAY ── */
+
+  var CATEGORY_DEFS = [
+    {
+      key: 'apps',
+      label: 'macOS Apps',
+      fetch: function() {
+        return graphRequestAll('/deviceAppManagement/mobileApps').then(function(items) {
+          return items.filter(function(a) {
+            var t = a['@odata.type'] || '';
+            return t === '#microsoft.graph.macOSLobApp' ||
+                   t === '#microsoft.graph.macOSDmgApp' ||
+                   t === '#microsoft.graph.macOSMicrosoftDefenderApp' ||
+                   t === '#microsoft.graph.macOSMicrosoftEdgeApp' ||
+                   t === '#microsoft.graph.macOSOfficeSuiteApp' ||
+                   t === '#microsoft.graph.macOsVppApp' ||
+                   (t === '#microsoft.graph.mobileLobApp' && /\.pkg$/i.test(a.fileName || ''));
+          }).map(function(a) {
+            return { id: a.id, name: a.displayName || a.id, detail: (a['@odata.type'] || '').replace('#microsoft.graph.', '') };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceAppManagement/mobileApps/' + item.id);
+      }
+    },
+    {
+      key: 'configs',
+      label: 'Device Configurations',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/deviceConfigurations').then(function(items) {
+          return items.filter(function(c) {
+            var t = c['@odata.type'] || '';
+            return t.toLowerCase().indexOf('macos') !== -1 || t.toLowerCase().indexOf('ios') !== -1;
+          }).map(function(c) {
+            return { id: c.id, name: c.displayName || c.id, detail: (c['@odata.type'] || '').replace('#microsoft.graph.', '') };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/deviceConfigurations/' + item.id);
+      }
+    },
+    {
+      key: 'settings',
+      label: 'Settings Catalog',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/configurationPolicies').then(function(items) {
+          return items.filter(function(p) {
+            var plat = (p.platforms || '').toLowerCase();
+            return plat.indexOf('macos') !== -1 || plat.indexOf('ios') !== -1;
+          }).map(function(p) {
+            return { id: p.id, name: p.name || p.id, detail: p.platforms || '' };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/configurationPolicies/' + item.id);
+      }
+    },
+    {
+      key: 'endpoint',
+      label: 'Endpoint Security',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/intents').then(function(items) {
+          return items.filter(function(i) {
+            var desc = (i.description || '').toLowerCase();
+            var name = (i.displayName || '').toLowerCase();
+            // Endpoint security intents for macOS
+            return desc.indexOf('macos') !== -1 || name.indexOf('macos') !== -1 ||
+                   desc.indexOf('mac os') !== -1 || name.indexOf('mac os') !== -1;
+          }).map(function(i) {
+            return { id: i.id, name: i.displayName || i.id, detail: i.templateId ? 'Template: ' + i.templateId : '' };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/intents/' + item.id);
+      }
+    },
+    {
+      key: 'scripts',
+      label: 'Shell Scripts',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/deviceShellScripts').then(function(items) {
+          return items.map(function(s) {
+            return { id: s.id, name: s.displayName || s.fileName || s.id, detail: 'Shell script' };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/deviceShellScripts/' + item.id);
+      }
+    },
+    {
+      key: 'customattr',
+      label: 'Custom Attributes',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/deviceCustomAttributeShellScripts').then(function(items) {
+          return items.map(function(s) {
+            return { id: s.id, name: s.displayName || s.id, detail: 'Custom attribute' };
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/deviceCustomAttributeShellScripts/' + item.id);
+      }
+    },
+    {
+      key: 'dep',
+      label: 'DEP Enrollment Profiles',
+      fetch: function() {
+        return graphRequestAll('/deviceManagement/depOnboardingSettings').then(function(settings) {
+          var promises = settings.map(function(s) {
+            return graphRequestAll('/deviceManagement/depOnboardingSettings/' + s.id + '/enrollmentProfiles').then(function(profiles) {
+              return profiles.map(function(p) {
+                return { id: p.id, name: p.displayName || p.id, detail: s.tokenName || s.id, _depSettingId: s.id };
+              });
+            }).catch(function() { return []; });
+          });
+          return Promise.all(promises).then(function(results) {
+            var all = [];
+            results.forEach(function(r) { all = all.concat(r); });
+            return all;
+          });
+        });
+      },
+      deleteOne: function(item) {
+        return graphRequest('DELETE', '/deviceManagement/depOnboardingSettings/' + item._depSettingId + '/enrollmentProfiles/' + item.id);
+      }
+    }
+  ];
+
+  function erStartScan() {
+    var container = document.getElementById('er-categories');
+    container.innerHTML = '';
+    var statusEl = document.getElementById('er-scan-status');
+    statusEl.style.display = 'flex';
+    statusEl.style.alignItems = 'center';
+    statusEl.style.gap = '8px';
+    categories = [];
+    var completed = 0;
+    var total = CATEGORY_DEFS.length;
+
+    CATEGORY_DEFS.forEach(function(def) {
+      // Add a loading placeholder card
+      var cardId = 'er-cat-' + def.key;
+      container.innerHTML += '<div class="er-category-card" id="' + cardId + '"><div class="er-loading-row">' +
+        statusIcon('processing') + ' Loading ' + escXml(def.label) + '&hellip;</div></div>';
+    });
+
+    CATEGORY_DEFS.forEach(function(def) {
+      def.fetch().then(function(items) {
+        var cat = { key: def.key, label: def.label, items: items, deleteOne: def.deleteOne };
+        categories.push(cat);
+        erRenderCategory(cat);
+      }).catch(function(err) {
+        var cat = { key: def.key, label: def.label + ' (failed to load)', items: [], deleteOne: def.deleteOne, error: err.message };
+        categories.push(cat);
+        erRenderCategory(cat);
+      }).then(function() {
+        completed++;
+        if (completed === total) {
+          statusEl.style.display = 'none';
+          document.getElementById('er-delete-bar').style.display = 'flex';
+          document.getElementById('statusPill').textContent = 'SCANNED';
+          erUpdateDeleteCount();
+        }
+      });
+    });
+  }
+
+  function erRenderCategory(cat) {
+    var card = document.getElementById('er-cat-' + cat.key);
+    if (!card) return;
+    var count = cat.items.length;
+    var html = '<div class="er-category-header" onclick="erToggleCategory(\'' + cat.key + '\')">' +
+      '<span class="er-category-icon" id="er-icon-' + cat.key + '">\u25B6</span>' +
+      '<span class="er-category-title">' + escXml(cat.label) + '</span>' +
+      '<span class="er-category-count">' + count + '</span>';
+    if (count > 0) {
+      html += '<button class="er-category-select-all" id="er-selall-' + cat.key + '" onclick="event.stopPropagation();erToggleSelectAll(\'' + cat.key + '\')">' +
+        'Select All</button>';
+    }
+    html += '</div>';
+    html += '<div class="er-category-body" id="er-body-' + cat.key + '">';
+    if (cat.error) {
+      html += '<div class="er-empty" style="color:var(--red);">' + escXml(cat.error) + '</div>';
+    } else if (count === 0) {
+      html += '<div class="er-empty">No items found</div>';
+    } else {
+      cat.items.forEach(function(item, idx) {
+        html += '<div class="er-item-row">' +
+          '<input type="checkbox" data-cat="' + cat.key + '" data-idx="' + idx + '" onchange="erUpdateDeleteCount()">' +
+          '<span class="er-item-name">' + escXml(item.name) + '</span>' +
+          '<span class="er-item-detail">' + escXml(item.detail) + '</span>' +
+          '</div>';
+      });
+    }
+    html += '</div>';
+    card.innerHTML = html;
+  }
+
+  window.erToggleCategory = function(key) {
+    var body = document.getElementById('er-body-' + key);
+    var icon = document.getElementById('er-icon-' + key);
+    if (!body) return;
+    var open = body.classList.contains('open');
+    if (open) {
+      body.classList.remove('open');
+      icon.classList.remove('open');
+    } else {
+      body.classList.add('open');
+      icon.classList.add('open');
+    }
+  };
+
+  window.erToggleSelectAll = function(key) {
+    var body = document.getElementById('er-body-' + key);
+    if (!body) return;
+    var checks = body.querySelectorAll('input[type="checkbox"]');
+    var allChecked = true;
+    for (var i = 0; i < checks.length; i++) {
+      if (!checks[i].checked) { allChecked = false; break; }
+    }
+    for (var j = 0; j < checks.length; j++) checks[j].checked = !allChecked;
+    var btn = document.getElementById('er-selall-' + key);
+    if (btn) btn.textContent = allChecked ? 'Select All' : 'Deselect All';
+    erUpdateDeleteCount();
+  };
+
+  window.erUpdateDeleteCount = function() {
+    var checks = document.querySelectorAll('#er-categories input[type="checkbox"]:checked');
+    var count = checks.length;
+    document.getElementById('er-delete-count').textContent = count + ' item' + (count !== 1 ? 's' : '') + ' selected';
+    document.getElementById('er-delete-btn').disabled = count === 0;
+    // Update select all button labels
+    categories.forEach(function(cat) {
+      var body = document.getElementById('er-body-' + cat.key);
+      var btn = document.getElementById('er-selall-' + cat.key);
+      if (!body || !btn) return;
+      var all = body.querySelectorAll('input[type="checkbox"]');
+      var allChecked = all.length > 0;
+      for (var i = 0; i < all.length; i++) {
+        if (!all[i].checked) { allChecked = false; break; }
+      }
+      btn.textContent = allChecked ? 'Deselect All' : 'Select All';
+    });
+  };
+
+  /* ── DELETE CONFIRMATION ── */
+
+  window.erShowConfirm = function() {
+    var checks = document.querySelectorAll('#er-categories input[type="checkbox"]:checked');
+    if (checks.length === 0) return;
+    var counts = {};
+    for (var i = 0; i < checks.length; i++) {
+      var catKey = checks[i].getAttribute('data-cat');
+      counts[catKey] = (counts[catKey] || 0) + 1;
+    }
+    var lines = [];
+    categories.forEach(function(cat) {
+      if (counts[cat.key]) lines.push(counts[cat.key] + ' ' + cat.label);
+    });
+    document.getElementById('er-confirm-body').innerHTML =
+      'You are about to permanently delete <strong>' + checks.length + ' item' + (checks.length !== 1 ? 's' : '') + '</strong> from Intune:<br><br>' +
+      lines.map(function(l) { return '&bull; ' + l; }).join('<br>') +
+      '<br><br>Type <strong>DELETE</strong> below to confirm.';
+    document.getElementById('er-confirm-input').value = '';
+    document.getElementById('er-confirm-delete-btn').disabled = true;
+    document.getElementById('er-confirm-input-wrap').style.display = '';
+    document.getElementById('er-confirm-actions').style.display = 'flex';
+    document.getElementById('er-progress-wrap').style.display = 'none';
+    document.getElementById('er-confirm-overlay').style.display = 'flex';
+    document.getElementById('er-confirm-input').focus();
+  };
+
+  document.addEventListener('keyup', function(e) {
+    if (e.target && e.target.id === 'er-confirm-input') {
+      var val = e.target.value.trim();
+      document.getElementById('er-confirm-delete-btn').disabled = val !== 'DELETE';
+    }
+  });
+
+  window.erCancelConfirm = function() {
+    document.getElementById('er-confirm-overlay').style.display = 'none';
+  };
+
+  window.erExecuteDelete = function() {
+    var checks = document.querySelectorAll('#er-categories input[type="checkbox"]:checked');
+    if (checks.length === 0) return;
+
+    // Gather items to delete
+    var toDelete = [];
+    for (var i = 0; i < checks.length; i++) {
+      var catKey = checks[i].getAttribute('data-cat');
+      var idx = parseInt(checks[i].getAttribute('data-idx'), 10);
+      var cat = categories.find(function(c) { return c.key === catKey; });
+      if (cat && cat.items[idx]) {
+        toDelete.push({ cat: cat, item: cat.items[idx], checkbox: checks[i] });
+      }
+    }
+
+    // Switch modal to progress mode
+    document.getElementById('er-confirm-input-wrap').style.display = 'none';
+    document.getElementById('er-confirm-actions').style.display = 'none';
+    document.getElementById('er-progress-wrap').style.display = '';
+    document.getElementById('statusPill').textContent = 'DELETING';
+
+    var total = toDelete.length;
+    var done = 0;
+    var failed = 0;
+    var progressFill = document.getElementById('er-progress-fill');
+    var progressText = document.getElementById('er-progress-text');
+
+    function deleteNext() {
+      if (done + failed >= total) {
+        // Done
+        progressFill.style.width = '100%';
+        if (failed > 0) {
+          progressFill.style.background = 'var(--amber, #ffb830)';
+          progressText.textContent = 'Completed: ' + done + ' deleted, ' + failed + ' failed.';
+        } else {
+          progressFill.style.background = 'var(--green)';
+          progressText.textContent = 'All ' + done + ' items deleted successfully.';
+        }
+        document.getElementById('er-confirm-actions').style.display = 'flex';
+        document.getElementById('er-confirm-actions').innerHTML = '<button class="btn btn-primary" onclick="erFinishDelete()">Done</button>';
+        document.getElementById('statusPill').textContent = 'DONE';
+        return;
+      }
+
+      var entry = toDelete[done + failed];
+      progressText.textContent = 'Deleting ' + (done + failed + 1) + ' of ' + total + ': ' + entry.item.name;
+      progressFill.style.width = ((done + failed) / total * 100) + '%';
+
+      entry.cat.deleteOne(entry.item).then(function() {
+        done++;
+        // Remove the item from the category and hide the row
+        entry.checkbox.closest('.er-item-row').style.display = 'none';
+        deleteNext();
+      }).catch(function() {
+        failed++;
+        entry.checkbox.closest('.er-item-row').style.background = 'var(--red-dim, rgba(255,69,58,0.12))';
+        entry.checkbox.checked = false;
+        deleteNext();
+      });
+    }
+
+    deleteNext();
+  };
+
+  window.erFinishDelete = function() {
+    document.getElementById('er-confirm-overlay').style.display = 'none';
+    // Re-scan to refresh counts
+    erStartScan();
+  };
+
+})();
+</script>
+{% endblock %}

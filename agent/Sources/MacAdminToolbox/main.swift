@@ -742,7 +742,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if host == "intune-base-build" || host == "serial-killer" || host == "intune-procreate" || host == "intune-assign" {
+        if host == "intune-base-build" || host == "serial-killer" || host == "intune-procreate" || host == "intune-assign" || host == "intune-erazer" {
             handledURL = true
             startIntuneServer()
             return
