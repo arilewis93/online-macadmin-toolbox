@@ -486,6 +486,9 @@
     var autoconfigEditingIndex = -1;
     var autoconfigSearchTerm = '';
     var autoconfigScanData = null;
+    var autoconfigPrefetchedData = null;
+    var autoconfigPrefetchFailed = false;
+    var autoconfigPrefetchCallbacks = [];
 
     function autoconfigFindMatchingEntry(entries, identifier) {
         if (!entries || !identifier) return null;
@@ -624,6 +627,8 @@
         document.getElementById('autoconfig-agent-missing').style.display = 'none';
         document.getElementById('autoconfig-agent-no-fda').style.display = 'none';
         document.getElementById('autoconfig-agent-ready').style.display = '';
+        // Delay prefetch to let the agent fully terminate after the ping response
+        setTimeout(autoconfigStartPrefetch, 2000);
       }
     }
 
@@ -640,6 +645,47 @@
 
     var AUTOCONFIG_POLL_PORT = 8765;
     var AUTOCONFIG_POLL_MAX_ATTEMPTS = 60;
+
+    function autoconfigStartPrefetch() {
+      if (autoconfigPrefetchedData) return;
+      autoconfigPrefetchFailed = false;
+      fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function () {
+        // Agent still running from something else — skip prefetch
+      }).catch(function () {
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'macadmin-toolbox://fetch-tcc?search=__prefetch__&scope=full';
+        document.body.appendChild(iframe);
+        setTimeout(function () { iframe.remove(); }, 3000);
+        autoconfigPollPrefetch();
+      });
+    }
+
+    function autoconfigPollPrefetch() {
+      var attempts = 0;
+      function poll() {
+        attempts++;
+        fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function (res) { return res.json(); }).then(function (json) {
+          if (json.error && json.permission_required) {
+            autoconfigPrefetchFailed = true;
+            autoconfigPrefetchCallbacks.forEach(function (cb) { cb(null); });
+            autoconfigPrefetchCallbacks = [];
+            return;
+          }
+          autoconfigPrefetchedData = json;
+          autoconfigPrefetchCallbacks.forEach(function (cb) { cb(json); });
+          autoconfigPrefetchCallbacks = [];
+        }).catch(function () {
+          if (attempts < AUTOCONFIG_POLL_MAX_ATTEMPTS) setTimeout(poll, 1000);
+          else {
+            autoconfigPrefetchFailed = true;
+            autoconfigPrefetchCallbacks.forEach(function (cb) { cb(null); });
+            autoconfigPrefetchCallbacks = [];
+          }
+        });
+      }
+      setTimeout(poll, 1500);
+    }
 
     function startPollForFull(searchTerm, statusEl) {
       var attempts = 0;
@@ -681,6 +727,45 @@
       if (!searchTerm || !statusEl) return;
       var errEl = document.getElementById('autoconfig-permission-error');
       if (errEl) errEl.style.display = 'none';
+
+      // Use prefetched data if available
+      if (autoconfigPrefetchedData) {
+        autoconfigUsePrefetchedData(statusEl);
+        return;
+      }
+
+      // Prefetch still in progress — wait for it
+      if (!autoconfigPrefetchFailed) {
+        statusEl.className = 'info-box';
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Getting permissions from your Mac\u2026';
+        autoconfigPrefetchCallbacks.push(function (data) {
+          if (data) {
+            autoconfigUsePrefetchedData(statusEl);
+          } else {
+            // Prefetch failed, fall back to on-demand fetch
+            autoconfigFetchFromMacDirect(searchTerm, statusEl);
+          }
+        });
+        return;
+      }
+
+      // Prefetch failed — fetch on demand
+      autoconfigFetchFromMacDirect(searchTerm, statusEl);
+    }
+
+    function autoconfigUsePrefetchedData(statusEl) {
+      var data = autoconfigPrefetchedData;
+      document.getElementById('autoconfig-permission-error').style.display = 'none';
+      var tccCount = data.tcc_raw ? data.tcc_raw.length : 0;
+      var notifCount = data.notifications ? data.notifications.length : 0;
+      statusEl.className = 'info-box';
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Scan complete. Found ' + tccCount + ' TCC entries, ' + notifCount + ' notifications. Review below.';
+      autoconfigRenderScanResults(data);
+    }
+
+    function autoconfigFetchFromMacDirect(searchTerm, statusEl) {
       fetch('http://127.0.0.1:' + AUTOCONFIG_POLL_PORT + '/result', { mode: 'cors' }).then(function () {
         statusEl.className = 'warning-box';
         statusEl.style.display = 'block';
