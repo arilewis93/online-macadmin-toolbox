@@ -423,7 +423,7 @@
       return m === 0xFEEDFACE || m === 0xFEEDFACF || m === 0xCEFAEDFE || m === 0xCFFAEDFE || m === 0xCAFEBABE;
     }
     function findMachOInApp(dirEntry) {
-      return getDirectoryEntry(dirEntry, 'Contents').then(function (contents) {
+      var inner = getDirectoryEntry(dirEntry, 'Contents').then(function (contents) {
         return getDirectoryEntry(contents, 'MacOS');
       }).then(function (macos) {
         return readDirectoryEntries(macos);
@@ -443,6 +443,11 @@
       }).catch(function () {
         return findMachOInAppBFS(dirEntry);
       });
+      // Timeout: Safari's directory entries from zipped .app drops may hang forever
+      return Promise.race([
+        inner,
+        new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 3000); })
+      ]);
     }
     function findMachOInAppBFS(dirEntry) {
       var queue = [dirEntry];
@@ -458,6 +463,67 @@
         return next();
       }
       return next();
+    }
+
+    // --- ZIP fallback for Safari (which wraps .app drops into a zip) ---
+    function findMachOInZip(file) {
+      return file.arrayBuffer().then(function (buf) {
+        var view = new DataView(buf);
+        var bytes = new Uint8Array(buf);
+        // Find End of Central Directory (scan backwards, signature 0x06054b50)
+        var eocdOff = -1;
+        for (var i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65558); i--) {
+          if (view.getUint32(i, true) === 0x06054b50) { eocdOff = i; break; }
+        }
+        if (eocdOff < 0) return null;
+        var cdOffset = view.getUint32(eocdOff + 16, true);
+        var cdEntries = view.getUint16(eocdOff + 10, true);
+        var candidates = [];
+        var off = cdOffset;
+        for (var e = 0; e < cdEntries; e++) {
+          if (off + 46 > buf.byteLength || view.getUint32(off, true) !== 0x02014b50) break;
+          var method = view.getUint16(off + 10, true);
+          var compSize = view.getUint32(off + 20, true);
+          var uncompSize = view.getUint32(off + 24, true);
+          var nameLen = view.getUint16(off + 28, true);
+          var extraLen = view.getUint16(off + 30, true);
+          var commentLen = view.getUint16(off + 32, true);
+          var localOff = view.getUint32(off + 42, true);
+          var name = '';
+          for (var c = 0; c < nameLen; c++) name += String.fromCharCode(bytes[off + 46 + c]);
+          // Match Contents/MacOS/* but skip .dylib and .plist
+          if (/Contents\/MacOS\/[^/]+$/.test(name) && !/\.(dylib|plist)$/i.test(name)) {
+            candidates.push({ name: name, method: method, compSize: compSize, uncompSize: uncompSize, localOff: localOff });
+          }
+          off += 46 + nameLen + extraLen + commentLen;
+        }
+        if (!candidates.length) return null;
+        function tryCandidate(idx) {
+          if (idx >= candidates.length) return Promise.resolve(null);
+          var entry = candidates[idx];
+          // Read local file header to find data start
+          var lNameLen = view.getUint16(entry.localOff + 26, true);
+          var lExtraLen = view.getUint16(entry.localOff + 28, true);
+          var dataStart = entry.localOff + 30 + lNameLen + lExtraLen;
+          var raw = buf.slice(dataStart, dataStart + entry.compSize);
+          if (entry.method === 0) {
+            // Stored — use directly
+            return isMachOMagic(raw) ? Promise.resolve({ buffer: raw, name: file.name.replace(/\.zip$/i, '') }) : tryCandidate(idx + 1);
+          }
+          if (entry.method === 8 && typeof DecompressionStream !== 'undefined') {
+            // Deflate — decompress via DecompressionStream
+            var ds = new DecompressionStream('deflate-raw');
+            var writer = ds.writable.getWriter();
+            writer.write(new Uint8Array(raw));
+            writer.close();
+            return new Response(ds.readable).arrayBuffer().then(function (decompressed) {
+              return isMachOMagic(decompressed) ? { buffer: decompressed, name: file.name.replace(/\.zip$/i, '') } : tryCandidate(idx + 1);
+            }).catch(function () { return tryCandidate(idx + 1); });
+          }
+          return tryCandidate(idx + 1);
+        }
+        return tryCandidate(0);
+      });
     }
 
     var TCC_DISPLAY_NAMES = {
@@ -1275,6 +1341,7 @@
           return;
         }
         var item = items[0];
+        var zipFallbackFile = (item.getAsFile ? item.getAsFile() : null) || (e.dataTransfer.files && e.dataTransfer.files[0]);
         if (item.webkitGetAsEntry) {
           var entry = item.webkitGetAsEntry();
           if (entry && entry.isDirectory) {
@@ -1282,21 +1349,42 @@
             status.style.display = 'block';
             status.className = 'info-box';
             status.textContent = 'Reading \u2026';
-            findMachOInApp(entry).then(function (buffer) {
-              if (buffer) autoconfigAnalyzeFromBuffer(buffer, entry.name);
-              else {
+            var appName = entry.name.replace(/\.zip$/i, '');
+            // Safari wraps .app drops into a zip — skip directory traversal and parse the zip directly
+            if (/\.zip$/i.test(entry.name) && zipFallbackFile) {
+              findMachOInZip(zipFallbackFile).then(function (result) {
+                if (result) autoconfigAnalyzeFromBuffer(result.buffer, result.name);
+                else { status.className = 'warning-box'; status.textContent = 'No Mach-O binary found inside ' + appName; }
+              }).catch(function (err) {
                 status.className = 'warning-box';
-                status.textContent = 'No Mach-O binary found inside ' + entry.name;
+                status.textContent = err.message || 'Failed to read .app bundle.';
+              });
+              return;
+            }
+            findMachOInApp(entry).then(function (buffer) {
+              if (buffer) { autoconfigAnalyzeFromBuffer(buffer, appName); return; }
+              if (zipFallbackFile) {
+                return findMachOInZip(zipFallbackFile).then(function (result) {
+                  if (result) autoconfigAnalyzeFromBuffer(result.buffer, result.name);
+                  else { status.className = 'warning-box'; status.textContent = 'No Mach-O binary found inside ' + appName; }
+                });
               }
+              status.className = 'warning-box';
+              status.textContent = 'No Mach-O binary found inside ' + appName;
             }).catch(function (err) {
+              if (zipFallbackFile) {
+                return findMachOInZip(zipFallbackFile).then(function (result) {
+                  if (result) autoconfigAnalyzeFromBuffer(result.buffer, result.name);
+                  else { status.className = 'warning-box'; status.textContent = err.message || 'Failed to read .app bundle.'; }
+                });
+              }
               status.className = 'warning-box';
               status.textContent = err.message || 'Failed to read .app bundle.';
             });
             return;
           }
         }
-        var file = item.getAsFile ? item.getAsFile() : (e.dataTransfer.files && e.dataTransfer.files[0]);
-        if (file) autoconfigAnalyzeFromFile(file);
+        if (zipFallbackFile) autoconfigAnalyzeFromFile(zipFallbackFile);
       });
     }
 
@@ -1310,6 +1398,7 @@
         var items = e.dataTransfer.items;
         if (!items || !items.length) return;
         var item = items[0];
+        var zipFallbackFile2 = (item.getAsFile ? item.getAsFile() : null) || (e.dataTransfer.files && e.dataTransfer.files[0]);
         if (item.webkitGetAsEntry) {
           var entry = item.webkitGetAsEntry();
           if (entry && entry.isDirectory) {
@@ -1317,21 +1406,41 @@
             statusEl.style.display = 'block';
             statusEl.className = 'info-box';
             statusEl.textContent = 'Reading \u2026';
-            findMachOInApp(entry).then(function (buffer) {
-              if (buffer) autoconfigAddFormDropFromBuffer(buffer, entry.name);
-              else {
+            var appName2 = entry.name.replace(/\.zip$/i, '');
+            if (/\.zip$/i.test(entry.name) && zipFallbackFile2) {
+              findMachOInZip(zipFallbackFile2).then(function (result) {
+                if (result) autoconfigAddFormDropFromBuffer(result.buffer, result.name);
+                else { statusEl.className = 'warning-box'; statusEl.textContent = 'No Mach-O binary found inside ' + appName2; }
+              }).catch(function (err) {
                 statusEl.className = 'warning-box';
-                statusEl.textContent = 'No Mach-O binary found inside ' + entry.name;
+                statusEl.textContent = err.message || 'Failed to read .app bundle.';
+              });
+              return;
+            }
+            findMachOInApp(entry).then(function (buffer) {
+              if (buffer) { autoconfigAddFormDropFromBuffer(buffer, appName2); return; }
+              if (zipFallbackFile2) {
+                return findMachOInZip(zipFallbackFile2).then(function (result) {
+                  if (result) autoconfigAddFormDropFromBuffer(result.buffer, result.name);
+                  else { statusEl.className = 'warning-box'; statusEl.textContent = 'No Mach-O binary found inside ' + appName2; }
+                });
               }
+              statusEl.className = 'warning-box';
+              statusEl.textContent = 'No Mach-O binary found inside ' + appName2;
             }).catch(function (err) {
+              if (zipFallbackFile2) {
+                return findMachOInZip(zipFallbackFile2).then(function (result) {
+                  if (result) autoconfigAddFormDropFromBuffer(result.buffer, result.name);
+                  else { statusEl.className = 'warning-box'; statusEl.textContent = err.message || 'Failed to read .app bundle.'; }
+                });
+              }
               statusEl.className = 'warning-box';
               statusEl.textContent = err.message || 'Failed to read .app bundle.';
             });
             return;
           }
         }
-        var file = item.getAsFile ? item.getAsFile() : (e.dataTransfer.files && e.dataTransfer.files[0]);
-        if (file) autoconfigAddFormDropFromFile(file);
+        if (zipFallbackFile2) autoconfigAddFormDropFromFile(zipFallbackFile2);
       });
     }
   })();
