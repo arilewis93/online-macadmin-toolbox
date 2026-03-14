@@ -535,6 +535,7 @@ select option { background: var(--surface); }
 .driver-item:hover { border-color: var(--border-bright); }
 
 /* ── TABLE/LIST ITEMS (Toolbox) ── */
+input[type="checkbox"] { accent-color: var(--accent); }
 .item-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 
 .item-row {
